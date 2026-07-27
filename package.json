@@ -1,0 +1,16 @@
+{
+  "name": "head-office-operations-portal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "wrangler deploy --dry-run",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
