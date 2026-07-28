@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate Version 7 release
+    name: Validate Central Customer Platform release
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -60,6 +60,9 @@ jobs:
       - name: Validate shared modal system
         run: node tests/modal-system.test.mjs
 
+      - name: Validate central customer platform
+        run: node tests/central-customer-platform.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
@@ -71,10 +74,12 @@ jobs:
 
       - name: Apply database migrations to a clean SQLite database
         run: |
-          rm -f /tmp/head-office-v7.db
+          rm -f /tmp/head-office-central.db
           for migration in migrations/*.sql; do
             echo "Applying ${migration}"
-            sqlite3 /tmp/head-office-v7.db < "${migration}"
+            sqlite3 /tmp/head-office-central.db < "${migration}"
           done
-          sqlite3 /tmp/head-office-v7.db "SELECT COUNT(*) FROM detection_rules;"
-          sqlite3 /tmp/head-office-v7.db "PRAGMA foreign_key_check;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM detection_rules;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platform_operational_profiles;"
+          sqlite3 /tmp/head-office-central.db "SELECT code,status FROM platforms WHERE code='PROFILE_CENTRE';"
+          sqlite3 /tmp/head-office-central.db "PRAGMA foreign_key_check;"

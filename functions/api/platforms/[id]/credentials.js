@@ -1,7 +1,7 @@
 import { audit, cleanText, error, json, readJson, sha256 } from "../../../_shared.js";
 import { requirePermission } from "../../../_operations.js";
 
-const permittedScopes = new Set(["customers:read", "customers:write", "security:read", "cases:write", "events:write"]);
+const permittedScopes = new Set(["customers:read", "customers:write", "security:read", "cases:write", "events:write", "platform:write"]);
 
 function randomSecret(bytes = 32) {
   const value = new Uint8Array(bytes);
