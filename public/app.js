@@ -3,10 +3,15 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = { platforms: [], administration: null, configuration: null };
 
 async function api(path, options = {}) {
+  const browserSession = sessionStorage.getItem("customerops_staff_session");
   const response = await fetch(path, {
     credentials: "same-origin",
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+    headers: {
+      "Content-Type": "application/json",
+      ...(browserSession ? { Authorization: `Bearer ${browserSession}` } : {}),
+      ...(options.headers || {})
+    }
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -171,6 +176,12 @@ async function loadConfiguration() {
 
 async function boot() {
   renderModules();
+  const fragment = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
+  const handedOffSession = fragment.get("auth_session");
+  if (handedOffSession) {
+    sessionStorage.setItem("customerops_staff_session", handedOffSession);
+    history.replaceState({}, "", `${location.pathname}${location.search}`);
+  }
   const authParameters = new URLSearchParams(location.search);
   const authError = authParameters.get("auth_error");
   const authResult = authParameters.get("auth_result");
@@ -209,6 +220,7 @@ async function boot() {
 
 $("#signOutButton").addEventListener("click", async () => {
   const result = await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => ({}));
+  sessionStorage.removeItem("customerops_staff_session");
   if (result.redirect) location.assign(result.redirect);
   else showLogin();
 });
