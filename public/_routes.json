@@ -1,8 +1,7 @@
 {
   "version": 1,
   "include": [
-    "/api/*",
-    "/app.js"
+    "/api/*"
   ],
   "exclude": []
 }
