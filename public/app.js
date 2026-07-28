@@ -1,9 +1,41 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = { platforms: [], administration: null, configuration: null };
+let staffSessionToken = "";
+
+function readStoredStaffSession() {
+  if (staffSessionToken) return staffSessionToken;
+  try {
+    staffSessionToken = sessionStorage.getItem("customerops_staff_session") || "";
+  } catch {
+    // Some browser privacy modes disable Web Storage. The in-memory session
+    // remains available for the lifetime of the current page.
+  }
+  return staffSessionToken;
+}
+
+function retainStaffSession(token) {
+  staffSessionToken = String(token || "").trim();
+  if (!staffSessionToken) return;
+  try {
+    sessionStorage.setItem("customerops_staff_session", staffSessionToken);
+  } catch {
+    // Web Storage is optional; authenticated API requests use the in-memory
+    // value when the browser blocks sessionStorage.
+  }
+}
+
+function clearStaffSession() {
+  staffSessionToken = "";
+  try {
+    sessionStorage.removeItem("customerops_staff_session");
+  } catch {
+    // Nothing else is required when Web Storage is unavailable.
+  }
+}
 
 async function api(path, options = {}) {
-  const browserSession = sessionStorage.getItem("customerops_staff_session");
+  const browserSession = readStoredStaffSession();
   const response = await fetch(path, {
     credentials: "same-origin",
     ...options,
@@ -177,12 +209,15 @@ async function loadConfiguration() {
 async function boot() {
   renderModules();
   const fragment = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
-  const handedOffSession = fragment.get("auth_session");
+  const query = new URLSearchParams(location.search);
+  const handedOffSession = fragment.get("auth_session") || query.get("auth_session");
   if (handedOffSession) {
-    sessionStorage.setItem("customerops_staff_session", handedOffSession);
-    history.replaceState({}, "", `${location.pathname}${location.search}`);
+    retainStaffSession(handedOffSession);
+    query.delete("auth_session");
+    const cleanQuery = query.toString();
+    history.replaceState({}, "", `${location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}`);
   }
-  const authParameters = new URLSearchParams(location.search);
+  const authParameters = query;
   const authError = authParameters.get("auth_error");
   const authResult = authParameters.get("auth_result");
   if (authError) {
@@ -220,7 +255,7 @@ async function boot() {
 
 $("#signOutButton").addEventListener("click", async () => {
   const result = await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => ({}));
-  sessionStorage.removeItem("customerops_staff_session");
+  clearStaffSession();
   if (result.redirect) location.assign(result.redirect);
   else showLogin();
 });
