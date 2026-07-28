@@ -129,7 +129,7 @@ function openModal(title, description, content, eyebrow = "Head Office record") 
   $("#modalTitle").textContent = title;
   $("#modalDescription").textContent = description || "";
   $("#modalContent").innerHTML = content;
-  $("#modal").showModal();
+  if (!$("#modal").open) $("#modal").showModal();
 }
 
 function closeModal() {
