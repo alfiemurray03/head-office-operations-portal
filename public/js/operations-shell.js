@@ -1,6 +1,7 @@
 const OPS_ROUTE_LABELS = {
   "control-room": "Head Office Control Room",
   "risk-intelligence": "Fraud & Risk Intelligence",
+  "customer-protection": "Customer Protection Operations",
   "incidents-v7": "Incident Command & Data Breaches",
   "central-operations": "Central Head Office Operations",
   dashboard: "Operations Overview",
@@ -52,10 +53,11 @@ const HEAD_OFFICE_WORKSPACES = {
     label: "Security Operations Centre",
     shortLabel: "Security operations",
     code: "SOC",
-    route: "risk-intelligence",
+    route: "customer-protection",
     permission: "risk:read",
-    description: "Fraud signals, security markers, restrictions, protected records and governed enforcement decisions.",
+    description: "Prevention, identity and device trust, payment protection, fraud intelligence and governed intervention.",
     routes: [
+      ["customer-protection", "Customer protection", "risk:read"],
       ["risk-intelligence", "Risk intelligence", "risk:read"],
       ["security", "Markers & restrictions", "security:read"],
       ["security-levels", "Control taxonomy", "risk:read"],
@@ -114,6 +116,7 @@ const ROUTE_WORKSPACE = {
   "customer-directory": "customer",
   cases: "customer",
   communications: "customer",
+  "customer-protection": "security",
   "risk-intelligence": "security",
   security: "security",
   "security-levels": "security",
@@ -128,6 +131,8 @@ const ROUTE_WORKSPACE = {
   settings: "assurance"
 };
 
+let customerProtectionModulePromise = null;
+
 function ensureWorkspaceStyles() {
   if (document.querySelector('link[data-workspace-shell]')) return;
   const link = document.createElement("link");
@@ -135,6 +140,34 @@ function ensureWorkspaceStyles() {
   link.href = "/workspace-shell.css?v=20260728-workspace-1";
   link.dataset.workspaceShell = "true";
   document.head.append(link);
+}
+
+function ensureCustomerProtectionModule() {
+  if (window.renderCustomerProtectionWorkspace) return Promise.resolve();
+  if (customerProtectionModulePromise) return customerProtectionModulePromise;
+  customerProtectionModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-customer-protection]')) {
+      const style = document.createElement("link");
+      style.rel = "stylesheet";
+      style.href = "/customer-protection.css?v=20260728-protection-1";
+      style.dataset.customerProtection = "true";
+      document.head.append(style);
+    }
+    const existing = document.querySelector('script[data-customer-protection]');
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", () => reject(new Error("The Customer Protection workspace could not be loaded.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "/js/customer-protection.js?v=20260728-protection-1";
+    script.async = false;
+    script.dataset.customerProtection = "true";
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", () => reject(new Error("The Customer Protection workspace could not be loaded.")), { once: true });
+    document.head.append(script);
+  });
+  return customerProtectionModulePromise;
 }
 
 function workspaceForRoute(route) {
@@ -150,6 +183,21 @@ function workspaceButton(key, workspace) {
   if (workspace.permission) button.dataset.permission = workspace.permission;
   button.innerHTML = `<span class="workspace-tab-code">${workspace.code}</span><span class="workspace-tab-copy"><strong>${workspace.shortLabel}</strong><small>${workspace.label}</small></span>`;
   return button;
+}
+
+function ensureWorkspaceDrawerEntries() {
+  if (document.querySelector('[data-route="customer-protection"]')) return;
+  const securityEntry = document.querySelector('[data-route="security"]');
+  const riskEntry = document.querySelector('[data-route="risk-intelligence"]');
+  const target = riskEntry || securityEntry;
+  if (!target?.parentElement) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "nav-item";
+  button.dataset.route = "customer-protection";
+  button.dataset.permission = "risk:read";
+  button.textContent = "Customer protection operations";
+  target.parentElement.insertBefore(button, target);
 }
 
 function ensureWorkspaceChrome() {
@@ -177,6 +225,7 @@ function ensureWorkspaceChrome() {
     <nav id="workspaceNavigation" class="workspace-context-navigation" aria-label="Current workspace tools"></nav>`;
   header.append(context);
 
+  ensureWorkspaceDrawerEntries();
   const drawerHeading = document.querySelector(".tools-drawer-heading strong");
   const drawerDescription = document.querySelector(".tools-drawer-heading span");
   if (drawerHeading) drawerHeading.textContent = "All Head Office functions";
@@ -285,6 +334,21 @@ function applyOperationsTheme(theme) {
   const originalRenderRoute = renderRoute;
   renderRoute = async function renderOperationsRoute(route = routeFromHash()) {
     updateOperationsRouteChrome(route);
+    if (route === "customer-protection") {
+      state.route = route;
+      document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.route === route));
+      closeOperationsTools();
+      setLoading("Opening Customer Protection Operations…");
+      try {
+        await ensureCustomerProtectionModule();
+        await window.renderCustomerProtectionWorkspace();
+        updateWorkspaceChrome(route);
+      } catch (error) {
+        document.querySelector("#viewRoot").innerHTML = `<div class="panel"><div class="empty-state"><strong>Customer Protection could not be opened</strong><span>${escapeHtml(error.message || "The workspace is temporarily unavailable.")}</span></div></div>`;
+        toast("Customer Protection unavailable", error.message || "The workspace could not be opened.", "error");
+      }
+      return;
+    }
     const result = await originalRenderRoute(route);
     updateWorkspaceChrome(route);
     return result;
