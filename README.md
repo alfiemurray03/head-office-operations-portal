@@ -4,7 +4,7 @@ The central internal system for universal customer records, Head Office cases,
 security controls, complaints, refunds, platform oversight and governance across
 JA Group Services Ltd and its connected platforms.
 
-## Version 1
+## Current foundation
 
 This is the first Cloudflare-ready preview build. It provides:
 
@@ -18,18 +18,22 @@ This is the first Cloudflare-ready preview build. It provides:
 - Head Office module navigation;
 - a D1 relational schema for customers, platforms, cases, staff roles and
   append-only audit events;
-- a Worker health endpoint and baseline security headers.
+- a versioned platform connector API with one-time API-key generation;
+- per-platform scopes and hashed credential storage;
+- idempotent customer registration and platform-account linking;
+- an enforceable security-controls endpoint;
+- Pages Functions and baseline security headers.
 
-The records shown in the preview interface are fictional demonstration data.
-No live customer, Microsoft, Stripe or website data is connected.
+The interface uses genuine D1 records and empty states. No fictional customer
+records are shipped in the source.
 
 Preview sign-in:
 
 - Username: `admin`
 - Password: `PreviewOnly!2026`
 
-This browser-side preview login is a usability gate only. It is deliberately not
-represented as production authentication and must never protect live data.
+Local authentication is verified by Pages Functions using Cloudflare secrets.
+Microsoft Entra staff identity will replace it before production use.
 
 ## Local development
 
@@ -43,20 +47,19 @@ at `/api/health`.
 
 ## Cloudflare deployment
 
-Connect this private GitHub repository to Cloudflare Workers Builds.
+Connect the GitHub repository to Cloudflare Pages.
 
 - Production branch: `main`
-- Build command: `npm run deploy`
-- Deploy command: leave blank when the build command performs the deployment
+- Build command: `exit 0`
+- Build output directory: `public`
 
-Cloudflare Access must be placed in front of the Worker before any real staff or
-customer data is introduced.
+Bind D1 as `DB`, then configure `LOCAL_ADMIN_USERNAME`,
+`LOCAL_ADMIN_PASSWORD`, and `SESSION_SECRET` as encrypted environment secrets.
 
 ## Data layer
 
-`migrations/0001_initial_schema.sql` contains the initial D1 schema. A D1
-database binding will be added after the Cloudflare account resources and
-environment separation are confirmed.
+The `migrations` directory contains the D1 schema and platform API migration.
+Apply migrations to each Cloudflare environment before using the portal.
 
 ## Security status
 

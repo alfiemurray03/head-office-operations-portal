@@ -3,9 +3,9 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE customers (
   id TEXT PRIMARY KEY,
   customer_number TEXT NOT NULL UNIQUE CHECK (length(customer_number) = 10),
-  entra_object_id TEXT NOT NULL UNIQUE,
+  external_identity_id TEXT UNIQUE,
   display_name TEXT NOT NULL,
-  verified_email TEXT NOT NULL,
+  verified_email TEXT NOT NULL UNIQUE,
   originating_platform_id TEXT,
   account_status TEXT NOT NULL DEFAULT 'active'
     CHECK (account_status IN ('pending', 'active', 'restricted', 'suspended', 'closed', 'archived')),
@@ -23,6 +23,7 @@ CREATE TABLE platforms (
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'setup'
     CHECK (status IN ('setup', 'active', 'degraded', 'offline', 'disabled')),
+  last_health_check_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -103,7 +104,9 @@ CREATE TABLE restrictions (
 
 CREATE TABLE staff_members (
   id TEXT PRIMARY KEY,
-  entra_object_id TEXT NOT NULL UNIQUE,
+  external_identity_id TEXT UNIQUE,
+  authentication_source TEXT NOT NULL DEFAULT 'local'
+    CHECK (authentication_source IN ('local', 'microsoft_entra')),
   display_name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('invited', 'active', 'suspended', 'disabled')),
@@ -126,9 +129,12 @@ CREATE TABLE audit_events (
   occurred_at TEXT NOT NULL,
   actor_type TEXT NOT NULL CHECK (actor_type IN ('staff', 'system', 'platform', 'customer')),
   actor_id TEXT,
+  actor_name TEXT,
   action TEXT NOT NULL,
+  action_label TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
+  entity_reference TEXT,
   customer_id TEXT REFERENCES customers(id),
   case_id TEXT REFERENCES cases(id),
   request_id TEXT,
@@ -139,6 +145,7 @@ CREATE TABLE audit_events (
 );
 
 CREATE INDEX idx_customers_email ON customers(verified_email);
+CREATE INDEX idx_customers_external_identity ON customers(external_identity_id);
 CREATE INDEX idx_customers_status ON customers(account_status, security_status);
 CREATE INDEX idx_cases_customer ON cases(customer_id, status);
 CREATE INDEX idx_cases_status_due ON cases(status, due_at);
@@ -146,6 +153,96 @@ CREATE INDEX idx_markers_customer ON security_markers(customer_id, status);
 CREATE INDEX idx_restrictions_customer ON restrictions(customer_id, status);
 CREATE INDEX idx_audit_entity ON audit_events(entity_type, entity_id, occurred_at);
 CREATE INDEX idx_audit_customer ON audit_events(customer_id, occurred_at);
+
+CREATE TABLE customer_contact_points (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  contact_type TEXT NOT NULL CHECK (contact_type IN ('email', 'mobile', 'telephone', 'postal_address')),
+  contact_value TEXT NOT NULL,
+  is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
+  verification_status TEXT NOT NULL DEFAULT 'unverified'
+    CHECK (verification_status IN ('unverified', 'pending', 'verified', 'failed', 'revoked')),
+  verified_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE customer_relationships (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  related_customer_id TEXT REFERENCES customers(id),
+  relationship_type TEXT NOT NULL,
+  authority_basis TEXT,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE case_notes (
+  id TEXT PRIMARY KEY,
+  case_id TEXT NOT NULL REFERENCES cases(id),
+  note_type TEXT NOT NULL DEFAULT 'internal'
+    CHECK (note_type IN ('internal', 'customer_contact', 'decision', 'system')),
+  body TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'case_team'
+    CHECK (visibility IN ('case_team', 'head_office', 'restricted_dpo', 'restricted_safeguarding')),
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  supersedes_note_id TEXT REFERENCES case_notes(id)
+);
+
+CREATE TABLE communications (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT REFERENCES customers(id),
+  case_id TEXT REFERENCES cases(id),
+  direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound', 'internal')),
+  channel TEXT NOT NULL CHECK (channel IN ('email', 'telephone', 'whatsapp', 'letter', 'web_form', 'system')),
+  subject TEXT,
+  summary TEXT NOT NULL,
+  external_message_id TEXT,
+  occurred_at TEXT NOT NULL,
+  recorded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE payment_references (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT REFERENCES customers(id),
+  platform_id TEXT REFERENCES platforms(id),
+  provider TEXT NOT NULL,
+  provider_customer_reference TEXT,
+  provider_payment_reference TEXT NOT NULL,
+  currency TEXT NOT NULL CHECK (length(currency) = 3),
+  amount_minor INTEGER NOT NULL CHECK (amount_minor >= 0),
+  status TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(provider, provider_payment_reference)
+);
+
+CREATE TABLE approval_requests (
+  id TEXT PRIMARY KEY,
+  case_id TEXT REFERENCES cases(id),
+  approval_type TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  requested_at TEXT NOT NULL,
+  required_role_code TEXT NOT NULL,
+  amount_minor INTEGER,
+  currency TEXT,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'approved', 'declined', 'withdrawn', 'expired')),
+  decided_by TEXT,
+  decided_at TEXT,
+  decision_reason TEXT
+);
+
+CREATE INDEX idx_contact_points_customer ON customer_contact_points(customer_id, contact_type);
+CREATE INDEX idx_relationships_customer ON customer_relationships(customer_id);
+CREATE INDEX idx_case_notes_case ON case_notes(case_id, created_at);
+CREATE INDEX idx_communications_customer ON communications(customer_id, occurred_at);
+CREATE INDEX idx_communications_case ON communications(case_id, occurred_at);
+CREATE INDEX idx_payments_customer ON payment_references(customer_id, occurred_at);
+CREATE INDEX idx_approvals_status ON approval_requests(status, requested_at);
 
 CREATE TRIGGER audit_events_no_update
 BEFORE UPDATE ON audit_events

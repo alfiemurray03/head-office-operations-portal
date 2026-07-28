@@ -1,20 +1,18 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "ja-head-office-operations-portal",
-  "main": "src/index.js",
+  "name": "head-office-operations-portal",
+  "pages_build_output_dir": "./public",
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  },
   "vars": {
-    "APP_ENV": "preview"
+    "APP_ENV": "Preview"
   },
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  }
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "head_office_customer_operations_portal",
+      "database_id": "165cdb61-ebc0-4560-9cbe-252123e78bdc",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
