@@ -30,15 +30,23 @@ function metadataCustomerReference(object) {
   return cleanNullableText(metadata.customer_number || metadata.universal_customer_number || metadata.customerNumber, 100);
 }
 
-async function resolveCustomer(env, object) {
+async function resolveCustomer(env, object, transactionReference) {
   const metadataReference = metadataCustomerReference(object);
   if (metadataReference) return findCustomer(env, metadataReference);
   const providerCustomer = typeof object?.customer === "string" ? object.customer : object?.customer?.id;
-  if (!providerCustomer) return null;
-  const linked = await env.DB.prepare(`SELECT c.* FROM payment_references p
-    JOIN customers c ON c.id=p.customer_id WHERE p.provider='Stripe' AND p.provider_customer_reference=?
-    ORDER BY p.occurred_at DESC LIMIT 1`).bind(providerCustomer).first();
-  return linked || null;
+  if (providerCustomer) {
+    const linked = await env.DB.prepare(`SELECT c.* FROM payment_references p
+      JOIN customers c ON c.id=p.customer_id WHERE p.provider='Stripe' AND p.provider_customer_reference=?
+      ORDER BY p.occurred_at DESC LIMIT 1`).bind(providerCustomer).first();
+    if (linked) return linked;
+  }
+  if (transactionReference) {
+    const linked = await env.DB.prepare(`SELECT c.* FROM payment_references p
+      JOIN customers c ON c.id=p.customer_id WHERE p.provider='Stripe' AND p.provider_payment_reference=?
+      ORDER BY p.occurred_at DESC LIMIT 1`).bind(transactionReference).first();
+    if (linked) return linked;
+  }
+  return null;
 }
 
 function paymentFingerprint(object) {
@@ -52,8 +60,6 @@ function mapStripeEvent(event) {
   const mappings = {
     "payment_intent.succeeded": ["payment.succeeded", "payment"],
     "payment_intent.payment_failed": ["payment.failed", "payment"],
-    "charge.succeeded": ["payment.succeeded", "payment"],
-    "charge.failed": ["payment.failed", "payment"],
     "refund.created": ["refund.requested", "refund"],
     "refund.failed": ["refund.failed", "refund"],
     "refund.updated": [object.status === "succeeded" ? "refund.completed" : "refund.updated", "refund"],
@@ -68,7 +74,10 @@ function mapStripeEvent(event) {
   const amountMinor = object.amount ?? object.amount_received ?? object.amount_refunded ?? null;
   const currency = typeof object.currency === "string" ? object.currency.toUpperCase() : null;
   const providerCustomerReference = typeof object.customer === "string" ? object.customer : object.customer?.id || null;
-  const providerPaymentReference = object.payment_intent || object.charge || object.id || event.id;
+  const providerPaymentReference = object.id || event.id;
+  const transactionReference = typeof object.payment_intent === "string" ? object.payment_intent
+    : typeof object.charge === "string" ? object.charge
+    : object.payment_intent?.id || object.charge?.id || null;
   return {
     eventType: mapped[0],
     category: mapped[1],
@@ -76,7 +85,8 @@ function mapStripeEvent(event) {
     amountMinor: Number.isFinite(Number(amountMinor)) ? Math.max(0, Math.round(Number(amountMinor))) : null,
     currency,
     providerCustomerReference,
-    providerPaymentReference: typeof providerPaymentReference === "string" ? providerPaymentReference : providerPaymentReference?.id,
+    providerPaymentReference,
+    transactionReference,
     externalEventId: event.id,
     occurredAt: Number.isFinite(Number(event.created)) ? new Date(Number(event.created) * 1000).toISOString() : new Date().toISOString()
   };
@@ -127,7 +137,7 @@ export const onRequestPost = async context => {
   try {
     await ensureV7Schema(context.env);
     await ensureV7Enhancements(context.env);
-    const customer = await resolveCustomer(context.env, mapped.object);
+    const customer = await resolveCustomer(context.env, mapped.object, mapped.transactionReference);
     await storePaymentReference(context.env, mapped, customer);
     const fingerprint = paymentFingerprint(mapped.object);
     const fingerprintHash = fingerprint && context.env.RISK_HASH_SECRET
@@ -147,6 +157,7 @@ export const onRequestPost = async context => {
         provider: "Stripe",
         stripeEventType: event.type,
         providerPaymentReference: mapped.providerPaymentReference,
+        transactionReference: mapped.transactionReference,
         providerCustomerReference: mapped.providerCustomerReference,
         providerStatus: mapped.object?.status || null,
         outcomeReason: mapped.object?.last_payment_error?.code || mapped.object?.reason || null
