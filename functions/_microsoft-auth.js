@@ -280,8 +280,16 @@ export async function completeMicrosoftLogin(request, env) {
 export async function finaliseMicrosoftLogin(request, env) {
   const secret = sessionSecret(env);
   if (!secret) throw new Error("The Centre session signing secret is unavailable.");
-  const body = await request.json().catch(() => null);
-  const handoff = await readSignedPayload(body?.handoff, secret);
+  const contentType = request.headers.get("Content-Type") || "";
+  let rawHandoff = "";
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    const form = await request.formData().catch(() => null);
+    rawHandoff = String(form?.get("handoff") || "");
+  } else {
+    const body = await request.json().catch(() => null);
+    rawHandoff = String(body?.handoff || "");
+  }
+  const handoff = await readSignedPayload(rawHandoff, secret);
   if (
     !handoff ||
     handoff.purpose !== "microsoft_session_handoff" ||
@@ -300,16 +308,16 @@ export async function finaliseMicrosoftLogin(request, env) {
   ) {
     throw new Error("The Microsoft session could not be validated.");
   }
+  const url = new URL(request.url);
+  const destination = new URL(safeReturnPath(handoff.returnTo), url.origin);
+  destination.searchParams.set("auth_result", "success");
   const headers = new Headers({
-    "Content-Type": "application/json; charset=utf-8",
+    Location: destination.toString(),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
   headers.set("Set-Cookie", cookie(SESSION_COOKIE, handoff.session, 28_800));
-  return new Response(JSON.stringify({
-    authenticated: true,
-    returnTo: safeReturnPath(handoff.returnTo)
-  }), { status: 200, headers });
+  return new Response(null, { status: 303, headers });
 }
 
 export async function getMicrosoftSession(request, env) {
