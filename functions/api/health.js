@@ -1,5 +1,6 @@
 import { json } from "../_shared.js";
 import { ensureOperationsReady } from "../_operations.js";
+import { ensureProductionSchema } from "../_schema-bootstrap.js";
 
 export const onRequestGet = async ({ env }) => {
   let database = "unavailable";
@@ -7,6 +8,7 @@ export const onRequestGet = async ({ env }) => {
   try {
     const row = await env.DB.prepare("SELECT 1 ok").first();
     if (Number(row?.ok) === 1) database = "connected";
+    await ensureProductionSchema(env);
     await ensureOperationsReady(env);
     const state = await env.DB.prepare("SELECT version FROM operational_schema_state WHERE schema_key='production_system'").first();
     if (Number(state?.version || 0) >= 1) operationsSchema = "ready";
@@ -17,7 +19,7 @@ export const onRequestGet = async ({ env }) => {
   return json({
     status: operational ? "operational" : "degraded",
     service: "Head Office Operations Centre",
-    revision: "production-system-v1",
+    revision: "production-system-v1.0.1",
     environment: env.APP_ENV || "Production",
     database,
     operationsSchema,
