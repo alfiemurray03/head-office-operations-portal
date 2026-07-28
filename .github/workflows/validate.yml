@@ -11,9 +11,9 @@ permissions:
 
 jobs:
   validate:
-    name: Validate Pages Functions
+    name: Validate Version 7 release
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -27,5 +27,18 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Parse browser JavaScript
+        run: find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
       - name: Build Cloudflare Pages Functions
         run: npm run check
+
+      - name: Apply database migrations to a clean SQLite database
+        run: |
+          rm -f /tmp/head-office-v7.db
+          for migration in migrations/*.sql; do
+            echo "Applying ${migration}"
+            sqlite3 /tmp/head-office-v7.db < "${migration}"
+          done
+          sqlite3 /tmp/head-office-v7.db "SELECT COUNT(*) FROM detection_rules;"
+          sqlite3 /tmp/head-office-v7.db "PRAGMA foreign_key_check;"
