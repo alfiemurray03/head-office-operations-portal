@@ -30,8 +30,14 @@ jobs:
       - name: Parse browser JavaScript
         run: find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
+      - name: Parse scheduled Workers
+        run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
       - name: Build Cloudflare Pages Functions
         run: npm run check
+
+      - name: Build customer automation Worker
+        run: npx wrangler deploy --config wrangler.customer-directory.jsonc --dry-run --outdir /tmp/customer-directory-worker
 
       - name: Apply database migrations to a clean SQLite database
         run: |

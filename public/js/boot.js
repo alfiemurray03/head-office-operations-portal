@@ -1,5 +1,6 @@
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 let customerDirectoryModulePromise = null;
+let customerAutomationModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -21,6 +22,28 @@ function loadCustomerDirectoryModule() {
     document.head.append(script);
   });
   return customerDirectoryModulePromise;
+}
+
+function loadCustomerAutomationModule() {
+  if (customerAutomationModulePromise) return customerAutomationModulePromise;
+  customerAutomationModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-customer-automation]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/customer-automation.css?v=20260728-automation-1';
+      style.dataset.customerAutomation = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-customer-automation]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/customer-automation.js?v=20260728-automation-1';
+    script.async = false;
+    script.dataset.customerAutomation = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The automated customer-operations module could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return customerAutomationModulePromise;
 }
 
 function ensureCustomerDirectoryNavigation() {
@@ -86,9 +109,9 @@ async function boot() {
   }
 
   showApp();
-  setLoading('Opening Head Office services…');
+  setLoading('Opening automated Head Office services…');
   try {
-    await loadCustomerDirectoryModule();
+    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule()]);
     ensureCustomerDirectoryNavigation();
     state.reference = await loadReference();
     renderNavigation();
