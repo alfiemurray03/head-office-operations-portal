@@ -171,22 +171,6 @@ async function loadConfiguration() {
 
 async function boot() {
   renderModules();
-  if (location.hash.startsWith("#auth_handoff=")) {
-    const handoff = decodeURIComponent(location.hash.slice("#auth_handoff=".length));
-    history.replaceState({}, "", location.pathname);
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = "/api/auth/microsoft/finalise";
-    form.hidden = true;
-    const field = document.createElement("input");
-    field.type = "hidden";
-    field.name = "handoff";
-    field.value = handoff;
-    form.append(field);
-    document.body.append(form);
-    form.submit();
-    return;
-  }
   const authParameters = new URLSearchParams(location.search);
   const authError = authParameters.get("auth_error");
   const authResult = authParameters.get("auth_result");
