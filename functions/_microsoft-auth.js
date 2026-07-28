@@ -260,8 +260,10 @@ export async function completeMicrosoftLogin(request, env) {
       message: error instanceof Error ? error.message : "Unknown audit error"
     }));
   }
+  const returnUrl = new URL(safeReturnPath(transaction.returnTo), url.origin);
+  returnUrl.searchParams.set("auth_result", "success");
   const headers = new Headers({
-    Location: safeReturnPath(transaction.returnTo),
+    Location: returnUrl.toString(),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
@@ -274,11 +276,20 @@ export async function completeMicrosoftLogin(request, env) {
 }
 
 export async function getMicrosoftSession(request, env) {
+  return (await inspectMicrosoftSession(request, env)).session;
+}
+
+export async function inspectMicrosoftSession(request, env) {
   const secret = sessionSecret(env);
-  if (!secret) return null;
-  const session = await readSignedPayload(readCookie(request, SESSION_COOKIE), secret);
-  if (!session || session.version !== 2 || session.exp < Date.now() || session.tenantId !== TENANT_ID) return null;
-  return session;
+  if (!secret) return { session: null, status: "signing_secret_missing" };
+  const raw = readCookie(request, SESSION_COOKIE);
+  if (!raw) return { session: null, status: "session_cookie_missing" };
+  const session = await readSignedPayload(raw, secret);
+  if (!session) return { session: null, status: "session_cookie_invalid" };
+  if (session.version !== 2) return { session: null, status: "session_version_invalid" };
+  if (session.exp < Date.now()) return { session: null, status: "session_expired" };
+  if (session.tenantId !== TENANT_ID) return { session: null, status: "session_tenant_invalid" };
+  return { session, status: "authenticated" };
 }
 
 export function microsoftLogout(request) {

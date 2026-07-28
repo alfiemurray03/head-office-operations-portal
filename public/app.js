@@ -171,7 +171,9 @@ async function loadConfiguration() {
 
 async function boot() {
   renderModules();
-  const authError = new URLSearchParams(location.search).get("auth_error");
+  const authParameters = new URLSearchParams(location.search);
+  const authError = authParameters.get("auth_error");
+  const authResult = authParameters.get("auth_result");
   if (authError) {
     history.replaceState({}, "", `${location.pathname}${location.hash}`);
     return showLogin(authError);
@@ -180,7 +182,21 @@ async function boot() {
     const session = await api("/api/auth/session");
     if (!session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare yet.");
     $("#microsoftLogin").hidden = !session.microsoft?.configured;
-    if (!session.authenticated) return showLogin();
+    if (!session.authenticated) {
+      if (authResult === "success") {
+        history.replaceState({}, "", `${location.pathname}${location.hash}`);
+        const messages = {
+          session_cookie_missing: "Microsoft approved the sign-in, but the browser did not retain the secure Centre session cookie.",
+          session_cookie_invalid: "Microsoft approved the sign-in, but the Centre could not validate the returned session cookie.",
+          session_version_invalid: "Microsoft approved the sign-in, but the Centre received an outdated session.",
+          session_expired: "The Centre session expired before it could be opened.",
+          session_tenant_invalid: "The Centre rejected the session because its Microsoft tenant did not match."
+        };
+        return showLogin(messages[session.sessionStatus] || `Microsoft approved the sign-in, but the Centre could not open the session (${session.sessionStatus || "unknown_session_error"}).`);
+      }
+      return showLogin();
+    }
+    if (authResult) history.replaceState({}, "", `${location.pathname}${location.hash}`);
     showApp(session.user);
     await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms()]);
     await Promise.allSettled([loadAdministration(), loadConfiguration()]);
