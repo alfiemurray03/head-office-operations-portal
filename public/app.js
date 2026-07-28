@@ -1,6 +1,6 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const state = { platforms: [] };
+const state = { platforms: [], administration: null, configuration: null };
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -36,6 +36,7 @@ function showView(id) {
   $$(".view").forEach(view => view.classList.toggle("active", view.id === id));
   $$(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === id));
   $("#sidebar").classList.remove("open");
+  if (location.hash !== `#/${id}`) history.replaceState({}, "", `#/${id}`);
 }
 
 function setEmpty(id, empty) {
@@ -52,18 +53,46 @@ function formatDate(value) {
 
 function renderModules() {
   const modules = {
-    communications: ["✉", "Customer communications", "Company-wide correspondence history, approved templates and communication preferences.", "Communication records will become available when a customer record or case contains correspondence."],
-    payments: ["£", "Payments and refunds", "Central payment references, refund approvals and disputes. Stripe remains the payment processor.", "No payment provider is connected. No payment data is being represented."],
-    complaints: ["☷", "Complaints", "Formal complaint intake, acknowledgement, investigation, response and outcome tracking.", "Complaint cases created in Case Management appear here."],
-    "data-protection": ["◫", "Data protection", "Controlled handling of rights requests, incidents, objections, erasure and disclosure decisions.", "Access will be restricted to authorised data protection roles."],
-    safeguarding: ["◈", "Safeguarding", "Restricted safeguarding concern records with enhanced access controls and disclosure logging.", "Access will be restricted to designated safeguarding roles."],
-    staff: ["♙", "Staff and access", "Local staff accounts, roles, permissions, approval limits and access reviews.", "Microsoft Entra staff identity will replace local credentials in the next identity phase."],
-    audit: ["◷", "Audit history", "Append-only record of access, decisions, changes and integration actions.", "Audit entries appear automatically when controlled actions occur."],
-    settings: ["⚙", "System settings", "Reference rules, risk catalogue, retention controls and company-wide configuration.", "Settings are governed configuration, not browser-only preferences."]
+    communications: ["Customer communications", "One company-wide history of customer contact across Head Office and every division.", [["Inbound queue","Email, web form, telephone and WhatsApp contacts"],["Templates","Head Office-approved responses and notices"],["Preferences","Verified channels, consent and contact restrictions"]]],
+    payments: ["Payments and refunds", "Operational oversight of provider references, refund decisions, disputes and approval controls.", [["Payment activity","Cross-division payment references"],["Refund approvals","Manual authority and value limits"],["Disputes","Chargebacks, evidence and outcomes"]]],
+    complaints: ["Complaints management", "Formal complaints from receipt and acknowledgement through investigation, decision and closure.", [["Complaint queue","Open, overdue and escalated complaints"],["Response deadlines","Acknowledgement and final-response controls"],["Outcomes","Remedies, learning and recurring issues"]]],
+    "data-protection": ["Data protection centre", "Restricted workflows for information rights, incidents, objections and disclosure decisions.", [["Rights requests","Access, erasure, rectification and portability"],["Incident register","Assessment, containment and notification"],["DPO decisions","Restricted advice and recorded outcomes"]]],
+    safeguarding: ["Safeguarding centre", "Strictly restricted concern management with enhanced access and disclosure logging.", [["Concern intake","Record and immediately triage concerns"],["Risk actions","Protective action and external referrals"],["Restricted records","Need-to-know access with full audit history"]]]
   };
-  for (const [id, [icon, title, copy, empty]] of Object.entries(modules)) {
-    $(`#${id}`).innerHTML = `<div class="page-heading"><div><p class="eyebrow">Head Office Operations</p><h1>${title}</h1><p>${copy}</p></div></div><article class="panel governed-module"><div class="module-icon">${icon}</div><div><h2>${title}</h2><p>${empty}</p></div><span class="tag review">Foundation configured</span></article>`;
+  for (const [id, [title, copy, sections]] of Object.entries(modules)) {
+    $(`#${id}`).innerHTML = `<div class="page-heading"><div><p class="eyebrow">Head Office Customer Operations Centre</p><h1>${title}</h1><p>${copy}</p></div><button class="primary-button">＋ Create record</button></div>
+      <div class="section-grid">${sections.map(([heading, text]) => `<article class="panel feature-card"><div class="feature-symbol">→</div><h2>${heading}</h2><p>${text}</p><button class="text-button">Open section</button></article>`).join("")}</div>
+      <article class="panel queue-panel"><div class="panel-heading"><div><h2>Current work queue</h2><p>Records for the selected operating context</p></div><span class="tag success">Head Office controlled</span></div><div class="empty-state">No records currently require action in this queue.</div></article>`;
   }
+  $("#staff").innerHTML = administrationShell();
+  $("#audit").innerHTML = auditShell();
+  $("#settings").innerHTML = settingsShell();
+}
+
+function administrationShell() {
+  return `<div class="page-heading"><div><p class="eyebrow">System administration</p><h1>Staff, roles and authority</h1><p>Microsoft-authenticated staff access, Head Office roles and division operating scope.</p></div><button class="primary-button">＋ Invite staff member</button></div>
+    <div class="admin-tabs"><button class="active">Staff directory</button><button>Roles & permissions</button><button>Access reviews</button></div>
+    <article class="panel table-panel"><div class="panel-heading"><div><h2>Authorised staff</h2><p>Accounts recognised by the Customer Operations Centre</p></div></div><div class="table-wrap"><table><thead><tr><th>Staff member</th><th>Authentication</th><th>Assigned roles</th><th>Status</th><th>Added</th></tr></thead><tbody id="staffRows"></tbody></table></div><div class="empty-state" id="staffEmpty">No staff records found.</div></article>
+    <div class="section-grid" id="roleCards"></div>`;
+}
+
+function auditShell() {
+  return `<div class="page-heading"><div><p class="eyebrow">Assurance and accountability</p><h1>Audit history</h1><p>Append-only evidence of staff, system and division activity.</p></div><button class="secondary-button">Export authorised report</button></div>
+    <article class="panel table-panel"><div class="table-tools"><div class="search wide"><span>⌕</span><input placeholder="Filter by person, action or record…"></div></div><div class="table-wrap"><table><thead><tr><th>Date and time</th><th>Actor</th><th>Action</th><th>Record type</th><th>Reference</th></tr></thead><tbody id="auditRows"></tbody></table></div><div class="empty-state" id="auditEmpty">No audit events recorded.</div></article>`;
+}
+
+function settingsShell() {
+  return `<div class="page-heading"><div><p class="eyebrow">Governed configuration</p><h1>Centre configuration</h1><p>Company-wide rules used by Head Office and enforced by connected divisions.</p></div></div>
+    <div class="settings-layout"><aside class="settings-nav"><button class="active">General</button><button>Security policy</button><button>Case management</button><button>Customer controls</button><button>Notifications</button><button>Reference data</button><button>Retention</button><button>Integrations</button></aside>
+    <div><article class="panel settings-panel"><div class="panel-heading"><div><h2>Security and operations policy</h2><p>Changes are recorded in the immutable audit history</p></div></div><form id="settingsForm" class="settings-form">
+      <label><span>Staff session duration<small>Hours before staff must authenticate again</small></span><input name="security.session_hours" type="number" min="1" max="24"></label>
+      <label><span>Failed sign-in threshold<small>Attempts before the event requires review</small></span><input name="security.failed_login_threshold" type="number" min="3" max="20"></label>
+      <label><span>Default marker review period<small>Days until an active marker requires formal review</small></span><input name="security.default_marker_review_days" type="number" min="1" max="365"></label>
+      <label><span>Case reference prefix<small>Prefix allocated to new Head Office cases</small></span><input name="operations.case_reference_prefix" maxlength="8"></label>
+      <label><span>Critical case alerts<small>Notify authorised Head Office staff immediately</small></span><input name="notifications.critical_case_alerts" type="checkbox"></label>
+      <p class="form-status" id="settingsStatus"></p><div class="settings-actions"><button class="primary-button">Save governed configuration</button></div>
+    </form></article>
+    <article class="panel catalogue-panel"><div class="panel-heading"><div><h2>Security control catalogue</h2><p>Marker and restriction definitions available to authorised staff</p></div></div><div id="securityCatalogue"></div></article></div></div>`;
 }
 
 async function loadDashboard() {
@@ -115,6 +144,31 @@ async function loadPlatforms() {
   }));
 }
 
+async function loadAdministration() {
+  const data = await api("/api/administration");
+  state.administration = data;
+  $("#branchContext").innerHTML = data.units.map(unit => `<option value="${escapeHtml(unit.code)}">${escapeHtml(unit.name)}</option>`).join("");
+  $("#staffRows").innerHTML = data.staff.map(s => `<tr><td><div class="customer-cell"><div class="mini-avatar">${escapeHtml(s.display_name.split(/\s+/).map(x => x[0]).slice(0,2).join(""))}</div><div><strong>${escapeHtml(s.display_name)}</strong><small>${escapeHtml(s.email)}</small></div></div></td><td>Microsoft Entra</td><td>${escapeHtml(s.role_codes || "Awaiting role assignment")}</td><td><span class="tag success">${escapeHtml(s.status)}</span></td><td>${formatDate(s.created_at)}</td></tr>`).join("");
+  setEmpty("#staffEmpty", data.staff.length === 0);
+  $("#roleCards").innerHTML = data.roles.map(role => `<article class="panel feature-card"><div class="feature-symbol">✓</div><h2>${escapeHtml(role.name)}</h2><p>${escapeHtml(role.description)}</p><span class="tag ${role.status === "active" ? "success" : "review"}">${escapeHtml(role.status)}</span></article>`).join("");
+  $("#auditRows").innerHTML = data.audit.map(a => `<tr><td>${formatDate(a.occurred_at)}</td><td>${escapeHtml(a.actor_name || "System")}</td><td>${escapeHtml(a.action_label)}</td><td>${escapeHtml(a.entity_type)}</td><td>${escapeHtml(a.entity_reference || "—")}</td></tr>`).join("");
+  setEmpty("#auditEmpty", data.audit.length === 0);
+}
+
+async function loadConfiguration() {
+  const data = await api("/api/configuration");
+  state.configuration = data;
+  const form = $("#settingsForm");
+  for (const setting of data.settings) {
+    const input = form.elements.namedItem(setting.setting_key);
+    if (!input) continue;
+    const value = JSON.parse(setting.value_json);
+    if (input.type === "checkbox") input.checked = Boolean(value);
+    else input.value = value;
+  }
+  $("#securityCatalogue").innerHTML = [...data.markerTypes.map(x => ({ label:x.label, detail:`Marker · ${x.default_risk_level} risk · review ${x.review_days || "manual"} days` })), ...data.restrictionTypes.map(x => ({ label:x.label, detail:`Restriction · ${x.enforcement_action.replaceAll("_"," ")}` }))].map(x => `<div class="catalogue-row"><div><strong>${escapeHtml(x.label)}</strong><small>${escapeHtml(x.detail)}</small></div><span class="tag success">Active</span></div>`).join("");
+}
+
 async function boot() {
   renderModules();
   try {
@@ -126,26 +180,16 @@ async function boot() {
     }
     if (!session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare yet.");
     $("#microsoftLogin").hidden = !session.microsoft?.configured;
-    $("#localLogin").hidden = session.authentication !== "local";
     if (!session.authenticated) return showLogin();
     showApp(session.user);
-    await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms()]);
+    await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms(), loadAdministration(), loadConfiguration()]);
+    const requestedView = location.hash.replace("#/", "");
+    if (requestedView && $(`#${CSS.escape(requestedView)}.view`)) showView(requestedView);
   } catch (error) {
     showLogin(error.message);
   }
 }
 
-$("#loginForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  $("#loginError").textContent = "";
-  try {
-    const form = new FormData(event.currentTarget);
-    const result = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username: form.get("username"), password: form.get("password") }) });
-    showApp(result.user);
-    await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms()]);
-  } catch (error) { $("#loginError").textContent = error.message; }
-});
-$("#showPassword").addEventListener("click", () => { $("#password").type = $("#password").type === "password" ? "text" : "password"; });
 $("#signOutButton").addEventListener("click", async () => {
   const result = await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => ({}));
   if (result.redirect) location.assign(result.redirect);
@@ -189,5 +233,20 @@ $("#credentialForm").addEventListener("submit", async event => {
 $("#copyKeyButton").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("#generatedKey").textContent);
   $("#copyKeyButton").textContent = "Copied";
+});
+$("#settingsForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = $("#settingsStatus");
+  status.textContent = "Saving configuration…";
+  try {
+    const requests = [...form.elements].filter(input => input.name).map(input => api("/api/configuration", {
+      method: "PUT",
+      body: JSON.stringify({ key: input.name, value: input.type === "checkbox" ? input.checked : (input.type === "number" ? Number(input.value) : input.value) })
+    }));
+    await Promise.all(requests);
+    status.textContent = "Configuration saved and recorded in the audit history.";
+    await Promise.all([loadConfiguration(), loadAdministration()]);
+  } catch (error) { status.textContent = error.message; }
 });
 boot();
