@@ -267,11 +267,10 @@ export async function completeMicrosoftLogin(request, env) {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  // The OIDC transaction cookie has already been proved to survive the
-  // Microsoft round-trip on this host. Promote that same cookie into the
-  // authenticated session instead of depending on the browser accepting a
-  // second cookie during the OAuth callback.
-  headers.set("Set-Cookie", cookie(TRANSACTION_COOKIE, session, 28_800));
+  // Always issue the authenticated session under the canonical cookie name.
+  // This overwrites any stale ho_session value left by earlier deployments.
+  // The short-lived OIDC transaction cookie expires independently.
+  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
   return new Response(null, { status: 303, headers });
 }
 
@@ -282,16 +281,37 @@ export async function getMicrosoftSession(request, env) {
 export async function inspectMicrosoftSession(request, env) {
   const secret = sessionSecret(env);
   if (!secret) return { session: null, status: "signing_secret_missing" };
-  const raw = readCookie(request, SESSION_COOKIE)
-    || readCookie(request, "__Host-ho_session")
-    || readCookie(request, TRANSACTION_COOKIE);
-  if (!raw) return { session: null, status: "session_cookie_missing" };
-  const session = await readSignedPayload(raw, secret);
-  if (!session) return { session: null, status: "session_cookie_invalid" };
-  if (session.version !== 2) return { session: null, status: "session_version_invalid" };
-  if (session.exp < Date.now()) return { session: null, status: "session_expired" };
-  if (session.tenantId !== TENANT_ID) return { session: null, status: "session_tenant_invalid" };
-  return { session, status: "authenticated" };
+  const candidates = [
+    readCookie(request, SESSION_COOKIE),
+    readCookie(request, "__Host-ho_session"),
+    readCookie(request, TRANSACTION_COOKIE)
+  ].filter(Boolean);
+  if (!candidates.length) return { session: null, status: "session_cookie_missing" };
+
+  // Earlier deployments used several cookie names. Never let a stale or
+  // malformed legacy cookie mask a valid current Microsoft session.
+  let lastStatus = "session_cookie_invalid";
+  for (const raw of candidates) {
+    const session = await readSignedPayload(raw, secret);
+    if (!session) {
+      lastStatus = "session_cookie_invalid";
+      continue;
+    }
+    if (session.version !== 2) {
+      lastStatus = "session_version_invalid";
+      continue;
+    }
+    if (session.exp < Date.now()) {
+      lastStatus = "session_expired";
+      continue;
+    }
+    if (session.tenantId !== TENANT_ID) {
+      lastStatus = "session_tenant_invalid";
+      continue;
+    }
+    return { session, status: "authenticated" };
+  }
+  return { session: null, status: lastStatus };
 }
 
 export function microsoftLogout(request) {
