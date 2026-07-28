@@ -4,6 +4,13 @@ The internal Head Office system for controlled customer operations across JA Gro
 
 The Centre is designed to hold the authoritative company-wide customer record, coordinate operational cases, issue enforceable security instructions, record communications and payment references, manage approvals, and preserve an append-only audit history.
 
+## Production endpoints
+
+- Operations Centre: [https://customerops.jagroupservices.co.uk/](https://customerops.jagroupservices.co.uk/)
+- Health and readiness: [https://customerops.jagroupservices.co.uk/api/health](https://customerops.jagroupservices.co.uk/api/health)
+
+The Operations Centre is restricted to authorised staff. The health endpoint exposes only service readiness, deployment revision and database/schema status.
+
 ## Production scope
 
 The production system includes:
