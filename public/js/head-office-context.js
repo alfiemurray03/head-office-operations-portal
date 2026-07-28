@@ -1,5 +1,25 @@
 // The portal has one operating authority: JA Group Services Ltd — Head Office.
 // Divisions and services remain record sources and integrations, not staff contexts.
+
+(function loadCleanHeadOfficeShell() {
+  if (!document.querySelector('link[data-clean-shell]')) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/clean-shell.css?v=20260728-clean-1';
+    style.dataset.cleanShell = 'true';
+    document.head.append(style);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('script[data-clean-shell]')) return;
+    const script = document.createElement('script');
+    script.src = '/js/clean-shell.js?v=20260728-clean-1';
+    script.async = false;
+    script.dataset.cleanShell = 'true';
+    document.body.append(script);
+  }, { once: true });
+})();
+
 renderNavigation = function renderHeadOfficeNavigation() {
   $$('[data-permission]').forEach(item => {
     item.hidden = !hasPermission(item.dataset.permission);
