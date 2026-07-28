@@ -174,16 +174,18 @@ async function boot() {
   if (location.hash.startsWith("#auth_handoff=")) {
     const handoff = decodeURIComponent(location.hash.slice("#auth_handoff=".length));
     history.replaceState({}, "", location.pathname);
-    try {
-      const result = await api("/api/auth/microsoft/finalise", {
-        method: "POST",
-        body: JSON.stringify({ handoff })
-      });
-      if (!result.authenticated) throw new Error("The Centre did not confirm the Microsoft session.");
-      history.replaceState({}, "", result.returnTo || "/");
-    } catch (error) {
-      return showLogin(error.message);
-    }
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/auth/microsoft/finalise";
+    form.hidden = true;
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = "handoff";
+    field.value = handoff;
+    form.append(field);
+    document.body.append(form);
+    form.submit();
+    return;
   }
   const authParameters = new URLSearchParams(location.search);
   const authError = authParameters.get("auth_error");
