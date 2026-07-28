@@ -182,7 +182,8 @@ async function boot() {
     $("#microsoftLogin").hidden = !session.microsoft?.configured;
     if (!session.authenticated) return showLogin();
     showApp(session.user);
-    await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms(), loadAdministration(), loadConfiguration()]);
+    await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms()]);
+    await Promise.allSettled([loadAdministration(), loadConfiguration()]);
     const requestedView = location.hash.replace("#/", "");
     if (requestedView && $(`#${CSS.escape(requestedView)}.view`)) showView(requestedView);
   } catch (error) {
