@@ -4,108 +4,72 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <meta name="theme-color" content="#0f172a">
-  <title>Head Office Customer Operations Portal</title>
-  <link rel="stylesheet" href="/styles.css?v=20260728-1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Head Office Operations Centre</title>
+  <link rel="stylesheet" href="/styles.css?v=20260728-production-1">
 </head>
 <body class="locked">
   <section class="login-screen" id="loginScreen">
-    <div class="login-brand"><div class="brand-mark">JA</div><div><strong>JA Group Services Ltd</strong><span>Head Office Customer Operations Portal</span></div></div>
+    <div class="login-brand">
+      <div class="brand-mark">JA</div>
+      <div><strong>JA Group Services Ltd</strong><span>Head Office Operations Centre</span></div>
+    </div>
     <div class="login-card">
-      <div class="login-lock">⌾</div>
+      <div class="security-seal" aria-hidden="true">⌾</div>
       <p class="eyebrow">Authorised staff access</p>
       <h1>Sign in to Head Office</h1>
-      <p class="login-intro">Use your JA Group Services Microsoft work account. Access is restricted to authorised staff in the company tenant.</p>
-      <a class="primary-button login-submit microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
+      <p class="login-intro">Use your JA Group Services Microsoft work account. Access, decisions and changes are recorded in the Head Office audit history.</p>
+      <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
         <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         Sign in with Microsoft <span>→</span>
       </a>
-      <p class="configuration-note" id="configurationNote"></p>
+      <p class="configuration-note" id="configurationNote" role="alert"></p>
+      <div class="login-assurance"><span>🔐 Microsoft Entra</span><span>🧾 Audited access</span><span>🏢 Head Office controlled</span></div>
     </div>
     <div class="login-footer"><span>Internal system · Authorised use only</span><span>Company No. 16314179</span></div>
   </section>
 
   <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark">JA</div><div><strong>Head Office</strong><span>Customer Operations Centre</span></div></div>
-      <nav aria-label="Main navigation">
+      <div class="brand"><div class="brand-mark">JA</div><div><strong>Head Office</strong><span>Operations Centre</span></div></div>
+      <nav id="mainNavigation" aria-label="Main navigation">
         <p class="nav-label">Customer operations</p>
-        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Operations overview</button>
-        <button class="nav-item" data-view="customers"><span>◎</span> Customer register <b id="navCustomers">0</b></button>
-        <button class="nav-item" data-view="cases"><span>▣</span> Case management <b id="navCases">0</b></button>
-        <button class="nav-item" data-view="communications"><span>✉</span> Communications</button>
-        <button class="nav-item" data-view="payments"><span>£</span> Payments & refunds</button>
+        <button class="nav-item" data-route="dashboard"><span>⌂</span> Operations overview</button>
+        <button class="nav-item" data-route="customers" data-permission="customers:read"><span>◎</span> Universal customers</button>
+        <button class="nav-item" data-route="cases" data-permission="cases:read"><span>▣</span> Case management</button>
+        <button class="nav-item" data-route="communications" data-permission="communications:read"><span>✉</span> Communications</button>
+        <button class="nav-item" data-route="payments" data-permission="payments:read"><span>£</span> Payments & approvals</button>
         <p class="nav-label">Risk & compliance</p>
-        <button class="nav-item" data-view="security"><span>◇</span> Security centre <b class="danger-count" id="navRestrictions">0</b></button>
-        <button class="nav-item" data-view="complaints"><span>☷</span> Complaints</button>
-        <button class="nav-item" data-view="data-protection"><span>◫</span> Data protection</button>
-        <button class="nav-item" data-view="safeguarding"><span>◈</span> Safeguarding</button>
+        <button class="nav-item" data-route="security" data-permission="security:read"><span>◇</span> Security control centre</button>
+        <button class="nav-item" data-route="complaints" data-permission="complaints:read"><span>☷</span> Complaints</button>
+        <button class="nav-item" data-route="data-protection" data-permission="data_protection:*"><span>◫</span> Data protection</button>
+        <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*"><span>◈</span> Safeguarding</button>
         <p class="nav-label">System administration</p>
-        <button class="nav-item" data-view="platforms"><span>⌘</span> Divisions & integrations</button>
-        <button class="nav-item" data-view="staff"><span>♙</span> Staff & access</button>
-        <button class="nav-item" data-view="audit"><span>◷</span> Audit history</button>
-        <button class="nav-item" data-view="settings"><span>⚙</span> System settings</button>
+        <button class="nav-item" data-route="platforms" data-permission="platforms:read"><span>⌘</span> Divisions & integrations</button>
+        <button class="nav-item" data-route="staff" data-permission="administration:read"><span>♙</span> Staff & access</button>
+        <button class="nav-item" data-route="audit" data-permission="audit:read"><span>◷</span> Audit history</button>
+        <button class="nav-item" data-route="settings" data-permission="configuration:read"><span>⚙</span> System settings</button>
       </nav>
-      <div class="sidebar-footer"><div class="environment"><span></span><b id="environmentName">Environment</b></div><small>JA Group Services Ltd<br>Internal use only</small></div>
+      <div class="sidebar-footer"><div class="environment"><span></span><b id="environmentName">Production</b></div><small>JA Group Services Ltd<br>Head Office controlled</small></div>
     </aside>
 
-    <main>
+    <main class="main-shell">
       <header class="topbar">
-        <button class="menu-button" id="menuButton" aria-label="Open navigation">☰</button>
-        <div class="search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records"><kbd>Ctrl K</kbd></div>
-        <div class="top-actions"><label class="branch-switcher"><span>Operating context</span><select id="branchContext"><option value="HEAD_OFFICE">JA Group Services — Head Office</option></select></label><div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div><button class="sign-out-button" id="signOutButton" title="Sign out">↪</button></div>
+        <button class="icon-button menu-button" id="menuButton" aria-label="Open navigation">☰</button>
+        <div class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records"><kbd>Ctrl K</kbd></div>
+        <div class="top-actions">
+          <label class="context-switcher"><span>Operating context</span><select id="operatingContext"><option value="HEAD_OFFICE">Head Office</option></select></label>
+          <div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div>
+          <button class="icon-button" id="signOutButton" title="Sign out" aria-label="Sign out">↪</button>
+        </div>
       </header>
-
-      <div class="content">
-        <section class="view active" id="dashboard">
-          <div class="page-heading"><div><p class="eyebrow">JA Group Services Ltd · Head Office</p><h1>Customer Operations Centre</h1><p>Company-wide customer service, security, risk and regulated operations across every division.</p></div><button class="primary-button" data-action="new-case">＋ Create Head Office case</button></div>
-          <div class="notice" id="setupNotice"><div class="notice-icon">i</div><div><strong>Authoritative Head Office record</strong><p>This Centre controls customer operations and security instructions across JA Group Services and its connected divisions. Staff identity is verified through the company Microsoft tenant.</p></div></div>
-          <div class="metrics">
-            <article class="metric-card"><div class="metric-icon blue">◎</div><div><span>Universal customers</span><strong id="metricCustomers">0</strong><small>Central register</small></div></article>
-            <article class="metric-card"><div class="metric-icon amber">▣</div><div><span>Open cases</span><strong id="metricCases">0</strong><small id="metricDue">0 overdue</small></div></article>
-            <article class="metric-card"><div class="metric-icon red">◇</div><div><span>Active restrictions</span><strong id="metricRestrictions">0</strong><small>Company-wide controls</small></div></article>
-            <article class="metric-card"><div class="metric-icon green">✓</div><div><span>Connected platforms</span><strong id="metricPlatforms">0</strong><small>Active integrations</small></div></article>
-          </div>
-          <div class="dashboard-grid">
-            <article class="panel attention-panel"><div class="panel-heading"><div><h2>Work requiring attention</h2><p>Priority and overdue cases</p></div></div><div id="attentionList" class="empty-state">No cases currently require attention.</div></article>
-            <article class="panel platform-panel"><div class="panel-heading"><div><h2>Connected platforms</h2><p>Registered integration status</p></div></div><div id="platformSummary" class="empty-state">No platforms are connected yet.</div></article>
-            <article class="panel activity-panel"><div class="panel-heading"><div><h2>Recent controlled activity</h2><p>Append-only audit history</p></div></div><div id="activityList" class="empty-state">No audited activity has been recorded yet.</div></article>
-          </div>
-        </section>
-
-        <section class="view" id="customers">
-          <div class="page-heading compact"><div><p class="eyebrow">Universal Customer Register</p><h1>Customers</h1><p>The authoritative company-wide identity index for customers across connected services.</p></div><button class="primary-button" data-action="new-customer">＋ Register customer</button></div>
-          <article class="panel table-panel"><div class="table-tools"><div class="search wide"><span>⌕</span><input id="customerSearch" type="search" placeholder="Search name, email, customer number or external identity…"></div></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Universal number</th><th>Platforms</th><th>Account status</th><th>Security status</th><th>Last activity</th></tr></thead><tbody id="customerRows"></tbody></table></div><div id="customerEmpty" class="empty-state">No customer records have been registered.</div></article>
-        </section>
-
-        <section class="view" id="cases"><div class="page-heading"><div><p class="eyebrow">Central workflow engine</p><h1>Case management</h1><p>All enquiries, security matters, complaints, refunds and regulated workflows.</p></div><button class="primary-button" data-action="new-case">＋ Create case</button></div><article class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Case</th><th>Customer</th><th>Type</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead><tbody id="caseRows"></tbody></table></div><div id="caseEmpty" class="empty-state">No cases have been created.</div></article></section>
-
-        <section class="view" id="security"><div class="page-heading"><div><p class="eyebrow">Security Control Centre</p><h1>Markers and restrictions</h1><p>Central controls that connected platforms must enforce.</p></div></div><div class="record-grid"><article class="panel detail-panel"><div class="panel-heading"><div><h2>Active markers</h2><p>Risk information requiring controlled handling</p></div></div><div id="markerList" class="empty-state">No active security markers.</div></article><article class="panel detail-panel"><div class="panel-heading"><div><h2>Active restrictions</h2><p>Enforceable customer-account controls</p></div></div><div id="restrictionList" class="empty-state">No active restrictions.</div></article></div></section>
-
-        <section class="view module-view" id="communications"></section>
-        <section class="view module-view" id="payments"></section>
-        <section class="view module-view" id="complaints"></section>
-        <section class="view module-view" id="data-protection"></section>
-        <section class="view module-view" id="safeguarding"></section>
-        <section class="view" id="platforms">
-          <div class="page-heading"><div><p class="eyebrow">Integration control centre</p><h1>Connected platforms</h1><p>Register websites and manage their access to the Head Office API.</p></div><button class="primary-button" id="registerPlatformButton">＋ Register platform</button></div>
-          <div class="notice"><div class="notice-icon">i</div><div><strong>Credential security</strong><p>API keys are shown once when generated. Only a one-way hash is retained by Head Office.</p></div></div>
-          <article class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Platform</th><th>Code</th><th>Status</th><th>Active keys</th><th>Last API activity</th><th></th></tr></thead><tbody id="platformRows"></tbody></table></div><div id="platformEmpty" class="empty-state">No platforms have been registered.</div></article>
-          <article class="panel api-guide"><div><p class="eyebrow">Connector API</p><h2>Version 1 service endpoints</h2><p>Connected websites authenticate with <code>Authorization: Bearer &lt;API_KEY&gt;</code>.</p></div><div class="endpoint-list"><code>GET /api/v1/platform/health</code><code>GET/POST /api/v1/platform/customers</code><code>GET /api/v1/platform/security</code></div></article>
-        </section>
-        <section class="view module-view" id="staff"></section>
-        <section class="view module-view" id="audit"></section>
-        <section class="view module-view" id="settings"></section>
-      </div>
+      <div class="content" id="viewRoot"><div class="loading-state"><span class="spinner"></span><p>Opening Head Office…</p></div></div>
+      <footer class="system-footer"><span>JA Group Services Ltd · Head Office Operations Centre</span><span id="systemClock"></span></footer>
     </main>
   </div>
 
-  <dialog id="customerDialog"><form id="customerForm"><div class="dialog-heading"><div><p class="eyebrow">Universal Customer Register</p><h2>Register a customer</h2><p>Create the central identity record. Platform links can be added afterwards.</p></div><button type="button" data-close>×</button></div><label>Full name<input name="displayName" maxlength="160" required></label><label>Verified email address<input name="verifiedEmail" type="email" maxlength="254" required></label><label>External identity ID (optional)<input name="externalIdentityId" maxlength="100"></label><label>Originating platform (optional)<select name="originatingPlatformId" id="originatingPlatform"><option value="">None</option></select></label><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Register customer</button></div></form></dialog>
-
-  <dialog id="caseDialog"><form id="caseForm"><div class="dialog-heading"><div><p class="eyebrow">Head Office workflow</p><h2>Create a case</h2><p>The system will allocate the formal reference.</p></div><button type="button" data-close>×</button></div><label>Case type<select name="caseType" required><option value="general">Customer operation</option><option value="security">Security investigation</option><option value="complaint">Complaint</option><option value="refund">Refund request</option><option value="payment_dispute">Payment dispute</option><option value="account_recovery">Account recovery</option><option value="data_protection">Data protection matter</option><option value="safeguarding">Safeguarding concern</option></select></label><label>Customer number (optional)<input name="customerNumber" inputmode="numeric" pattern="[0-9]{10}" maxlength="10"></label><label>Title<input name="title" maxlength="160" required></label><label>Summary<textarea name="description" maxlength="4000" required></textarea></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option><option value="low">Low</option></select></label><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Create case</button></div></form></dialog>
-  <dialog id="platformDialog"><form id="platformForm"><div class="dialog-heading"><div><p class="eyebrow">Connected platform</p><h2>Register a website</h2><p>Create the platform identity before issuing an API key.</p></div><button type="button" data-close>×</button></div><label>Platform name<input name="name" maxlength="120" required></label><label>Platform code<input name="code" maxlength="40" pattern="[A-Za-z0-9_-]+" required><small>For example: PLANYX</small></label><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Register platform</button></div></form></dialog>
-  <dialog id="credentialDialog"><form id="credentialForm"><div class="dialog-heading"><div><p class="eyebrow">API credential</p><h2>Generate a connector key</h2><p id="credentialPlatformName"></p></div><button type="button" data-close>×</button></div><input type="hidden" name="platformId"><label>Credential name<input name="name" maxlength="100" placeholder="Production website" required></label><fieldset><legend>Permitted API scopes</legend><label><input type="checkbox" name="scopes" value="customers:read"> Read linked customers</label><label><input type="checkbox" name="scopes" value="customers:write"> Register and link customers</label><label><input type="checkbox" name="scopes" value="security:read"> Read enforceable restrictions</label><label><input type="checkbox" name="scopes" value="cases:write"> Create Head Office cases</label><label><input type="checkbox" name="scopes" value="events:write"> Submit platform events</label></fieldset><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Generate key</button></div></form></dialog>
-  <dialog id="keyDialog"><div class="key-result"><div class="dialog-heading"><div><p class="eyebrow">Generated successfully</p><h2>Copy this API key now</h2><p>It cannot be viewed again after this window is closed.</p></div></div><pre id="generatedKey"></pre><button class="primary-button" id="copyKeyButton">Copy API key</button><button class="secondary-button" data-close>Close</button></div></dialog>
-  <script src="/app.js?v=20260728-2" type="module"></script>
+  <dialog id="modal"><div class="modal-shell"><header><div><p class="eyebrow" id="modalEyebrow">Head Office</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div><button class="icon-button" data-close-modal aria-label="Close">×</button></header><div class="modal-content" id="modalContent"></div></div></dialog>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="/app.js?v=20260728-production-1" type="module"></script>
 </body>
 </html>
