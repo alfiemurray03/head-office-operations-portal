@@ -171,13 +171,13 @@ async function loadConfiguration() {
 
 async function boot() {
   renderModules();
+  const authError = new URLSearchParams(location.search).get("auth_error");
+  if (authError) {
+    history.replaceState({}, "", `${location.pathname}${location.hash}`);
+    return showLogin(authError);
+  }
   try {
     const session = await api("/api/auth/session");
-    const authError = new URLSearchParams(location.search).get("auth_error");
-    if (authError) {
-      history.replaceState({}, "", location.pathname);
-      return showLogin(authError);
-    }
     if (!session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare yet.");
     $("#microsoftLogin").hidden = !session.microsoft?.configured;
     if (!session.authenticated) return showLogin();
