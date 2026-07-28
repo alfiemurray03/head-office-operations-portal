@@ -87,25 +87,31 @@ export const isoDate = (value, fallback = null) => {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
 };
 
+async function retireIncorrectAssumedProfileCentre(env) {
+  const assumed = await env.DB.prepare(`SELECT p.id,p.status,o.public_url,o.hosting_provider,
+      (SELECT COUNT(*) FROM platform_api_credentials c WHERE c.platform_id=p.id) credential_count,
+      (SELECT COUNT(*) FROM customer_platform_accounts a WHERE a.platform_id=p.id) account_count
+    FROM platforms p LEFT JOIN platform_operational_profiles o ON o.platform_id=p.id
+    WHERE p.id='platform-profile-centre' AND p.code='PROFILE_CENTRE' LIMIT 1`).first().catch(() => null);
+  if (!assumed) return;
+  const isUnchangedAssumption = assumed.public_url === "https://profilecenter.co.uk"
+    && assumed.hosting_provider === "GoDaddy Airo"
+    && Number(assumed.credential_count || 0) === 0
+    && Number(assumed.account_count || 0) === 0;
+  if (!isUnchangedAssumption) return;
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM platform_operational_profiles WHERE platform_id=?").bind(assumed.id),
+    env.DB.prepare("UPDATE platforms SET status='disabled',updated_at=? WHERE id=?").bind(now, assumed.id)
+  ]);
+}
+
 export async function ensureCentralPlatformSchema(env) {
   if (!env?.DB) throw new Error("The central customer database is unavailable.");
   if (ready.has(env.DB)) return ready.get(env.DB);
   const promise = (async () => {
     for (const statement of STATEMENTS) await env.DB.prepare(statement).run();
-    const now = new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO platforms(id,code,name,status,created_at,updated_at)
-      VALUES ('platform-profile-centre','PROFILE_CENTRE','Profile Centre','setup',?,?)
-      ON CONFLICT(code) DO UPDATE SET name='Profile Centre',updated_at=excluded.updated_at`).bind(now, now).run();
-    const platform = await env.DB.prepare("SELECT id FROM platforms WHERE code='PROFILE_CENTRE'").first();
-    if (platform) await env.DB.prepare(`INSERT INTO platform_operational_profiles
-      (platform_id,public_url,environment,hosting_provider,health_status,health_message,capabilities_json,integrations_json,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform_id) DO UPDATE SET
-      public_url=excluded.public_url,hosting_provider=excluded.hosting_provider,
-      capabilities_json=excluded.capabilities_json,integrations_json=excluded.integrations_json,
-      updated_at=excluded.updated_at`).bind(platform.id,"https://profilecenter.co.uk","production","GoDaddy Airo",
-        "awaiting_connection","Connector prepared; live connection not yet activated.",
-        jsonValue(["customer_identity","security_enforcement","subscriptions","orders"],[]),
-        jsonValue({customerIdentity:"JA Group Services ID",customerOps:"awaiting_connection"},{}),now,now).run();
+    await retireIncorrectAssumedProfileCentre(env);
     return true;
   })();
   ready.set(env.DB, promise);
