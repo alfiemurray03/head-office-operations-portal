@@ -63,7 +63,11 @@ function requestWithPreferredAuthCookies(request) {
   const remaining = parts.filter(value => !value.startsWith("ho_session=") && !value.startsWith("ho_oidc_tx="));
   const headers = new Headers(request.headers);
   headers.set("Cookie", [...preferred, ...remaining].join("; "));
-  return new Request(request, { headers });
+
+  // Authentication inspection only needs the URL and headers. Building the
+  // canonical request from the original POST request would lock its body
+  // stream before the endpoint can read the JSON payload.
+  return new Request(request.url, { method: "GET", headers });
 }
 
 export async function getSession(request, env) {
@@ -179,7 +183,7 @@ export async function audit(env, session, action, entityType, entityId, details 
     (id, occurred_at, actor_type, actor_id, actor_name, action, action_label,
      entity_type, entity_id, entity_reference, customer_id, case_id, request_id,
      before_json, after_json, metadata_json)
-    VALUES (?, ?, 'staff', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`) 
+    VALUES (?, ?, 'staff', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(
       crypto.randomUUID(),
       new Date().toISOString(),
@@ -203,7 +207,7 @@ export async function platformAudit(env, platform, action, entityType, entityId,
   await env.DB.prepare(`INSERT INTO audit_events
     (id, occurred_at, actor_type, actor_id, actor_name, action, action_label,
      entity_type, entity_id, entity_reference, customer_id, request_id, metadata_json)
-    VALUES (?, ?, 'platform', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`) 
+    VALUES (?, ?, 'platform', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(
       crypto.randomUUID(),
       new Date().toISOString(),
