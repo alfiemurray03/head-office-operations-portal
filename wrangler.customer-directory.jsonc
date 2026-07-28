@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "head-office-customer-directory-automation",
+  "main": "workers/customer-directory-automation.js",
+  "compatibility_date": "2026-07-28",
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "vars": {
+    "PORTAL_BASE_URL": "https://customerops.jagroupservices.co.uk"
+  }
+}

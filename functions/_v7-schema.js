@@ -1,0 +1,297 @@
+const LEVELS = [
+  ["risk","R0",0,"Clear","No material adverse indicators are known.","A0","clear"],
+  ["risk","R1",1,"Monitor","Weak or isolated indicators require observation.","A1","monitor"],
+  ["risk","R2",2,"Elevated","Credible indicators require step-up verification or enhanced review.","A2","review"],
+  ["risk","R3",3,"High","Probable fraud, compromise or serious misuse requires Head Office control.","A3","high"],
+  ["risk","R4",4,"Critical","Active or imminent harm requires immediate containment and senior escalation.","A5","critical"],
+  ["enforcement","A0",0,"Allow","Permit the activity under normal controls.",null,"clear"],
+  ["enforcement","A1",1,"Allow and monitor","Permit while increasing monitoring and logging.",null,"monitor"],
+  ["enforcement","A2",2,"Step-up verification","Require additional identity or authentication evidence.",null,"review"],
+  ["enforcement","A3",3,"Manual approval","Hold the activity for authorised Head Office approval.",null,"high"],
+  ["enforcement","A4",4,"Partial restriction","Block selected high-risk actions while preserving safe access.",null,"high"],
+  ["enforcement","A5",5,"Protective freeze","Temporarily freeze the affected account or service pending urgent review.",null,"critical"],
+  ["data","D0",0,"Public","Approved information intended for public disclosure.",null,"clear"],
+  ["data","D1",1,"Internal","Routine internal operational information.",null,"monitor"],
+  ["data","D2",2,"Confidential","Customer and commercial information requiring controlled access.",null,"review"],
+  ["data","D3",3,"Restricted","Identity, payment, security and evidential records.",null,"high"],
+  ["data","D4",4,"Highly restricted","Safeguarding, data breach, sealed evidence and critical investigations.",null,"critical"],
+  ["authority","P0",0,"No access","No authority to access the function or record.",null,"clear"],
+  ["authority","P1",1,"Read only","View authorised records without changing them.",null,"monitor"],
+  ["authority","P2",2,"Operational processing","Create and update routine operational records.",null,"review"],
+  ["authority","P3",3,"Decision authority","Approve controlled decisions within delegated limits.",null,"high"],
+  ["authority","P4",4,"Privileged administration","Administer technical configuration and access controls.",null,"high"],
+  ["authority","P5",5,"Break-glass authority","Time-limited emergency authority with enhanced logging and review.",null,"critical"],
+  ["confidentiality","K0",0,"Standard","Normal operational need-to-know access.",null,"clear"],
+  ["confidentiality","K1",1,"Head Office need-to-know","Restricted to authorised Head Office functions.",null,"review"],
+  ["confidentiality","K2",2,"Specialist restricted","Restricted to a specialist role such as Security or DPO.",null,"high"],
+  ["confidentiality","K3",3,"Sealed","Named-user or break-glass access only.",null,"critical"],
+  ["severity","SEV-1",1,"Critical","Severe confirmed or imminent impact requiring immediate executive response.",null,"critical"],
+  ["severity","SEV-2",2,"High","Serious confirmed or probable impact requiring urgent coordinated response.",null,"high"],
+  ["severity","SEV-3",3,"Medium","Contained or limited impact requiring investigation and tracked remediation.",null,"review"],
+  ["severity","SEV-4",4,"Low","Minimal impact or unsuccessful activity requiring recording and proportionate review.",null,"monitor"]
+];
+
+const RULES = [
+  ["AUTH_FAILURE_BURST","authentication","Repeated failed sign-ins","Five or more failed sign-ins within fifteen minutes.","auth.failed",10,5,15,"R2","A2","SEV-3","D2","K1"],
+  ["NEW_DEVICE_PAYMENT","payment","Payment from a new device","A successful payment is reported from a newly observed device.","payment.succeeded",30,1,0,"R2","A2","SEV-3","D3","K1"],
+  ["PAYMENT_FAILURE_BURST","payment","Repeated payment failures","Five or more failed payment attempts within thirty minutes.","payment.failed",12,5,30,"R2","A3","SEV-3","D3","K1"],
+  ["HIGH_VALUE_REFUND","refund","High-value refund request","A refund request exceeds the configured approval threshold.","refund.requested",25,1,0,"R2","A3","SEV-3","D3","K1"],
+  ["REFUND_VELOCITY","refund","Repeated refund requests","Three or more refund requests within thirty days.","refund.requested",20,3,43200,"R3","A3","SEV-2","D3","K1"],
+  ["CHARGEBACK_CREATED","dispute","Chargeback or payment dispute","A provider reports a chargeback or formal payment dispute.","chargeback.created",50,1,0,"R3","A3","SEV-2","D3","K2"],
+  ["IDENTITY_FAILURE","identity","Identity verification failure","Identity verification fails or produces a material mismatch.","identity.verification_failed",45,1,0,"R3","A2","SEV-2","D3","K2"],
+  ["ACCOUNT_TAKEOVER","account","Suspected account takeover","A connected service reports suspected account takeover.","account.takeover_suspected",85,1,0,"R4","A5","SEV-1","D4","K3"],
+  ["IMPOSSIBLE_TRAVEL","authentication","Implausible location change","Successful sign-ins are reported from different countries within two hours.","auth.succeeded",45,1,120,"R3","A2","SEV-2","D3","K2"],
+  ["PAYMENT_METHOD_SHARING","payment","Payment method shared across customers","The same hashed payment method is used by three or more customers.","payment.succeeded",55,3,43200,"R3","A3","SEV-2","D3","K2"],
+  ["UNAUTHORISED_DATA_ACCESS","data","Unauthorised personal-data access","Unauthorised or unexplained access to personal data is reported.","data.unauthorised_access",90,1,0,"R4","A5","SEV-1","D4","K3"],
+  ["DATA_EXFILTRATION","data","Suspected data exfiltration","Large or unauthorised extraction of information is reported.","data.exfiltration_suspected",100,1,0,"R4","A5","SEV-1","D4","K3"],
+  ["DATA_LOSS","data","Loss of personal information","Personal information is lost, destroyed or disclosed incorrectly.","data.loss_reported",80,1,0,"R4","A4","SEV-1","D4","K3"],
+  ["RANSOMWARE","system","Ransomware detected","A service reports encryption, extortion or ransomware indicators.","system.ransomware_detected",100,1,0,"R4","A5","SEV-1","D4","K3"],
+  ["PRIVILEGED_OVERRIDE","administration","Privileged security override","A privileged user overrides a security control.","admin.security_override",35,1,0,"R2","A1","SEV-3","D3","K2"]
+];
+
+const STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS security_level_definitions (
+    dimension TEXT NOT NULL,
+    code TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    description TEXT NOT NULL,
+    default_action TEXT,
+    colour_token TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (dimension,code)
+  )`,
+  `CREATE TABLE IF NOT EXISTS detection_rules (
+    code TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    base_score INTEGER NOT NULL,
+    threshold_count INTEGER NOT NULL DEFAULT 1,
+    threshold_window_minutes INTEGER NOT NULL DEFAULT 0,
+    risk_floor TEXT NOT NULL,
+    recommended_enforcement TEXT NOT NULL,
+    alert_severity TEXT NOT NULL,
+    data_classification TEXT NOT NULL,
+    confidentiality_level TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0,1)),
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS security_events (
+    id TEXT PRIMARY KEY,
+    event_reference TEXT NOT NULL UNIQUE,
+    tenant_code TEXT NOT NULL DEFAULT 'JA_GROUP',
+    source_type TEXT NOT NULL,
+    source_id TEXT,
+    external_event_id TEXT,
+    event_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    customer_id TEXT REFERENCES customers(id),
+    platform_id TEXT REFERENCES platforms(id),
+    case_id TEXT REFERENCES cases(id),
+    occurred_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    amount_minor INTEGER,
+    currency TEXT,
+    country_code TEXT,
+    ip_hash TEXT,
+    device_hash TEXT,
+    payment_fingerprint_hash TEXT,
+    attributes_json TEXT NOT NULL DEFAULT '{}',
+    dedupe_key TEXT UNIQUE,
+    processing_status TEXT NOT NULL DEFAULT 'received',
+    risk_score INTEGER NOT NULL DEFAULT 0,
+    risk_level TEXT NOT NULL DEFAULT 'R0',
+    enforcement_level TEXT NOT NULL DEFAULT 'A0',
+    data_classification TEXT NOT NULL DEFAULT 'D2',
+    confidentiality_level TEXT NOT NULL DEFAULT 'K1',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS risk_signals (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES security_events(id),
+    rule_code TEXT NOT NULL REFERENCES detection_rules(code),
+    points INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    rationale TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(event_id,rule_code)
+  )`,
+  `CREATE TABLE IF NOT EXISTS security_alerts (
+    id TEXT PRIMARY KEY,
+    alert_reference TEXT NOT NULL UNIQUE,
+    customer_id TEXT REFERENCES customers(id),
+    platform_id TEXT REFERENCES platforms(id),
+    case_id TEXT REFERENCES cases(id),
+    incident_id TEXT,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    risk_score INTEGER NOT NULL,
+    risk_level TEXT NOT NULL,
+    enforcement_level TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    data_classification TEXT NOT NULL,
+    confidentiality_level TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','triage','investigating','actioned','false_positive','closed')),
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
+    first_detected_at TEXT NOT NULL,
+    last_detected_at TEXT NOT NULL,
+    assigned_staff_id TEXT REFERENCES staff_members(id),
+    recommended_action TEXT,
+    decision TEXT,
+    decision_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS security_incidents (
+    id TEXT PRIMARY KEY,
+    incident_reference TEXT NOT NULL UNIQUE,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','triage','contained','investigating','remediating','recovering','monitoring','closed')),
+    confidentiality_level TEXT NOT NULL DEFAULT 'K2',
+    data_classification TEXT NOT NULL DEFAULT 'D3',
+    customer_id TEXT REFERENCES customers(id),
+    case_id TEXT REFERENCES cases(id),
+    discovered_at TEXT NOT NULL,
+    occurred_at TEXT,
+    contained_at TEXT,
+    resolved_at TEXT,
+    data_breach_status TEXT NOT NULL DEFAULT 'not_assessed' CHECK (data_breach_status IN ('not_assessed','not_a_breach','assessment_required','not_reportable','reportable','reported')),
+    ico_deadline_at TEXT,
+    ico_reported_at TEXT,
+    affected_records INTEGER,
+    affected_data_subjects INTEGER,
+    affected_data_categories_json TEXT NOT NULL DEFAULT '[]',
+    owner_staff_id TEXT REFERENCES staff_members(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS incident_timeline (
+    id TEXT PRIMARY KEY,
+    incident_id TEXT NOT NULL REFERENCES security_incidents(id),
+    entry_type TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    recorded_by TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS data_breach_assessments (
+    id TEXT PRIMARY KEY,
+    incident_id TEXT NOT NULL UNIQUE REFERENCES security_incidents(id),
+    awareness_at TEXT NOT NULL,
+    risk_to_rights TEXT NOT NULL DEFAULT 'not_assessed',
+    high_risk_to_rights INTEGER NOT NULL DEFAULT 0 CHECK (high_risk_to_rights IN (0,1)),
+    report_to_ico INTEGER CHECK (report_to_ico IN (0,1)),
+    notify_individuals INTEGER CHECK (notify_individuals IN (0,1)),
+    rationale TEXT,
+    personal_data_categories_json TEXT NOT NULL DEFAULT '[]',
+    approximate_records INTEGER,
+    approximate_people INTEGER,
+    decision_by TEXT,
+    decision_at TEXT,
+    ico_deadline_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS complaint_records (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL UNIQUE REFERENCES cases(id),
+    complaint_stage TEXT NOT NULL DEFAULT 'received',
+    received_at TEXT NOT NULL,
+    acknowledgement_due_at TEXT,
+    final_response_due_at TEXT,
+    outcome TEXT,
+    remedy TEXT,
+    compensation_minor INTEGER,
+    currency TEXT,
+    root_cause TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS financial_operations (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL UNIQUE REFERENCES cases(id),
+    operation_type TEXT NOT NULL CHECK (operation_type IN ('refund','payment_dispute','chargeback','payment_review')),
+    provider TEXT,
+    transaction_reference TEXT,
+    amount_minor INTEGER,
+    currency TEXT,
+    reason_code TEXT,
+    fraud_suspected INTEGER NOT NULL DEFAULT 0 CHECK (fraud_suspected IN (0,1)),
+    dispute_stage TEXT,
+    evidence_status TEXT,
+    approval_status TEXT,
+    outcome TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS operations_tasks (
+    id TEXT PRIMARY KEY,
+    task_reference TEXT NOT NULL UNIQUE,
+    service_area TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    customer_id TEXT REFERENCES customers(id),
+    case_id TEXT REFERENCES cases(id),
+    incident_id TEXT REFERENCES security_incidents(id),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','awaiting_customer','awaiting_internal','approval_required','completed','cancelled')),
+    due_at TEXT,
+    assigned_staff_id TEXT REFERENCES staff_members(id),
+    checklist_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`
+];
+
+const INDEXES = [
+  "CREATE INDEX IF NOT EXISTS idx_security_events_customer_time ON security_events(customer_id,occurred_at)",
+  "CREATE INDEX IF NOT EXISTS idx_security_events_type_time ON security_events(event_type,occurred_at)",
+  "CREATE INDEX IF NOT EXISTS idx_security_events_payment_fingerprint ON security_events(payment_fingerprint_hash,occurred_at)",
+  "CREATE INDEX IF NOT EXISTS idx_alerts_status_risk ON security_alerts(status,risk_score,last_detected_at)",
+  "CREATE INDEX IF NOT EXISTS idx_alerts_customer ON security_alerts(customer_id,status)",
+  "CREATE INDEX IF NOT EXISTS idx_incidents_status_severity ON security_incidents(status,severity,discovered_at)",
+  "CREATE INDEX IF NOT EXISTS idx_incident_timeline ON incident_timeline(incident_id,occurred_at)",
+  "CREATE INDEX IF NOT EXISTS idx_operations_tasks_queue ON operations_tasks(status,priority,due_at)"
+];
+
+export async function ensureV7Schema(env) {
+  if (!env.DB) throw new Error("The Head Office database is not connected.");
+  for (const statement of STATEMENTS) await env.DB.prepare(statement).run();
+  for (const statement of INDEXES) await env.DB.prepare(statement).run();
+  const now = new Date().toISOString();
+  for (const level of LEVELS) {
+    await env.DB.prepare(`INSERT INTO security_level_definitions
+      (dimension,code,rank,label,description,default_action,colour_token,status,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,'active',?,?)
+      ON CONFLICT(dimension,code) DO UPDATE SET rank=excluded.rank,label=excluded.label,
+        description=excluded.description,default_action=excluded.default_action,
+        colour_token=excluded.colour_token,status='active',updated_at=excluded.updated_at`)
+      .bind(...level,now,now).run();
+  }
+  for (const rule of RULES) {
+    await env.DB.prepare(`INSERT INTO detection_rules
+      (code,category,name,description,event_type,base_score,threshold_count,threshold_window_minutes,
+       risk_floor,recommended_enforcement,alert_severity,data_classification,confidentiality_level,
+       enabled,version,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,1,?,?)
+      ON CONFLICT(code) DO UPDATE SET category=excluded.category,name=excluded.name,
+        description=excluded.description,event_type=excluded.event_type,base_score=excluded.base_score,
+        threshold_count=excluded.threshold_count,threshold_window_minutes=excluded.threshold_window_minutes,
+        risk_floor=excluded.risk_floor,recommended_enforcement=excluded.recommended_enforcement,
+        alert_severity=excluded.alert_severity,data_classification=excluded.data_classification,
+        confidentiality_level=excluded.confidentiality_level,updated_at=excluded.updated_at`)
+      .bind(...rule,now,now).run();
+  }
+}

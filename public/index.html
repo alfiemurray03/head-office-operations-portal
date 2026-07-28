@@ -1,308 +1,208 @@
 <!doctype html>
 <html lang="en-GB">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex, nofollow, noarchive" />
-    <meta name="theme-color" content="#081426" />
-    <title>Head Office Operations Portal</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#101c2f">
+  <title>Head Office Operations &amp; Security Centre · Version 7</title>
+  <link rel="stylesheet" href="/styles.css?v=20260728-v7-4">
+  <link rel="stylesheet" href="/v7.css?v=20260728-v7-4">
+  <link rel="stylesheet" href="/operations-tailwind.css?v=20260728-ops-2">
+  <link rel="stylesheet" href="/enterprise.css?v=20260728-enterprise-1">
+</head>
+<body class="ops-tailwind locked">
+  <section class="login-screen" id="loginScreen">
+    <div class="login-topbar">
       <div class="login-brand">
         <div class="brand-mark">JA</div>
-        <div><strong>JA Group Services Ltd</strong><span>Head Office Operations</span></div>
-      </div>
-      <div class="login-card">
-        <div class="login-lock">⌾</div>
-        <p class="eyebrow">Authorised staff access</p>
-        <h1 id="loginTitle">Sign in to Head Office</h1>
-        <p class="login-intro">Enter your staff credentials to access the Operations Portal.</p>
-        <form id="loginForm">
-          <label for="username">Username</label>
-          <div class="login-field"><span>♙</span><input id="username" name="username" type="text" autocomplete="username" required /></div>
-          <label for="password">Password</label>
-          <div class="login-field"><span>⌑</span><input id="password" name="password" type="password" autocomplete="current-password" required /><button id="showPassword" type="button" aria-label="Show password">◉</button></div>
-          <div class="login-options"><label><input type="checkbox" id="rememberDevice" /> Remember this device</label><button type="button">Forgot password?</button></div>
-          <p class="login-error" id="loginError" role="alert"></p>
-          <button class="primary-button login-submit" type="submit">Sign in securely <span>→</span></button>
-        </form>
-        <div class="preview-credentials">
-          <strong>Version 1 preview account</strong>
-          <span>Username: <code>admin</code></span>
-          <span>Password: <code>PreviewOnly!2026</code></span>
+        <div>
+          <strong>JA Group Services Ltd</strong>
+          <span>Head Office Operations &amp; Security Centre</span>
         </div>
       </div>
-      <div class="login-footer">
-        <span>Internal system · Authorised use only</span>
-        <span>Company No. 16314179</span>
-      </div>
-    </section>
-
-    <div class="preview-banner">
-      <span class="pulse"></span>
-      Version 1 preview — demonstration records only
+      <span class="version-badge">Version 7</span>
     </div>
 
-    <div class="app-shell">
-      <aside class="sidebar" id="sidebar">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">JA</div>
-          <div>
-            <strong>Head Office</strong>
-            <span>Operations Portal</span>
-          </div>
+    <div class="login-stage">
+      <div class="login-card">
+        <div class="security-seal" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M12 3 5.5 5.7v5.6c0 4.3 2.6 7.8 6.5 9.7 3.9-1.9 6.5-5.4 6.5-9.7V5.7L12 3Z"/>
+            <path d="m9.3 12 1.8 1.8 3.8-4"/>
+          </svg>
         </div>
+        <p class="eyebrow">Authorised Head Office personnel</p>
+        <h1>Operations &amp; Security Centre</h1>
+        <p class="login-intro">Authenticate with your JA Group Services Microsoft work account. Customer operations, risk decisions, privileged actions and incident activity are recorded in the Head Office audit history.</p>
+        <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
+          <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          Continue with Microsoft
+        </a>
+        <p class="configuration-note" id="configurationNote" role="alert"></p>
+        <div class="login-assurance" aria-label="Access controls">
+          <span>Microsoft Entra</span>
+          <span>Role enforced</span>
+          <span>Audit recorded</span>
+        </div>
+      </div>
+    </div>
 
-        <nav aria-label="Main navigation">
-          <p class="nav-label">Operations</p>
-          <button class="nav-item active" data-view="dashboard"><span>⌂</span> Overview</button>
-          <button class="nav-item" data-view="customers"><span>◎</span> Customers <b>1,248</b></button>
-          <button class="nav-item" data-view="cases"><span>▣</span> Cases <b>17</b></button>
-          <button class="nav-item" data-view="security"><span>◇</span> Security <b class="danger-count">4</b></button>
-          <button class="nav-item" data-view="complaints"><span>☷</span> Complaints <b>6</b></button>
-          <button class="nav-item" data-view="payments"><span>£</span> Payments</button>
+    <div class="login-footer">
+      <span>Internal Head Office system · Authorised use only</span>
+      <span>JA Group Services Ltd · Company No. 16314179</span>
+    </div>
+  </section>
 
-          <p class="nav-label">Company controls</p>
-          <button class="nav-item" data-view="platforms"><span>⌘</span> Platforms</button>
-          <button class="nav-item" data-view="staff"><span>♙</span> Staff & roles</button>
-          <button class="nav-item" data-view="audit"><span>◷</span> Audit history</button>
-          <button class="nav-item" data-view="settings"><span>⚙</span> Settings</button>
+  <div class="app-shell" id="appShell" hidden>
+    <header class="ops-header">
+      <div class="ops-header-main">
+        <a class="ops-brand" href="#/control-room" aria-label="Head Office Operations and Security Centre home">
+          <div class="brand-mark">JA</div>
+          <div class="ops-brand-copy">
+            <strong>Head Office</strong>
+            <span>Operations &amp; Security Centre</span>
+          </div>
+          <span class="product-badge">V7</span>
+        </a>
+
+        <nav class="primary-header-navigation" aria-label="Primary Head Office navigation">
+          <button class="nav-item header-nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
+          <button class="nav-item header-nav-item" data-route="central-operations" data-permission="operations:read">Customer Operations</button>
+          <button class="nav-item header-nav-item" data-route="cases" data-permission="cases:read">Cases</button>
+          <button class="nav-item header-nav-item" data-route="risk-intelligence" data-permission="risk:read">Risk &amp; Fraud</button>
+          <button class="nav-item header-nav-item" data-route="incidents-v7" data-permission="incidents:read">Incidents</button>
         </nav>
 
-        <div class="sidebar-footer">
-          <div class="environment"><span></span> Preview environment</div>
-          <small>JA Group Services Ltd<br />Internal use only</small>
+        <div class="ops-header-actions">
+          <button class="all-tools-button" id="menuButton" type="button" aria-label="Open all Head Office tools" aria-controls="sidebar" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span>All tools</span>
+          </button>
+          <button class="theme-button" id="themeToggle" type="button" aria-label="Switch colour theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>
+          </button>
+
+          <details class="account-menu">
+            <summary>
+              <div class="avatar" id="userInitials">--</div>
+              <div class="account-summary-copy">
+                <strong id="userName">Staff member</strong>
+                <span id="userRole">Authorised access</span>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div class="account-menu-panel">
+              <p class="account-menu-label">Operating authority</p>
+              <strong>JA Group Services Ltd — Head Office</strong>
+              <select id="operatingContext" hidden disabled aria-hidden="true"><option value="HEAD_OFFICE">JA Group Services Ltd — Head Office</option></select>
+              <button id="signOutButton" type="button" class="account-signout">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 5H5v14h5M13 8l4 4-4 4M17 12H9"/></svg>
+                Sign out
+              </button>
+            </div>
+          </details>
         </div>
-      </aside>
+      </div>
 
-      <main>
-        <header class="topbar">
-          <button class="menu-button" id="menuButton" aria-label="Open navigation">☰</button>
-          <div class="search">
-            <span>⌕</span>
-            <input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records" />
-            <kbd>⌘ K</kbd>
-          </div>
-          <div class="top-actions">
-            <button class="icon-button" aria-label="Notifications">♢<i></i></button>
-            <div class="user">
-              <div class="avatar">AM</div>
-              <div><strong>Mr Alfie Murray</strong><span>System Administrator</span></div>
-              <span>⌄</span>
-            </div>
-            <button class="sign-out-button" id="signOutButton" title="Sign out">↪</button>
-          </div>
-        </header>
-
-        <div class="content">
-          <section class="view active" id="dashboard">
-            <div class="page-heading">
-              <div>
-                <p class="eyebrow">Monday, 27 July 2026</p>
-                <h1>Good evening, Alfie.</h1>
-                <p>Here is the current Head Office operational position.</p>
-              </div>
-              <button class="primary-button" data-action="new-case"><span>＋</span> Create case</button>
-            </div>
-
-            <div class="notice">
-              <div class="notice-icon">i</div>
-              <div><strong>Preview data</strong><p>This build uses demonstration records. No live customer, Microsoft or payment data is connected.</p></div>
-              <button aria-label="Dismiss notice">×</button>
-            </div>
-
-            <div class="metrics">
-              <article class="metric-card">
-                <div class="metric-icon blue">◎</div>
-                <div><span>Total customers</span><strong>1,248</strong><small><em>+32</em> this month</small></div>
-              </article>
-              <article class="metric-card">
-                <div class="metric-icon amber">▣</div>
-                <div><span>Open cases</span><strong>17</strong><small>5 require attention</small></div>
-              </article>
-              <article class="metric-card">
-                <div class="metric-icon red">◇</div>
-                <div><span>Active restrictions</span><strong>4</strong><small>2 critical priority</small></div>
-              </article>
-              <article class="metric-card">
-                <div class="metric-icon green">✓</div>
-                <div><span>Platforms online</span><strong>2 / 2</strong><small><em>All systems operational</em></small></div>
-              </article>
-            </div>
-
-            <div class="dashboard-grid">
-              <article class="panel attention-panel">
-                <div class="panel-heading">
-                  <div><h2>Requires attention</h2><p>Priority work across Head Office</p></div>
-                  <button>View all →</button>
-                </div>
-                <div class="attention-list">
-                  <button class="attention-row">
-                    <span class="severity critical"></span>
-                    <div><strong>Suspected account takeover</strong><small>SEC-2026-0041 · Sarah Mitchell</small></div>
-                    <div><span class="tag critical">Critical</span><time>12 min ago</time></div>
-                    <b>›</b>
-                  </button>
-                  <button class="attention-row">
-                    <span class="severity high"></span>
-                    <div><strong>Refund approval required</strong><small>REF-2026-0088 · Daniel Adams · £149.99</small></div>
-                    <div><span class="tag high">High</span><time>48 min ago</time></div>
-                    <b>›</b>
-                  </button>
-                  <button class="attention-row">
-                    <span class="severity medium"></span>
-                    <div><strong>Complaint response due today</strong><small>COM-2026-0124 · Oliver Brooks</small></div>
-                    <div><span class="tag medium">Due today</span><time>2 hrs ago</time></div>
-                    <b>›</b>
-                  </button>
-                  <button class="attention-row">
-                    <span class="severity review"></span>
-                    <div><strong>Security marker review overdue</strong><small>Customer 5830192744 · Identity concern</small></div>
-                    <div><span class="tag review">Review</span><time>Yesterday</time></div>
-                    <b>›</b>
-                  </button>
-                </div>
-              </article>
-
-              <article class="panel platform-panel">
-                <div class="panel-heading">
-                  <div><h2>Connected platforms</h2><p>Live integration status</p></div>
-                  <button>Manage →</button>
-                </div>
-                <div class="platform">
-                  <div class="platform-logo planyx">P</div>
-                  <div><strong>Planyx</strong><small><span></span> Operational</small></div>
-                  <time>Synced 1 min ago</time>
-                </div>
-                <div class="platform">
-                  <div class="platform-logo profile">PC</div>
-                  <div><strong>Profile Centre</strong><small><span></span> Operational</small></div>
-                  <time>Synced 3 min ago</time>
-                </div>
-                <div class="integration-summary">
-                  <div><strong>99.98%</strong><span>API availability</span></div>
-                  <div><strong>286ms</strong><span>Average response</span></div>
-                </div>
-              </article>
-
-              <article class="panel activity-panel">
-                <div class="panel-heading">
-                  <div><h2>Recent activity</h2><p>Latest actions across the portal</p></div>
-                  <button>Audit history →</button>
-                </div>
-                <div class="activity">
-                  <div class="activity-icon green">✓</div>
-                  <div><strong>Restriction removed</strong><p>Email-change restriction cleared after identity verification</p><small><b>Mr Alfie Murray</b> · Customer 7046183291</small></div>
-                  <time>9 min ago</time>
-                </div>
-                <div class="activity">
-                  <div class="activity-icon blue">＋</div>
-                  <div><strong>Customer registered</strong><p>Universal customer record created through Planyx</p><small><b>System</b> · Customer 1984527630</small></div>
-                  <time>21 min ago</time>
-                </div>
-                <div class="activity">
-                  <div class="activity-icon amber">!</div>
-                  <div><strong>Security case escalated</strong><p>Risk level changed from High to Critical</p><small><b>Security rule engine</b> · SEC-2026-0041</small></div>
-                  <time>34 min ago</time>
-                </div>
-                <div class="activity">
-                  <div class="activity-icon violet">£</div>
-                  <div><strong>Refund approved</strong><p>Full refund authorised and sent to Stripe</p><small><b>Mr Alfie Murray</b> · REF-2026-0085</small></div>
-                  <time>1 hr ago</time>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section class="view" id="customers">
-            <div class="page-heading compact">
-              <div><p class="eyebrow">Universal Customer Register</p><h1>Customers</h1><p>One central identity record across every connected platform.</p></div>
-              <button class="primary-button">＋ Add customer</button>
-            </div>
-            <article class="panel table-panel">
-              <div class="table-tools">
-                <div class="search wide"><span>⌕</span><input id="customerSearch" type="search" placeholder="Search name, email, customer number or Entra ID…" /></div>
-                <button class="filter-button">☷ Filters</button>
-                <button class="filter-button">⇩ Export</button>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead><tr><th>Customer</th><th>Customer number</th><th>Connected platforms</th><th>Status</th><th>Security</th><th>Last activity</th><th></th></tr></thead>
-                  <tbody id="customerRows"></tbody>
-                </table>
-              </div>
-            </article>
-          </section>
-
-          <section class="view" id="customer-detail">
-            <button class="back-button" data-view-target="customers">← Back to customers</button>
-            <div class="customer-hero">
-              <div class="customer-avatar" id="detailInitials">SM</div>
-              <div><p class="eyebrow">Universal customer record</p><h1 id="detailName">Sarah Mitchell</h1><p id="detailEmail">sarah.mitchell@example.com</p></div>
-              <div class="customer-number"><span>Customer number</span><strong id="detailNumber">5830192744</strong><button aria-label="Copy customer number">▣</button></div>
-              <span class="tag critical" id="detailRisk">Critical security review</span>
-            </div>
-            <div class="record-grid">
-              <div>
-                <article class="panel detail-panel">
-                  <div class="panel-heading"><div><h2>Identity & status</h2><p>Central customer identity information</p></div><button>Edit →</button></div>
-                  <dl class="detail-list">
-                    <div><dt>Account status</dt><dd><span class="status-dot active"></span> Active — restricted</dd></div>
-                    <div><dt>Verified email</dt><dd id="identityEmail">sarah.mitchell@example.com <span class="verified">✓ Verified</span></dd></div>
-                    <div><dt>Entra object ID</dt><dd class="mono">a12f8d10-5b30-4d21-9261-56d9c6182481</dd></div>
-                    <div><dt>First registered</dt><dd>14 February 2026 at 10:42</dd></div>
-                    <div><dt>Originating platform</dt><dd>Planyx</dd></div>
-                  </dl>
-                </article>
-                <article class="panel detail-panel">
-                  <div class="panel-heading"><div><h2>Linked platform accounts</h2><p>Service accounts attached to this identity</p></div><button>Manage →</button></div>
-                  <div class="linked-account"><div class="platform-logo planyx">P</div><div><strong>Planyx</strong><small>PLX-84920 · Complete plan</small></div><span class="tag success">Active</span><b>›</b></div>
-                  <div class="linked-account"><div class="platform-logo profile">PC</div><div><strong>Profile Centre</strong><small>PFC-22014 · Individual account</small></div><span class="tag success">Active</span><b>›</b></div>
-                </article>
-              </div>
-              <div>
-                <article class="panel risk-panel">
-                  <div class="panel-heading"><div><h2>Active security controls</h2><p>Company-wide markers and restrictions</p></div></div>
-                  <div class="risk-score"><span>Risk level</span><strong>Critical</strong><div><i></i><i></i><i></i><i></i></div></div>
-                  <div class="marker"><span class="severity critical"></span><div><strong>Suspected account takeover</strong><small>Applied 27 July 2026 · SEC-2026-0041</small></div><span class="tag critical">Active</span></div>
-                  <h3>Restrictions enforced</h3>
-                  <ul class="restrictions">
-                    <li><span>×</span> Email address changes blocked</li>
-                    <li><span>×</span> Password recovery blocked</li>
-                    <li><span>×</span> New device access blocked</li>
-                    <li><span>×</span> Existing sessions revoked</li>
-                  </ul>
-                  <button class="full-button">Open security case</button>
-                </article>
-                <article class="panel mini-panel"><span>Open cases</span><strong>2</strong><button>View cases →</button></article>
-              </div>
-            </div>
-          </section>
-
-          <section class="view placeholder-view" id="cases"></section>
-          <section class="view placeholder-view" id="security"></section>
-          <section class="view placeholder-view" id="complaints"></section>
-          <section class="view placeholder-view" id="payments"></section>
-          <section class="view placeholder-view" id="platforms"></section>
-          <section class="view placeholder-view" id="staff"></section>
-          <section class="view placeholder-view" id="audit"></section>
-          <section class="view placeholder-view" id="settings"></section>
+      <div class="ops-subheader">
+        <div class="breadcrumbs" aria-label="Breadcrumb">
+          <span>JA Group Services Ltd</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          <strong id="currentRouteLabel">Control Room</strong>
         </div>
-      </main>
+        <div class="global-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+          <input id="globalSearch" type="search" placeholder="Search customer, case, alert or reference…" aria-label="Search Head Office records">
+          <kbd>Ctrl K</kbd>
+        </div>
+      </div>
+    </header>
+
+    <aside class="sidebar tools-drawer" id="sidebar" aria-label="All Head Office tools">
+      <div class="tools-drawer-heading">
+        <div>
+          <strong>Head Office functions</strong>
+          <span>Authorised operational, security and assurance controls</span>
+        </div>
+        <button class="drawer-close" id="drawerCloseButton" type="button" aria-label="Close all tools">×</button>
+      </div>
+      <nav id="mainNavigation" aria-label="All Head Office navigation">
+        <section class="nav-group">
+          <p class="nav-label">Command and intelligence</p>
+          <button class="nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
+          <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read">Fraud &amp; risk intelligence</button>
+          <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read">Incident command &amp; breaches</button>
+          <button class="nav-item" data-route="central-operations" data-permission="operations:read">Central Head Office operations</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Customer operations</p>
+          <button class="nav-item" data-route="dashboard">Operations overview</button>
+          <button class="nav-item" data-route="customers" data-permission="customers:read">Universal customer register</button>
+          <button class="nav-item" data-route="cases" data-permission="cases:read">Case and investigation register</button>
+          <button class="nav-item" data-route="communications" data-permission="communications:read">Communications record</button>
+          <button class="nav-item" data-route="payments" data-permission="payments:read">Payments, refunds &amp; approvals</button>
+          <button class="nav-item" data-route="complaints" data-permission="complaints:read">Complaint and redress register</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Security and compliance</p>
+          <button class="nav-item" data-route="security" data-permission="security:read">Markers, restrictions &amp; controls</button>
+          <button class="nav-item" data-route="data-protection" data-permission="data_protection:*">Data protection cases</button>
+          <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*">Safeguarding cases</button>
+          <button class="nav-item" data-route="security-levels" data-permission="risk:read">Security control taxonomy</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Administration and assurance</p>
+          <button class="nav-item" data-route="platforms" data-permission="platforms:read">Connected systems</button>
+          <button class="nav-item" data-route="staff" data-permission="administration:read">Staff identity &amp; authority</button>
+          <button class="nav-item" data-route="audit" data-permission="audit:read">Audit and evidence history</button>
+          <button class="nav-item" data-route="settings" data-permission="configuration:read">Governed configuration</button>
+        </section>
+      </nav>
+      <div class="tools-drawer-footer">
+        <span class="production-dot"></span>
+        <strong id="environmentName">Production</strong>
+        <span>JA Group Services Ltd · Head Office controlled</span>
+      </div>
+    </aside>
+    <button class="menu-backdrop" id="menuBackdrop" type="button" aria-label="Close all Head Office tools"></button>
+
+    <main class="main-shell">
+      <div class="content" id="viewRoot">
+        <div class="loading-state"><span class="spinner"></span><p>Opening Head Office Operations &amp; Security Centre…</p></div>
+      </div>
+      <footer class="system-footer">
+        <div>
+          <strong>JA Group Services Ltd</strong>
+          <span>Head Office Operations &amp; Security Centre · Version 7</span>
+        </div>
+        <span id="systemClock"></span>
+      </footer>
+    </main>
+  </div>
+
+  <dialog id="modal">
+    <div class="modal-shell">
+      <header>
+        <div><p class="eyebrow" id="modalEyebrow">Head Office controlled record</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div>
+        <button class="icon-button" data-close-modal aria-label="Close">×</button>
+      </header>
+      <div class="modal-content" id="modalContent"></div>
     </div>
+  </dialog>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
-    <dialog id="caseDialog">
-      <form method="dialog">
-        <div class="dialog-heading"><div><p class="eyebrow">Head Office</p><h2>Create a new case</h2><p>Choose the correct workflow for this matter.</p></div><button value="cancel" aria-label="Close">×</button></div>
-        <label>Case type<select><option>Security investigation</option><option>Complaint</option><option>Refund request</option><option>Payment dispute</option><option>Account recovery</option><option>Data protection matter</option><option>Safeguarding referral</option></select></label>
-        <label>Customer reference<input type="text" placeholder="Customer number, name or email" /></label>
-        <label>Summary<textarea placeholder="Briefly describe the matter"></textarea></label>
-        <div class="dialog-actions"><button value="cancel" class="secondary-button">Cancel</button><button value="create" class="primary-button">Create case</button></div>
-      </form>
-    </dialog>
-
-    <script src="/app.js" type="module"></script>
-  </body>
+  <script src="/js/core.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-operations.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-control.js?v=20260728-v7-4" defer></script>
+  <script src="/js/modals.js?v=20260728-v7-4" defer></script>
+  <script src="/js/actions.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-v7.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-enterprise.js?v=20260728-enterprise-1" defer></script>
+  <script src="/js/v7-overrides.js?v=20260728-v7-4" defer></script>
+  <script src="/js/head-office-context.js?v=20260728-v7-4" defer></script>
+  <script src="/js/operations-shell.js?v=20260728-ops-2" defer></script>
+  <script src="/js/boot.js?v=20260728-v7-4" defer></script>
+</body>
 </html>

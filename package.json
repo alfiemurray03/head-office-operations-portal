@@ -1,13 +1,13 @@
 {
   "name": "head-office-operations-portal",
-  "version": "0.1.0",
+  "version": "7.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "wrangler deploy --dry-run",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "types": "wrangler types"
+    "check": "wrangler pages functions build --outdir .pages-check",
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public",
+    "types": "wrangler types --path functions/types.d.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
