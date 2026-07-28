@@ -1,4 +1,4 @@
-import { audit, hmac, safeEqual } from "./_shared.js";
+import { audit, hmac, safeEqual, sha256 } from "./_shared.js";
 
 const TENANT_ID = "53477196-db21-46d2-8123-00be3d6882da";
 const CLIENT_ID = "4f5c0708-f580-4514-b710-3cb780939348";
@@ -54,6 +54,52 @@ function readCookie(request, name) {
 
 function cookie(name, value, maxAge) {
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+async function ensureSessionStore(env) {
+  if (!env.DB) throw new Error("The Head Office database is not connected.");
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS microsoft_staff_sessions (
+    token_hash TEXT PRIMARY KEY,
+    session_json TEXT NOT NULL,
+    staff_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  )`).run();
+}
+
+async function storeMicrosoftSession(env, transactionToken, session) {
+  await ensureSessionStore(env);
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO microsoft_staff_sessions
+    (token_hash, session_json, staff_id, expires_at, created_at, last_seen_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(token_hash) DO UPDATE SET
+      session_json=excluded.session_json,
+      staff_id=excluded.staff_id,
+      expires_at=excluded.expires_at,
+      last_seen_at=excluded.last_seen_at`)
+    .bind(await sha256(transactionToken), JSON.stringify(session), session.sub, session.exp, now, now)
+    .run();
+}
+
+async function readStoredMicrosoftSession(request, env) {
+  const transactionToken = readCookie(request, TRANSACTION_COOKIE);
+  if (!transactionToken || !env.DB) return null;
+  await ensureSessionStore(env);
+  const row = await env.DB.prepare(`SELECT session_json, expires_at
+    FROM microsoft_staff_sessions WHERE token_hash=? LIMIT 1`)
+    .bind(await sha256(transactionToken)).first();
+  if (!row || Number(row.expires_at) <= Date.now()) return null;
+  try {
+    const session = JSON.parse(row.session_json);
+    if (session.version !== 2 || session.tenantId !== TENANT_ID || session.exp <= Date.now()) return null;
+    await env.DB.prepare("UPDATE microsoft_staff_sessions SET last_seen_at=? WHERE token_hash=?")
+      .bind(new Date().toISOString(), await sha256(transactionToken)).run();
+    return session;
+  } catch {
+    return null;
+  }
 }
 
 async function signedPayload(value, secret) {
@@ -196,7 +242,10 @@ export async function beginMicrosoftLogin(request, env) {
     status: 302,
     headers: {
       Location: authorise.toString(),
-      "Set-Cookie": cookie(TRANSACTION_COOKIE, transaction, 600),
+      // Keep the already accepted first-party cookie for the authenticated
+      // session. The signed OIDC transaction inside it is still valid for only
+      // ten minutes; after callback it becomes an opaque key to the D1 session.
+      "Set-Cookie": cookie(TRANSACTION_COOKIE, transaction, 28_800),
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer"
     }
@@ -208,7 +257,8 @@ export async function completeMicrosoftLogin(request, env) {
   if (!secret) throw new Error("Microsoft staff sign-in has not been configured.");
   const url = new URL(request.url);
   if (url.searchParams.get("error")) throw new Error(url.searchParams.get("error_description") || "Microsoft sign-in was cancelled.");
-  const transaction = await readSignedPayload(readCookie(request, TRANSACTION_COOKIE), secret);
+  const transactionToken = readCookie(request, TRANSACTION_COOKIE);
+  const transaction = await readSignedPayload(transactionToken, secret);
   if (!transaction || transaction.expiresAt < Date.now() || !safeEqual(transaction.state, url.searchParams.get("state") || "")) {
     throw new Error("The Microsoft sign-in transaction has expired or is invalid.");
   }
@@ -233,7 +283,7 @@ export async function completeMicrosoftLogin(request, env) {
   const identity = identityFromClaims(claims);
   if (!identity.email) throw new Error("Microsoft did not provide a staff email address.");
   const staff = await resolveStaff(env, identity);
-  const session = await signedPayload({
+  const sessionData = {
     sub: staff.id,
     objectId: identity.objectId,
     username: staff.email,
@@ -243,7 +293,11 @@ export async function completeMicrosoftLogin(request, env) {
     authSource: "microsoft_entra",
     exp: Date.now() + 8 * 60 * 60 * 1000,
     version: 2
-  }, sessionSecret(env));
+  };
+  // Do not depend on a replacement cookie being accepted during the OAuth
+  // callback. The browser has already returned ho_oidc_tx successfully, so
+  // promote that exact token into a server-side authenticated session.
+  await storeMicrosoftSession(env, transactionToken, sessionData);
   // Authentication must not be discarded because a secondary audit write fails.
   // The callback has already validated Microsoft and resolved the authorised
   // staff member at this point, so issue the session and report audit failures
@@ -267,10 +321,6 @@ export async function completeMicrosoftLogin(request, env) {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  // Always issue the authenticated session under the canonical cookie name.
-  // This overwrites any stale ho_session value left by earlier deployments.
-  // The short-lived OIDC transaction cookie expires independently.
-  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
   return new Response(null, { status: 303, headers });
 }
 
@@ -311,6 +361,8 @@ export async function inspectMicrosoftSession(request, env) {
     }
     return { session, status: "authenticated" };
   }
+  const storedSession = await readStoredMicrosoftSession(request, env);
+  if (storedSession) return { session: storedSession, status: "authenticated_server_session" };
   return { session: null, status: lastStatus };
 }
 
