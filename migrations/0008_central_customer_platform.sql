@@ -213,18 +213,3 @@ CREATE INDEX IF NOT EXISTS idx_fraud_signals_customer ON fraud_signals(customer_
 CREATE INDEX IF NOT EXISTS idx_enforcement_platform ON platform_enforcement_commands(platform_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_access_decisions_customer ON customer_access_decisions(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_timeline ON customer_timeline_events(customer_id, occurred_at DESC);
-
-INSERT INTO platforms (id,code,name,status,created_at,updated_at)
-VALUES ('platform-profile-centre','PROFILE_CENTRE','Profile Centre','setup',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-ON CONFLICT(code) DO UPDATE SET name=excluded.name,updated_at=excluded.updated_at;
-
-INSERT INTO platform_operational_profiles
-  (platform_id,public_url,environment,hosting_provider,health_status,health_message,capabilities_json,integrations_json,created_at,updated_at)
-SELECT id,'https://profilecenter.co.uk','production','GoDaddy Airo','awaiting_connection',
-  'Connector configuration prepared. Live website connection has not yet been activated.',
-  '["customer_identity","customer_operations","security_enforcement","subscriptions","orders"]',
-  '{"customer_identity":"JA Group Services ID","customerops":"awaiting_connection"}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-FROM platforms WHERE code='PROFILE_CENTRE'
-ON CONFLICT(platform_id) DO UPDATE SET public_url=excluded.public_url,hosting_provider=excluded.hosting_provider,
-  health_status=CASE WHEN platform_operational_profiles.health_status='operational' THEN platform_operational_profiles.health_status ELSE excluded.health_status END,
-  updated_at=excluded.updated_at;
