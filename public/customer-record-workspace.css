@@ -1,0 +1,249 @@
+/* Full customer record workspace
+   Customer files are pages, never nested scrolling modals. */
+
+body.ops-tailwind .customer-record-page {
+  width: 100%;
+  min-width: 0;
+}
+
+body.ops-tailwind .customer-record-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--enterprise-blue, var(--ops-blue));
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body.ops-tailwind .customer-record-back:hover { text-decoration: underline; }
+
+body.ops-tailwind .customer-record-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--enterprise-border, var(--ops-border));
+  border-left: 4px solid var(--enterprise-blue, var(--ops-blue));
+  background: var(--enterprise-surface, var(--ops-surface));
+}
+
+body.ops-tailwind .customer-record-header-main { min-width: 0; }
+body.ops-tailwind .customer-record-header h1 {
+  margin: 0;
+  color: var(--enterprise-ink, var(--ops-text));
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 680;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+  overflow-wrap: anywhere;
+}
+
+body.ops-tailwind .customer-record-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 10px;
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 12px;
+}
+
+body.ops-tailwind .customer-record-ucn {
+  color: var(--enterprise-ink, var(--ops-text));
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+body.ops-tailwind .customer-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+body.ops-tailwind .customer-record-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+body.ops-tailwind .customer-record-status {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--enterprise-border, var(--ops-border));
+  background: var(--enterprise-surface, var(--ops-surface));
+}
+
+body.ops-tailwind .customer-record-status span {
+  display: block;
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body.ops-tailwind .customer-record-status strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--enterprise-ink, var(--ops-text));
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+body.ops-tailwind .customer-record-status small {
+  display: block;
+  margin-top: 4px;
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 10px;
+}
+
+body.ops-tailwind .customer-record-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+body.ops-tailwind .customer-record-column,
+body.ops-tailwind .customer-record-main {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+body.ops-tailwind .customer-record-panel {
+  min-width: 0;
+  border: 1px solid var(--enterprise-border, var(--ops-border));
+  background: var(--enterprise-surface, var(--ops-surface));
+  box-shadow: var(--enterprise-shadow, var(--ops-shadow-sm));
+}
+
+body.ops-tailwind .customer-record-panel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--enterprise-border-soft, var(--ops-border));
+  background: var(--enterprise-surface-2, var(--ops-surface-subtle));
+}
+
+body.ops-tailwind .customer-record-panel > header h2 {
+  margin: 0;
+  color: var(--enterprise-ink, var(--ops-text));
+  font-size: 14px;
+  font-weight: 680;
+}
+
+body.ops-tailwind .customer-record-panel > header p {
+  margin: 3px 0 0;
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+body.ops-tailwind .customer-record-panel-body { padding: 15px; }
+body.ops-tailwind .customer-record-panel-body.flush { padding: 0; }
+
+body.ops-tailwind .customer-record-facts { display: grid; gap: 12px; margin: 0; }
+body.ops-tailwind .customer-record-fact {
+  min-width: 0;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--enterprise-border-soft, var(--ops-border));
+}
+body.ops-tailwind .customer-record-fact:last-child { padding-bottom: 0; border-bottom: 0; }
+body.ops-tailwind .customer-record-fact dt {
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+body.ops-tailwind .customer-record-fact dd {
+  margin: 5px 0 0;
+  color: var(--enterprise-ink, var(--ops-text));
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+body.ops-tailwind .customer-record-list { display: grid; }
+body.ops-tailwind .customer-record-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--enterprise-border-soft, var(--ops-border));
+}
+body.ops-tailwind .customer-record-list-item:last-child { border-bottom: 0; }
+body.ops-tailwind .customer-record-list-item[data-open] { cursor: pointer; }
+body.ops-tailwind .customer-record-list-item[data-open]:hover { background: color-mix(in srgb, var(--enterprise-blue, var(--ops-blue)) 4%, var(--enterprise-surface, var(--ops-surface))); }
+body.ops-tailwind .customer-record-list-item strong,
+body.ops-tailwind .customer-record-list-item span,
+body.ops-tailwind .customer-record-list-item small { display: block; }
+body.ops-tailwind .customer-record-list-item strong { color: var(--enterprise-ink, var(--ops-text)); font-size: 12px; overflow-wrap: anywhere; }
+body.ops-tailwind .customer-record-list-item span { margin-top: 3px; color: var(--enterprise-muted, var(--ops-muted)); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+body.ops-tailwind .customer-record-list-item small { margin-top: 4px; color: var(--enterprise-subtle, var(--ops-subtle)); font-size: 9px; }
+body.ops-tailwind .customer-record-list-meta { text-align: right; white-space: nowrap; }
+
+body.ops-tailwind .customer-record-security-grid,
+body.ops-tailwind .customer-record-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+body.ops-tailwind .customer-record-empty {
+  padding: 24px 16px;
+  color: var(--enterprise-muted, var(--ops-muted));
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+body.ops-tailwind .customer-record-empty strong { display: block; margin-bottom: 4px; color: var(--enterprise-ink, var(--ops-text)); }
+
+body.ops-tailwind .customer-record-editor .form-grid { gap: 12px; }
+body.ops-tailwind .customer-record-editor .form-actions {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--enterprise-border-soft, var(--ops-border));
+}
+
+body.ops-tailwind .customer-record-page .table-wrap,
+body.ops-tailwind .customer-record-page .customer-record-panel-body {
+  overflow: visible;
+}
+
+@media (max-width: 1180px) {
+  body.ops-tailwind .customer-record-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.ops-tailwind .customer-record-layout { grid-template-columns: 1fr; }
+  body.ops-tailwind .customer-record-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  body.ops-tailwind .customer-record-header { flex-direction: column; padding: 16px; }
+  body.ops-tailwind .customer-record-actions { width: 100%; justify-content: flex-start; }
+  body.ops-tailwind .customer-record-actions .button { flex: 1 1 140px; }
+  body.ops-tailwind .customer-record-status-grid,
+  body.ops-tailwind .customer-record-column,
+  body.ops-tailwind .customer-record-security-grid,
+  body.ops-tailwind .customer-record-history-grid { grid-template-columns: 1fr; }
+  body.ops-tailwind .customer-record-list-item { grid-template-columns: 1fr; }
+  body.ops-tailwind .customer-record-list-meta { text-align: left; }
+  body.ops-tailwind .customer-record-editor .form-grid { grid-template-columns: 1fr; }
+  body.ops-tailwind .customer-record-editor .form-grid .full,
+  body.ops-tailwind .customer-record-editor .form-actions { grid-column: auto; }
+}
