@@ -7,22 +7,22 @@
     document.querySelector('#workspaceContext')?.remove();
   }
 
+  function setText(element, value) {
+    if (element && element.textContent !== value) element.textContent = value;
+  }
+
   function tidyPrimaryNavigation() {
     document.querySelectorAll('[data-route="dashboard"]').forEach(item => item.remove());
 
-    const centralOperations = document.querySelector('#mainNavigation [data-route="central-operations"]');
-    if (centralOperations) centralOperations.textContent = 'Customer operations centre';
-
-    const protection = document.querySelector('#mainNavigation [data-route="customer-protection"]');
-    if (protection) protection.textContent = 'Customer protection operations';
-
-    const heading = document.querySelector('.tools-drawer-heading strong');
-    const description = document.querySelector('.tools-drawer-heading span');
-    if (heading) heading.textContent = 'Head Office Operations Centre';
-    if (description) description.textContent = 'Customer operations, security, incidents and assurance';
+    setText(document.querySelector('#mainNavigation [data-route="central-operations"]'), 'Customer operations centre');
+    setText(document.querySelector('#mainNavigation [data-route="customer-protection"]'), 'Customer protection operations');
+    setText(document.querySelector('.tools-drawer-heading strong'), 'Head Office Operations Centre');
+    setText(document.querySelector('.tools-drawer-heading span'), 'Customer operations, security, incidents and assurance');
 
     const sidebar = document.querySelector('#sidebar');
-    if (sidebar) sidebar.setAttribute('aria-label', 'Head Office Operations Centre navigation');
+    if (sidebar?.getAttribute('aria-label') !== 'Head Office Operations Centre navigation') {
+      sidebar?.setAttribute('aria-label', 'Head Office Operations Centre navigation');
+    }
   }
 
   function cleanRoute(route) {
@@ -55,4 +55,6 @@
   window.addEventListener('hashchange', () => {
     if (routeFromHash() === 'dashboard') navigate('control-room', true);
   });
+
+  if (routeFromHash() === 'dashboard') navigate('control-room', true);
 })();
