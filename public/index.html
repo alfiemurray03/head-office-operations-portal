@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#0b1220">
   <title>Head Office Operations Centre · Version 7</title>
-  <link rel="stylesheet" href="/styles.css?v=20260728-v7-2">
-  <link rel="stylesheet" href="/v7.css?v=20260728-v7-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-v7-3">
+  <link rel="stylesheet" href="/v7.css?v=20260728-v7-3">
 </head>
 <body class="locked">
   <section class="login-screen" id="loginScreen">
@@ -17,9 +17,9 @@
     </div>
     <div class="login-card">
       <div class="security-seal" aria-hidden="true">⌾</div>
-      <p class="eyebrow">Authorised staff access</p>
+      <p class="eyebrow">Authorised Head Office staff access</p>
       <h1>Sign in to Head Office</h1>
-      <p class="login-intro">Use your JA Group Services Microsoft work account. Access, decisions and changes are recorded in the Head Office audit history.</p>
+      <p class="login-intro">Use your JA Group Services Microsoft work account. This is one company-wide Head Office portal. Access, decisions and changes are recorded in the Head Office audit history.</p>
       <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
         <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         Sign in with Microsoft <span>→</span>
@@ -27,7 +27,7 @@
       <p class="configuration-note" id="configurationNote" role="alert"></p>
       <div class="login-assurance"><span>🔐 Microsoft Entra</span><span>🧾 Audited access</span><span>🏢 Head Office controlled</span></div>
     </div>
-    <div class="login-footer"><span>Internal system · Authorised use only</span><span>Company No. 16314179</span></div>
+    <div class="login-footer"><span>Internal Head Office system · Authorised use only</span><span>Company No. 16314179</span></div>
   </section>
 
   <div class="app-shell" id="appShell" hidden>
@@ -52,7 +52,7 @@
         <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*"><span>◈</span> Safeguarding</button>
         <p class="nav-label">System administration</p>
         <button class="nav-item" data-route="security-levels" data-permission="risk:read"><span>≡</span> Security levels</button>
-        <button class="nav-item" data-route="platforms" data-permission="platforms:read"><span>⌘</span> Divisions & integrations</button>
+        <button class="nav-item" data-route="platforms" data-permission="platforms:read"><span>⌘</span> Connected systems</button>
         <button class="nav-item" data-route="staff" data-permission="administration:read"><span>♙</span> Staff & access</button>
         <button class="nav-item" data-route="audit" data-permission="audit:read"><span>◷</span> Audit history</button>
         <button class="nav-item" data-route="settings" data-permission="configuration:read"><span>⚙</span> System settings</button>
@@ -65,7 +65,7 @@
         <button class="icon-button menu-button" id="menuButton" aria-label="Open navigation">☰</button>
         <div class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records"><kbd>Ctrl K</kbd></div>
         <div class="top-actions">
-          <label class="context-switcher"><span>Operating context</span><select id="operatingContext"><option value="HEAD_OFFICE">Head Office</option></select></label>
+          <div class="context-switcher" aria-label="Operating authority"><span>Operating authority</span><strong>JA Group Services Ltd — Head Office</strong><select id="operatingContext" hidden disabled aria-hidden="true"><option value="HEAD_OFFICE">JA Group Services Ltd — Head Office</option></select></div>
           <div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div>
           <button class="icon-button" id="signOutButton" title="Sign out" aria-label="Sign out">↪</button>
         </div>
@@ -77,13 +77,14 @@
 
   <dialog id="modal"><div class="modal-shell"><header><div><p class="eyebrow" id="modalEyebrow">Head Office</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div><button class="icon-button" data-close-modal aria-label="Close">×</button></header><div class="modal-content" id="modalContent"></div></div></dialog>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-  <script src="/js/core.js?v=20260728-v7-2" defer></script>
-  <script src="/js/views-operations.js?v=20260728-v7-2" defer></script>
-  <script src="/js/views-control.js?v=20260728-v7-2" defer></script>
-  <script src="/js/modals.js?v=20260728-v7-2" defer></script>
-  <script src="/js/actions.js?v=20260728-v7-2" defer></script>
-  <script src="/js/views-v7.js?v=20260728-v7-2" defer></script>
-  <script src="/js/v7-overrides.js?v=20260728-v7-2" defer></script>
-  <script src="/js/boot.js?v=20260728-v7-2" defer></script>
+  <script src="/js/core.js?v=20260728-v7-3" defer></script>
+  <script src="/js/views-operations.js?v=20260728-v7-3" defer></script>
+  <script src="/js/views-control.js?v=20260728-v7-3" defer></script>
+  <script src="/js/modals.js?v=20260728-v7-3" defer></script>
+  <script src="/js/actions.js?v=20260728-v7-3" defer></script>
+  <script src="/js/views-v7.js?v=20260728-v7-3" defer></script>
+  <script src="/js/v7-overrides.js?v=20260728-v7-3" defer></script>
+  <script src="/js/head-office-context.js?v=20260728-v7-3" defer></script>
+  <script src="/js/boot.js?v=20260728-v7-3" defer></script>
 </body>
 </html>
