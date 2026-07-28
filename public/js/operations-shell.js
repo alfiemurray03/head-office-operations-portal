@@ -1,29 +1,29 @@
 const OPS_ROUTE_LABELS = {
-  "control-room": "Control Room",
-  "risk-intelligence": "Risk Intelligence",
-  "incidents-v7": "Incidents & Data Breaches",
-  "central-operations": "Central Operations",
+  "control-room": "Head Office Control Room",
+  "risk-intelligence": "Fraud & Risk Intelligence",
+  "incidents-v7": "Incident Command & Data Breaches",
+  "central-operations": "Central Head Office Operations",
   dashboard: "Operations Overview",
-  customers: "Universal Customers",
-  cases: "Case Management",
-  communications: "Communications",
-  payments: "Payments & Approvals",
-  security: "Security Control Centre",
-  complaints: "Complaints",
-  "data-protection": "Data Protection",
-  safeguarding: "Safeguarding",
-  "security-levels": "Security Levels",
+  customers: "Universal Customer Register",
+  cases: "Case & Investigation Register",
+  communications: "Communications Record",
+  payments: "Payments, Refunds & Approvals",
+  security: "Security Markers & Restrictions",
+  complaints: "Complaint & Redress Register",
+  "data-protection": "Data Protection Cases",
+  safeguarding: "Safeguarding Cases",
+  "security-levels": "Security Control Taxonomy",
   platforms: "Connected Systems",
-  staff: "Staff & Access",
-  audit: "Audit History",
-  settings: "System Settings"
+  staff: "Staff Identity & Authority",
+  audit: "Audit & Evidence History",
+  settings: "Governed Configuration"
 };
 
 function updateOperationsRouteChrome(route = routeFromHash()) {
   const label = OPS_ROUTE_LABELS[route] || "Head Office";
   const target = document.querySelector("#currentRouteLabel");
   if (target) target.textContent = label;
-  document.title = `${label} · Head Office Customer Operations Centre`;
+  document.title = `${label} · Head Office Operations & Security Centre`;
 }
 
 function closeOperationsTools() {
@@ -35,7 +35,7 @@ function applyOperationsTheme(theme) {
   const resolved = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.opsTheme = resolved;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", resolved === "dark" ? "#0f172a" : "#ffffff");
+  if (meta) meta.setAttribute("content", resolved === "dark" ? "#07111f" : "#101c2f");
   try { localStorage.setItem("head_office_theme", resolved); } catch {}
 }
 

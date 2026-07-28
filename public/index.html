@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <meta name="theme-color" content="#ffffff">
-  <title>Head Office Customer Operations Centre · Version 7</title>
-  <link rel="stylesheet" href="/styles.css?v=20260728-v7-3">
-  <link rel="stylesheet" href="/v7.css?v=20260728-v7-3">
-  <link rel="stylesheet" href="/operations-tailwind.css?v=20260728-ops-1">
+  <meta name="theme-color" content="#101c2f">
+  <title>Head Office Operations &amp; Security Centre · Version 7</title>
+  <link rel="stylesheet" href="/styles.css?v=20260728-v7-4">
+  <link rel="stylesheet" href="/v7.css?v=20260728-v7-4">
+  <link rel="stylesheet" href="/operations-tailwind.css?v=20260728-ops-2">
+  <link rel="stylesheet" href="/enterprise.css?v=20260728-enterprise-1">
 </head>
 <body class="ops-tailwind locked">
   <section class="login-screen" id="loginScreen">
@@ -17,7 +18,7 @@
         <div class="brand-mark">JA</div>
         <div>
           <strong>JA Group Services Ltd</strong>
-          <span>Head Office Customer Operations Centre</span>
+          <span>Head Office Operations &amp; Security Centre</span>
         </div>
       </div>
       <span class="version-badge">Version 7</span>
@@ -31,9 +32,9 @@
             <path d="m9.3 12 1.8 1.8 3.8-4"/>
           </svg>
         </div>
-        <p class="eyebrow">Authorised Head Office staff</p>
-        <h1>Customer Operations Centre</h1>
-        <p class="login-intro">Sign in with your JA Group Services Microsoft work account. Customer operations, decisions and privileged actions are recorded in the Head Office audit history.</p>
+        <p class="eyebrow">Authorised Head Office personnel</p>
+        <h1>Operations &amp; Security Centre</h1>
+        <p class="login-intro">Authenticate with your JA Group Services Microsoft work account. Customer operations, risk decisions, privileged actions and incident activity are recorded in the Head Office audit history.</p>
         <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
           <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           Continue with Microsoft
@@ -41,8 +42,8 @@
         <p class="configuration-note" id="configurationNote" role="alert"></p>
         <div class="login-assurance" aria-label="Access controls">
           <span>Microsoft Entra</span>
-          <span>Role controlled</span>
-          <span>Fully audited</span>
+          <span>Role enforced</span>
+          <span>Audit recorded</span>
         </div>
       </div>
     </div>
@@ -56,20 +57,20 @@
   <div class="app-shell" id="appShell" hidden>
     <header class="ops-header">
       <div class="ops-header-main">
-        <a class="ops-brand" href="#/control-room" aria-label="Head Office Customer Operations Centre home">
+        <a class="ops-brand" href="#/control-room" aria-label="Head Office Operations and Security Centre home">
           <div class="brand-mark">JA</div>
           <div class="ops-brand-copy">
             <strong>Head Office</strong>
-            <span>Customer Operations Centre</span>
+            <span>Operations &amp; Security Centre</span>
           </div>
           <span class="product-badge">V7</span>
         </a>
 
         <nav class="primary-header-navigation" aria-label="Primary Head Office navigation">
           <button class="nav-item header-nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
-          <button class="nav-item header-nav-item" data-route="customers" data-permission="customers:read">Customers</button>
+          <button class="nav-item header-nav-item" data-route="central-operations" data-permission="operations:read">Customer Operations</button>
           <button class="nav-item header-nav-item" data-route="cases" data-permission="cases:read">Cases</button>
-          <button class="nav-item header-nav-item" data-route="central-operations" data-permission="operations:read">Operations</button>
+          <button class="nav-item header-nav-item" data-route="risk-intelligence" data-permission="risk:read">Risk &amp; Fraud</button>
           <button class="nav-item header-nav-item" data-route="incidents-v7" data-permission="incidents:read">Incidents</button>
         </nav>
 
@@ -107,13 +108,13 @@
 
       <div class="ops-subheader">
         <div class="breadcrumbs" aria-label="Breadcrumb">
-          <span>Head Office</span>
+          <span>JA Group Services Ltd</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
           <strong id="currentRouteLabel">Control Room</strong>
         </div>
         <div class="global-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
-          <input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search Head Office records">
+          <input id="globalSearch" type="search" placeholder="Search customer, case, alert or reference…" aria-label="Search Head Office records">
           <kbd>Ctrl K</kbd>
         </div>
       </div>
@@ -122,41 +123,41 @@
     <aside class="sidebar tools-drawer" id="sidebar" aria-label="All Head Office tools">
       <div class="tools-drawer-heading">
         <div>
-          <strong>Head Office tools</strong>
-          <span>All authorised customer operations and controls</span>
+          <strong>Head Office functions</strong>
+          <span>Authorised operational, security and assurance controls</span>
         </div>
         <button class="drawer-close" id="drawerCloseButton" type="button" aria-label="Close all tools">×</button>
       </div>
       <nav id="mainNavigation" aria-label="All Head Office navigation">
         <section class="nav-group">
-          <p class="nav-label">Control and intelligence</p>
+          <p class="nav-label">Command and intelligence</p>
           <button class="nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
-          <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read">Risk intelligence</button>
-          <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read">Incidents &amp; data breaches</button>
-          <button class="nav-item" data-route="central-operations" data-permission="operations:read">Central operations</button>
+          <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read">Fraud &amp; risk intelligence</button>
+          <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read">Incident command &amp; breaches</button>
+          <button class="nav-item" data-route="central-operations" data-permission="operations:read">Central Head Office operations</button>
         </section>
         <section class="nav-group">
           <p class="nav-label">Customer operations</p>
           <button class="nav-item" data-route="dashboard">Operations overview</button>
-          <button class="nav-item" data-route="customers" data-permission="customers:read">Universal customers</button>
-          <button class="nav-item" data-route="cases" data-permission="cases:read">Case management</button>
-          <button class="nav-item" data-route="communications" data-permission="communications:read">Communications</button>
-          <button class="nav-item" data-route="payments" data-permission="payments:read">Payments &amp; approvals</button>
-          <button class="nav-item" data-route="complaints" data-permission="complaints:read">Complaints</button>
+          <button class="nav-item" data-route="customers" data-permission="customers:read">Universal customer register</button>
+          <button class="nav-item" data-route="cases" data-permission="cases:read">Case and investigation register</button>
+          <button class="nav-item" data-route="communications" data-permission="communications:read">Communications record</button>
+          <button class="nav-item" data-route="payments" data-permission="payments:read">Payments, refunds &amp; approvals</button>
+          <button class="nav-item" data-route="complaints" data-permission="complaints:read">Complaint and redress register</button>
         </section>
         <section class="nav-group">
-          <p class="nav-label">Risk and compliance</p>
-          <button class="nav-item" data-route="security" data-permission="security:read">Security control centre</button>
-          <button class="nav-item" data-route="data-protection" data-permission="data_protection:*">Data protection</button>
-          <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*">Safeguarding</button>
-          <button class="nav-item" data-route="security-levels" data-permission="risk:read">Security levels</button>
+          <p class="nav-label">Security and compliance</p>
+          <button class="nav-item" data-route="security" data-permission="security:read">Markers, restrictions &amp; controls</button>
+          <button class="nav-item" data-route="data-protection" data-permission="data_protection:*">Data protection cases</button>
+          <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*">Safeguarding cases</button>
+          <button class="nav-item" data-route="security-levels" data-permission="risk:read">Security control taxonomy</button>
         </section>
         <section class="nav-group">
-          <p class="nav-label">Administration</p>
+          <p class="nav-label">Administration and assurance</p>
           <button class="nav-item" data-route="platforms" data-permission="platforms:read">Connected systems</button>
-          <button class="nav-item" data-route="staff" data-permission="administration:read">Staff &amp; access</button>
-          <button class="nav-item" data-route="audit" data-permission="audit:read">Audit history</button>
-          <button class="nav-item" data-route="settings" data-permission="configuration:read">System settings</button>
+          <button class="nav-item" data-route="staff" data-permission="administration:read">Staff identity &amp; authority</button>
+          <button class="nav-item" data-route="audit" data-permission="audit:read">Audit and evidence history</button>
+          <button class="nav-item" data-route="settings" data-permission="configuration:read">Governed configuration</button>
         </section>
       </nav>
       <div class="tools-drawer-footer">
@@ -169,12 +170,12 @@
 
     <main class="main-shell">
       <div class="content" id="viewRoot">
-        <div class="loading-state"><span class="spinner"></span><p>Opening Head Office Customer Operations Centre…</p></div>
+        <div class="loading-state"><span class="spinner"></span><p>Opening Head Office Operations &amp; Security Centre…</p></div>
       </div>
       <footer class="system-footer">
         <div>
           <strong>JA Group Services Ltd</strong>
-          <span>Head Office Customer Operations Centre · Version 7</span>
+          <span>Head Office Operations &amp; Security Centre · Version 7</span>
         </div>
         <span id="systemClock"></span>
       </footer>
@@ -184,7 +185,7 @@
   <dialog id="modal">
     <div class="modal-shell">
       <header>
-        <div><p class="eyebrow" id="modalEyebrow">Head Office</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div>
+        <div><p class="eyebrow" id="modalEyebrow">Head Office controlled record</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div>
         <button class="icon-button" data-close-modal aria-label="Close">×</button>
       </header>
       <div class="modal-content" id="modalContent"></div>
@@ -192,15 +193,16 @@
   </dialog>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
-  <script src="/js/core.js?v=20260728-v7-3" defer></script>
-  <script src="/js/views-operations.js?v=20260728-v7-3" defer></script>
-  <script src="/js/views-control.js?v=20260728-v7-3" defer></script>
-  <script src="/js/modals.js?v=20260728-v7-3" defer></script>
-  <script src="/js/actions.js?v=20260728-v7-3" defer></script>
-  <script src="/js/views-v7.js?v=20260728-v7-3" defer></script>
-  <script src="/js/v7-overrides.js?v=20260728-v7-3" defer></script>
-  <script src="/js/head-office-context.js?v=20260728-v7-3" defer></script>
-  <script src="/js/operations-shell.js?v=20260728-ops-1" defer></script>
-  <script src="/js/boot.js?v=20260728-v7-3" defer></script>
+  <script src="/js/core.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-operations.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-control.js?v=20260728-v7-4" defer></script>
+  <script src="/js/modals.js?v=20260728-v7-4" defer></script>
+  <script src="/js/actions.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-v7.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-enterprise.js?v=20260728-enterprise-1" defer></script>
+  <script src="/js/v7-overrides.js?v=20260728-v7-4" defer></script>
+  <script src="/js/head-office-context.js?v=20260728-v7-4" defer></script>
+  <script src="/js/operations-shell.js?v=20260728-ops-2" defer></script>
+  <script src="/js/boot.js?v=20260728-v7-4" defer></script>
 </body>
 </html>
