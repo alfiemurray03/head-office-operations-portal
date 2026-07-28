@@ -57,6 +57,9 @@ jobs:
       - name: Validate customer record workspace
         run: node tests/customer-record-workspace.test.mjs
 
+      - name: Validate shared modal system
+        run: node tests/modal-system.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
