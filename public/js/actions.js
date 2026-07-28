@@ -14,11 +14,13 @@ async function handleForm(form) {
     if (formName === 'audit-filter') { state.auditFilters = data; return await renderAudit(); }
     if (formName === 'new-customer') {
       const result = await api('/api/customers', { method: 'POST', body: JSON.stringify(data) });
-      closeModal(); toast('Customer registered', `Universal number ${result.customerNumber}`); return await renderRoute();
+      closeModal(); toast('Customer registered', `Universal Customer Number ${result.customerNumber}`); return await renderRoute();
     }
     if (formName === 'update-customer') {
       await api(`/api/customers/${encodeURIComponent(form.dataset.id)}`, { method: 'PUT', body: JSON.stringify(data) });
-      toast('Customer record updated'); return await openCustomer(form.dataset.id);
+      toast('Central customer record updated');
+      if (typeof window.renderCustomerRecordWorkspace === 'function') return await window.renderCustomerRecordWorkspace(form.dataset.id);
+      return await renderRoute();
     }
     if (formName === 'new-case') {
       if (!data.dueAt) delete data.dueAt;
@@ -41,8 +43,12 @@ async function handleForm(form) {
     }
     if (formName === 'new-restriction') {
       if (!data.reviewAt) delete data.reviewAt; if (!data.expiresAt) delete data.expiresAt;
-      await api('/api/security/restrictions', { method: 'POST', body: JSON.stringify(data) });
-      closeModal(); toast('Restriction applied', 'Connected divisions will receive the enforcement action.'); return await renderRoute();
+      const result = await api('/api/security/restrictions', { method: 'POST', body: JSON.stringify(data) });
+      closeModal();
+      const targets = result.enforcement?.targetPlatforms?.length ? result.enforcement.targetPlatforms.join(', ') : 'the selected scope';
+      const identity = result.enforcement?.microsoft?.status === 'enforced' ? ' JA Group Services ID access and sessions were also controlled.' : '';
+      toast('Restriction applied and enforced', `Instructions issued to ${targets}.${identity}`);
+      return await renderRoute();
     }
     if (formName === 'new-communication') {
       await api('/api/communications', { method: 'POST', body: JSON.stringify(data) });
@@ -59,9 +65,15 @@ async function handleForm(form) {
       if (action === 'marker-review') await api(`/api/security/markers/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'review', reviewAt: data.value || undefined }) });
       if (action === 'marker-clear') await api(`/api/security/markers/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'clear' }) });
       if (action === 'restriction-review') await api(`/api/security/restrictions/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'review', reviewAt: data.value || undefined }) });
-      if (action === 'restriction-lift') await api(`/api/security/restrictions/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'lift' }) });
+      if (action === 'restriction-lift') {
+        const result = await api(`/api/security/restrictions/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'lift' }) });
+        const identity = result.enforcement?.microsoft?.status === 'enforced' ? ' JA Group Services ID access was restored.' : '';
+        toast('Restriction lifted', `Connected websites were instructed to refresh access.${identity}`);
+      }
       if (action.startsWith('approval-')) await api(`/api/approvals/${id}`, { method: 'PUT', body: JSON.stringify({ decision: action.slice(9), reason: data.value }) });
-      closeModal(); toast('Controlled action recorded'); return await renderRoute();
+      closeModal();
+      if (action !== 'restriction-lift') toast('Controlled action recorded');
+      return await renderRoute();
     }
     if (formName === 'register-platform') {
       await api('/api/platforms', { method: 'POST', body: JSON.stringify(data) });
@@ -98,7 +110,7 @@ async function handleClick(target) {
   if (route) return navigate(route);
   if (target.closest('[data-close-modal]')) return closeModal();
   const row = target.closest('[data-open]');
-  if (row && !target.closest('button')) return row.dataset.open === 'customer' ? openCustomer(row.dataset.id) : openCase(row.dataset.id);
+  if (row && !target.closest('button')) return row.dataset.open === 'customer' ? navigate(`customers/${encodeURIComponent(row.dataset.id)}`) : openCase(row.dataset.id);
   const element = target.closest('[data-action]');
   if (!element) return;
   const action = element.dataset.action;
@@ -115,10 +127,10 @@ async function handleClick(target) {
   if (action === 'new-communication-for-case') return newCommunicationModal(element.dataset.customer, element.dataset.case);
   if (action === 'new-marker-for-case') return newMarkerModal(element.dataset.customer, element.dataset.case);
   if (action === 'new-restriction-for-case') return newRestrictionModal(element.dataset.customer, element.dataset.case);
-  if (['marker-review','marker-clear','restriction-review','restriction-lift'].includes(action)) return actionConfirmation(label(action), 'This decision will be written to the immutable audit history.', action, element.dataset.id, label(action), ['marker-clear','restriction-lift'].includes(action));
+  if (['marker-review','marker-clear','restriction-review','restriction-lift'].includes(action)) return actionConfirmation(label(action), 'This decision will be written to the immutable audit history and sent to connected websites.', action, element.dataset.id, label(action), ['marker-clear','restriction-lift'].includes(action));
   if (action === 'approval-decision') return actionConfirmation(`${label(element.dataset.decision)} approval`, 'Record the reason for this formal decision.', `approval-${element.dataset.decision}`, element.dataset.id, label(element.dataset.decision), element.dataset.decision === 'declined');
-  if (action === 'register-platform') return modalForm('Register platform', 'Create the Head Office identity for a connected division or website.', { form: 'register-platform', html: '<div class="form-grid"><label class="field"><span>Platform name</span><input name="name" maxlength="120" required></label><label class="field"><span>Platform code</span><input name="code" maxlength="40" pattern="[A-Za-z0-9_-]+" required></label></div>' }, 'Register platform', 'Divisions & integrations');
-  if (action === 'generate-key') return modalForm('Generate connector key', `Issue a scoped API credential for ${element.dataset.name}.`, { form: 'generate-key', attributes: `data-id="${element.dataset.id}"`, html: '<label class="field"><span>Credential name</span><input name="name" maxlength="120" placeholder="Production connector" required></label><fieldset class="field"><span>Scopes</span><label><input type="checkbox" name="scopes" value="customers:read" checked> Read customer identities</label><label><input type="checkbox" name="scopes" value="customers:write"> Register and link customers</label><label><input type="checkbox" name="scopes" value="security:read" checked> Read enforceable security controls</label></fieldset>' }, 'Generate key', 'Platform credential');
+  if (action === 'register-platform') return modalForm('Register platform', 'Create the Head Office identity for a connected website or service.', { form: 'register-platform', html: '<div class="form-grid"><label class="field"><span>Platform name</span><input name="name" maxlength="120" required></label><label class="field"><span>Platform code</span><input name="code" maxlength="40" pattern="[A-Za-z0-9_-]+" required></label></div>' }, 'Register platform', 'Connected websites & services');
+  if (action === 'generate-key') return modalForm('Generate connector key', `Issue a scoped API credential for ${element.dataset.name}.`, { form: 'generate-key', attributes: `data-id="${element.dataset.id}"`, html: '<label class="field"><span>Credential name</span><input name="name" maxlength="120" placeholder="Production connector" required></label><fieldset class="field"><legend>Scopes</legend><label><input type="checkbox" name="scopes" value="customers:read" checked> Read customer identities</label><label><input type="checkbox" name="scopes" value="customers:write"> Register and link customers</label><label><input type="checkbox" name="scopes" value="security:read" checked> Read enforceable security controls</label></fieldset>' }, 'Generate key', 'Platform credential');
   if (action === 'copy-key') { await navigator.clipboard.writeText($('#generatedKey').textContent); return toast('Connector key copied'); }
   if (action === 'edit-roles') {
     const data = await api('/api/administration');
