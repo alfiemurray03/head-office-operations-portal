@@ -20,17 +20,6 @@
         <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         Sign in with Microsoft <span>→</span>
       </a>
-      <details class="local-login" id="localLogin">
-        <summary>Emergency local sign-in</summary>
-      <form id="loginForm">
-        <label for="username">Username</label>
-        <div class="login-field"><span>♙</span><input id="username" name="username" autocomplete="username" required></div>
-        <label for="password">Password</label>
-        <div class="login-field"><span>⌑</span><input id="password" name="password" type="password" autocomplete="current-password" required><button id="showPassword" type="button" aria-label="Show password">◉</button></div>
-        <p class="login-error" id="loginError" role="alert"></p>
-        <button class="primary-button login-submit" type="submit">Sign in securely <span>→</span></button>
-      </form>
-      </details>
       <p class="configuration-note" id="configurationNote"></p>
     </div>
     <div class="login-footer"><span>Internal system · Authorised use only</span><span>Company No. 16314179</span></div>
@@ -38,21 +27,21 @@
 
   <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark">JA</div><div><strong>Head Office</strong><span>Customer Operations</span></div></div>
+      <div class="brand"><div class="brand-mark">JA</div><div><strong>Head Office</strong><span>Customer Operations Centre</span></div></div>
       <nav aria-label="Main navigation">
         <p class="nav-label">Customer operations</p>
-        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Command centre</button>
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Operations overview</button>
         <button class="nav-item" data-view="customers"><span>◎</span> Customer register <b id="navCustomers">0</b></button>
         <button class="nav-item" data-view="cases"><span>▣</span> Case management <b id="navCases">0</b></button>
         <button class="nav-item" data-view="communications"><span>✉</span> Communications</button>
         <button class="nav-item" data-view="payments"><span>£</span> Payments & refunds</button>
         <p class="nav-label">Risk & compliance</p>
-        <button class="nav-item" data-view="security"><span>◇</span> Security controls <b class="danger-count" id="navRestrictions">0</b></button>
+        <button class="nav-item" data-view="security"><span>◇</span> Security centre <b class="danger-count" id="navRestrictions">0</b></button>
         <button class="nav-item" data-view="complaints"><span>☷</span> Complaints</button>
         <button class="nav-item" data-view="data-protection"><span>◫</span> Data protection</button>
         <button class="nav-item" data-view="safeguarding"><span>◈</span> Safeguarding</button>
         <p class="nav-label">System administration</p>
-        <button class="nav-item" data-view="platforms"><span>⌘</span> Connected platforms</button>
+        <button class="nav-item" data-view="platforms"><span>⌘</span> Divisions & integrations</button>
         <button class="nav-item" data-view="staff"><span>♙</span> Staff & access</button>
         <button class="nav-item" data-view="audit"><span>◷</span> Audit history</button>
         <button class="nav-item" data-view="settings"><span>⚙</span> System settings</button>
@@ -64,13 +53,13 @@
       <header class="topbar">
         <button class="menu-button" id="menuButton" aria-label="Open navigation">☰</button>
         <div class="search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records"><kbd>Ctrl K</kbd></div>
-        <div class="top-actions"><div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div><button class="sign-out-button" id="signOutButton" title="Sign out">↪</button></div>
+        <div class="top-actions"><label class="branch-switcher"><span>Operating context</span><select id="branchContext"><option value="HEAD_OFFICE">JA Group Services — Head Office</option></select></label><div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div><button class="sign-out-button" id="signOutButton" title="Sign out">↪</button></div>
       </header>
 
       <div class="content">
         <section class="view active" id="dashboard">
-          <div class="page-heading"><div><p class="eyebrow">Head Office control layer</p><h1>Operational command centre</h1><p>Company-wide customer operations, risk and service oversight.</p></div><button class="primary-button" data-action="new-case">＋ Create case</button></div>
-          <div class="notice" id="setupNotice"><div class="notice-icon">i</div><div><strong>Controlled Head Office system</strong><p>Staff identity is verified through the JA Group Services Microsoft tenant. Operational records shown here come from the connected Head Office database.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">JA Group Services Ltd · Head Office</p><h1>Customer Operations Centre</h1><p>Company-wide customer service, security, risk and regulated operations across every division.</p></div><button class="primary-button" data-action="new-case">＋ Create Head Office case</button></div>
+          <div class="notice" id="setupNotice"><div class="notice-icon">i</div><div><strong>Authoritative Head Office record</strong><p>This Centre controls customer operations and security instructions across JA Group Services and its connected divisions. Staff identity is verified through the company Microsoft tenant.</p></div></div>
           <div class="metrics">
             <article class="metric-card"><div class="metric-icon blue">◎</div><div><span>Universal customers</span><strong id="metricCustomers">0</strong><small>Central register</small></div></article>
             <article class="metric-card"><div class="metric-icon amber">▣</div><div><span>Open cases</span><strong id="metricCases">0</strong><small id="metricDue">0 overdue</small></div></article>
