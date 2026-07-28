@@ -27,6 +27,30 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Validate Cloudflare Pages configuration
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const configPath = 'wrangler.jsonc';
+          const source = fs.readFileSync(configPath, 'utf8');
+          const compatibilityDates = source.match(/"compatibility_date"\s*:/g) || [];
+          const hasPagesOutput = /"pages_build_output_dir"\s*:/.test(source);
+          const hasWorkerMain = /"main"\s*:/.test(source);
+
+          if (!hasPagesOutput) {
+            throw new Error('wrangler.jsonc must define pages_build_output_dir for this Cloudflare Pages project.');
+          }
+          if (hasWorkerMain) {
+            throw new Error('wrangler.jsonc must not define a Worker main entry in the Cloudflare Pages project.');
+          }
+          if (compatibilityDates.length !== 1) {
+            throw new Error(`wrangler.jsonc must contain exactly one compatibility_date; found ${compatibilityDates.length}.`);
+          }
+          if (!fs.existsSync('public')) {
+            throw new Error('The configured Cloudflare Pages output directory does not exist.');
+          }
+          NODE
+
       - name: Parse browser JavaScript
         run: find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
