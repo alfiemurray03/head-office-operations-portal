@@ -244,17 +244,32 @@ export async function completeMicrosoftLogin(request, env) {
     exp: Date.now() + 8 * 60 * 60 * 1000,
     version: 2
   }, sessionSecret(env));
-  await audit(env, {
-    sub: staff.id,
-    displayName: staff.display_name
-  }, "auth.microsoft_login", "staff_session", staff.id, { label: "Microsoft staff sign-in" });
+  // Authentication must not be discarded because a secondary audit write fails.
+  // The callback has already validated Microsoft and resolved the authorised
+  // staff member at this point, so issue the session and report audit failures
+  // separately for operational follow-up.
+  try {
+    await audit(env, {
+      sub: staff.id,
+      displayName: staff.display_name
+    }, "auth.microsoft_login", "staff_session", staff.id, { label: "Microsoft staff sign-in" });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "microsoft_staff_login_audit_failed",
+      staffId: staff.id,
+      message: error instanceof Error ? error.message : "Unknown audit error"
+    }));
+  }
   const headers = new Headers({
     Location: safeReturnPath(transaction.returnTo),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
   headers.append("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
-  headers.append("Set-Cookie", cookie(TRANSACTION_COOKIE, "", 0));
+  // Do not append a second Set-Cookie header here. Some proxy/header
+  // normalisation paths combine repeated Set-Cookie values, which can cause the
+  // browser to discard the actual session cookie. The signed transaction cookie
+  // naturally expires after ten minutes and cannot be replayed successfully.
   return new Response(null, { status: 302, headers });
 }
 
