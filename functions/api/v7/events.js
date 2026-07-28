@@ -1,12 +1,14 @@
 import { cleanText, error, json, readJson } from "../../_shared.js";
 import { requirePermission } from "../../_operations.js";
 import { ensureV7Schema } from "../../_v7-schema.js";
+import { ensureV7Enhancements } from "../../_v7-enhancements.js";
 import { ingestSecurityEvent } from "../../_risk-engine.js";
 
 export const onRequestGet = async context => {
   const auth = await requirePermission(context,"risk:read");
   if (auth.response) return auth.response;
   await ensureV7Schema(context.env);
+  await ensureV7Enhancements(context.env);
   const url = new URL(context.request.url);
   const q = cleanText(url.searchParams.get("q") || "",100);
   const category = cleanText(url.searchParams.get("category") || "",60);
@@ -23,6 +25,8 @@ export const onRequestGet = async context => {
 export const onRequestPost = async context => {
   const auth = await requirePermission(context,"risk:write");
   if (auth.response) return auth.response;
+  await ensureV7Schema(context.env);
+  await ensureV7Enhancements(context.env);
   let body;
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST",cause.message,cause.status || 400); }
