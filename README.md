@@ -27,11 +27,6 @@ This is the first Cloudflare-ready preview build. It provides:
 The interface uses genuine D1 records and empty states. No fictional customer
 records are shipped in the source.
 
-Preview sign-in:
-
-- Username: `admin`
-- Password: `PreviewOnly!2026`
-
 Local authentication is verified by Pages Functions using Cloudflare secrets.
 Microsoft Entra staff identity will replace it before production use.
 
