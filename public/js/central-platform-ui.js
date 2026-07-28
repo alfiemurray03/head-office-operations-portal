@@ -112,7 +112,7 @@ document.addEventListener('click', event => {
       attributes: `data-id="${escapeHtml(platform.id)}"`,
       html: `<div class="notice danger"><span>!</span><div><strong>This cannot be undone from this screen</strong><br>Enter the exact system name or code to confirm deletion.</div></div>
         <label class="field"><span>Enter “${escapeHtml(platform.name)}” or “${escapeHtml(platform.code)}”</span><input name="confirmation" autocomplete="off" required></label>`
-    }, 'Delete configuration', 'Controlled deletion', true);
+    }, 'Delete configuration', 'Controlled deletion', 'danger');
   }
 
   return modalForm('Generate connector key', `Issue a scoped production credential for ${platform.name}.`, {
