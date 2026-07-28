@@ -1,9 +1,11 @@
 import { json } from "../_shared.js";
 import { requirePermission } from "../_operations.js";
 import { ensureProductionSchema } from "../_schema-bootstrap.js";
+import { ensureProductionCatalogues } from "../_catalogue-bootstrap.js";
 
 export const onRequestGet = async context => {
   await ensureProductionSchema(context.env);
+  await ensureProductionCatalogues(context.env);
   const auth = await requirePermission(context, "dashboard:read");
   if (auth.response) return auth.response;
   const [platforms, staff, units, roles, markerTypes, restrictionTypes, settings] = await context.env.DB.batch([
