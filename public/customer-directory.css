@@ -1,0 +1,11 @@
+body.ops-tailwind .directory-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}
+body.ops-tailwind .directory-layout{display:grid;gap:16px;margin-top:16px}
+body.ops-tailwind .directory-layout .panel{overflow:hidden}
+body.ops-tailwind .directory-layout .data-table td{vertical-align:top}
+body.ops-tailwind .directory-layout .inline-actions{min-width:290px}
+body.ops-tailwind .tag.connected,body.ops-tailwind .tag.configured,body.ops-tailwind .tag.delta,body.ops-tailwind .tag.initial,body.ops-tailwind .tag.full{background:var(--ops-green-soft);color:var(--ops-green)}
+body.ops-tailwind .tag.testing,body.ops-tailwind .tag.syncing,body.ops-tailwind .tag.email-match,body.ops-tailwind .tag.manual-review{background:var(--ops-blue-soft);color:var(--ops-blue)}
+body.ops-tailwind .tag.degraded,body.ops-tailwind .tag.review-required,body.ops-tailwind .tag.email-conflict,body.ops-tailwind .tag.missing-email{background:var(--ops-amber-soft);color:var(--ops-amber)}
+body.ops-tailwind .tag.deleted,body.ops-tailwind .tag.not-configured{background:var(--ops-red-soft);color:var(--ops-red)}
+@media(max-width:1100px){body.ops-tailwind .directory-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){body.ops-tailwind .directory-metrics{grid-template-columns:1fr}body.ops-tailwind .directory-layout .inline-actions{min-width:0}}
