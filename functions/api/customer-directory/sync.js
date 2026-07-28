@@ -1,6 +1,7 @@
 import { assertSameOrigin, audit, error, json, readJson } from "../../_shared.js";
 import { requirePermission } from "../../_operations.js";
-import { CUSTOMER_DIRECTORY_CONNECTOR_ID, syncCustomerDirectory } from "../../_customer-entra.js";
+import { CUSTOMER_DIRECTORY_CONNECTOR_ID } from "../../_customer-entra.js";
+import { syncCustomerDirectory } from "../../_customer-entra-sync.js";
 
 export const onRequestPost = async context => {
   const originError = assertSameOrigin(context.request);
