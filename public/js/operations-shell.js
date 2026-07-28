@@ -3,7 +3,8 @@ const OPS_ROUTE_LABELS = {
   "risk-intelligence": "Fraud & Risk Intelligence",
   "customer-protection": "Customer Protection Operations",
   "incidents-v7": "Incident Command & Data Breaches",
-  "central-operations": "Central Head Office Operations",
+  "central-operations": "Customer Operations Centre",
+  "redress-centre": "Complaints, Refunds & Disputes Centre",
   dashboard: "Operations Overview",
   customers: "Universal Customer Register",
   "customer-directory": "Microsoft Customer Directory",
@@ -82,13 +83,13 @@ const HEAD_OFFICE_WORKSPACES = {
     label: "Complaints, Refunds & Disputes",
     shortLabel: "Redress & disputes",
     code: "CRD",
-    route: "complaints",
+    route: "redress-centre",
     permission: "complaints:read",
     description: "Formal complaint handling, payment disputes, refunds, approvals and customer redress decisions.",
     routes: [
-      ["complaints", "Complaints & redress", "complaints:read"],
+      ["redress-centre", "Redress overview", "complaints:read"],
+      ["complaints", "Complaints register", "complaints:read"],
       ["payments", "Refunds & disputes", "payments:read"],
-      ["cases", "Linked casework", "cases:read"],
       ["communications", "Customer contact", "communications:read"]
     ]
   },
@@ -123,6 +124,7 @@ const ROUTE_WORKSPACE = {
   "data-protection": "security",
   safeguarding: "security",
   "incidents-v7": "incident",
+  "redress-centre": "redress",
   complaints: "redress",
   payments: "redress",
   platforms: "assurance",
@@ -132,6 +134,7 @@ const ROUTE_WORKSPACE = {
 };
 
 let customerProtectionModulePromise = null;
+let workspaceViewsModulePromise = null;
 
 function ensureWorkspaceStyles() {
   if (document.querySelector('link[data-workspace-shell]')) return;
@@ -153,12 +156,6 @@ function ensureCustomerProtectionModule() {
       style.dataset.customerProtection = "true";
       document.head.append(style);
     }
-    const existing = document.querySelector('script[data-customer-protection]');
-    if (existing) {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", () => reject(new Error("The Customer Protection workspace could not be loaded.")), { once: true });
-      return;
-    }
     const script = document.createElement("script");
     script.src = "/js/customer-protection.js?v=20260728-protection-1";
     script.async = false;
@@ -168,6 +165,28 @@ function ensureCustomerProtectionModule() {
     document.head.append(script);
   });
   return customerProtectionModulePromise;
+}
+
+function ensureWorkspaceViewsModule() {
+  if (window.renderCustomerOperationsWorkspace && window.renderRedressWorkspace) return Promise.resolve();
+  if (workspaceViewsModulePromise) return workspaceViewsModulePromise;
+  workspaceViewsModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-workspace-views]')) {
+      const style = document.createElement("link");
+      style.rel = "stylesheet";
+      style.href = "/workspace-views.css?v=20260728-workspace-1";
+      style.dataset.workspaceViews = "true";
+      document.head.append(style);
+    }
+    const script = document.createElement("script");
+    script.src = "/js/workspace-views.js?v=20260728-workspace-1";
+    script.async = false;
+    script.dataset.workspaceViews = "true";
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", () => reject(new Error("The operational workspace views could not be loaded.")), { once: true });
+    document.head.append(script);
+  });
+  return workspaceViewsModulePromise;
 }
 
 function workspaceForRoute(route) {
@@ -185,19 +204,22 @@ function workspaceButton(key, workspace) {
   return button;
 }
 
-function ensureWorkspaceDrawerEntries() {
-  if (document.querySelector('[data-route="customer-protection"]')) return;
-  const securityEntry = document.querySelector('[data-route="security"]');
-  const riskEntry = document.querySelector('[data-route="risk-intelligence"]');
-  const target = riskEntry || securityEntry;
+function insertDrawerEntry(route, labelText, permission, beforeRoute) {
+  if (document.querySelector(`#mainNavigation [data-route="${route}"]`)) return;
+  const target = document.querySelector(`#mainNavigation [data-route="${beforeRoute}"]`);
   if (!target?.parentElement) return;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "nav-item";
-  button.dataset.route = "customer-protection";
-  button.dataset.permission = "risk:read";
-  button.textContent = "Customer protection operations";
+  button.dataset.route = route;
+  if (permission) button.dataset.permission = permission;
+  button.textContent = labelText;
   target.parentElement.insertBefore(button, target);
+}
+
+function ensureWorkspaceDrawerEntries() {
+  insertDrawerEntry("customer-protection", "Customer protection operations", "risk:read", "risk-intelligence");
+  insertDrawerEntry("redress-centre", "Complaints, refunds & disputes centre", "complaints:read", "complaints");
 }
 
 function ensureWorkspaceChrome() {
@@ -237,7 +259,7 @@ function renderWorkspaceNavigation(key) {
   const navigation = document.querySelector("#workspaceNavigation");
   if (!navigation) return;
   navigation.innerHTML = "";
-  for (const [route, label, permission] of workspace.routes) {
+  for (const [route, labelText, permission] of workspace.routes) {
     if (permission && typeof hasPermission === "function") {
       try { if (!hasPermission(permission)) continue; } catch {}
     }
@@ -246,7 +268,7 @@ function renderWorkspaceNavigation(key) {
     button.className = "nav-item workspace-context-link";
     button.dataset.route = route;
     if (permission) button.dataset.permission = permission;
-    button.textContent = label;
+    button.textContent = labelText;
     navigation.append(button);
   }
 }
@@ -280,10 +302,10 @@ function updateWorkspaceChrome(route = routeFromHash()) {
 }
 
 function updateOperationsRouteChrome(route = routeFromHash()) {
-  const label = OPS_ROUTE_LABELS[route] || "Head Office";
+  const labelText = OPS_ROUTE_LABELS[route] || "Head Office";
   const target = document.querySelector("#currentRouteLabel");
-  if (target) target.textContent = label;
-  document.title = `${label} · Head Office Operations & Security Centre`;
+  if (target) target.textContent = labelText;
+  document.title = `${labelText} · Head Office Operations & Security Centre`;
   updateWorkspaceChrome(route);
 }
 
@@ -298,6 +320,21 @@ function applyOperationsTheme(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", resolved === "dark" ? "#07111f" : "#101c2f");
   try { localStorage.setItem("head_office_theme", resolved); } catch {}
+}
+
+async function renderWorkspaceRoute(route, loader, renderer, failureTitle) {
+  state.route = route;
+  document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.route === route));
+  closeOperationsTools();
+  setLoading(`Opening ${OPS_ROUTE_LABELS[route] || "Head Office workspace"}…`);
+  try {
+    await loader();
+    await renderer();
+    updateWorkspaceChrome(route);
+  } catch (error) {
+    document.querySelector("#viewRoot").innerHTML = `<div class="panel"><div class="empty-state"><strong>${escapeHtml(failureTitle)}</strong><span>${escapeHtml(error.message || "The workspace is temporarily unavailable.")}</span></div></div>`;
+    toast("Workspace unavailable", error.message || "The workspace could not be opened.", "error");
+  }
 }
 
 (function initialiseOperationsShell() {
@@ -335,19 +372,13 @@ function applyOperationsTheme(theme) {
   renderRoute = async function renderOperationsRoute(route = routeFromHash()) {
     updateOperationsRouteChrome(route);
     if (route === "customer-protection") {
-      state.route = route;
-      document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.route === route));
-      closeOperationsTools();
-      setLoading("Opening Customer Protection Operations…");
-      try {
-        await ensureCustomerProtectionModule();
-        await window.renderCustomerProtectionWorkspace();
-        updateWorkspaceChrome(route);
-      } catch (error) {
-        document.querySelector("#viewRoot").innerHTML = `<div class="panel"><div class="empty-state"><strong>Customer Protection could not be opened</strong><span>${escapeHtml(error.message || "The workspace is temporarily unavailable.")}</span></div></div>`;
-        toast("Customer Protection unavailable", error.message || "The workspace could not be opened.", "error");
-      }
-      return;
+      return renderWorkspaceRoute(route, ensureCustomerProtectionModule, () => window.renderCustomerProtectionWorkspace(), "Customer Protection could not be opened");
+    }
+    if (route === "central-operations") {
+      return renderWorkspaceRoute(route, ensureWorkspaceViewsModule, () => window.renderCustomerOperationsWorkspace(), "Customer Operations could not be opened");
+    }
+    if (route === "redress-centre") {
+      return renderWorkspaceRoute(route, ensureWorkspaceViewsModule, () => window.renderRedressWorkspace(), "Redress Operations could not be opened");
     }
     const result = await originalRenderRoute(route);
     updateWorkspaceChrome(route);
