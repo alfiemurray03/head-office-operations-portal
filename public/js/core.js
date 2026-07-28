@@ -156,9 +156,9 @@ function routeFromHash() {
 
 function navigate(route, replace = false) {
   const destination = `#/${route}`;
-  if (replace) history.replaceState({}, "", destination);
-  else if (location.hash !== destination) location.hash = destination;
-  else renderRoute(route);
+  if (replace) { history.replaceState({}, "", destination); return renderRoute(route); }
+  if (location.hash !== destination) location.hash = destination;
+  else return renderRoute(route);
 }
 
 async function renderRoute(route = routeFromHash()) {
