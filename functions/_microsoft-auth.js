@@ -318,6 +318,11 @@ export async function completeMicrosoftLogin(request, env) {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
+  // Establish the normal first-party HttpOnly session as well as the
+  // browser-tab hand-off. Either transport can authenticate the next request,
+  // so a browser privacy setting cannot leave a successful Microsoft login
+  // stranded on the sign-in screen.
+  headers.set("Set-Cookie", cookie(SESSION_COOKIE, browserSession, 28_800));
   return new Response(null, { status: 303, headers });
 }
 
