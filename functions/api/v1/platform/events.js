@@ -1,8 +1,12 @@
 import { error, json, readJson, requirePlatform } from "../../../_shared.js";
+import { ensureV7Schema } from "../../../_v7-schema.js";
+import { ensureV7Enhancements } from "../../../_v7-enhancements.js";
 import { ingestSecurityEvent } from "../../../_risk-engine.js";
 
 export const onRequestPost=async context=>{
   const auth=await requirePlatform(context,["events:write"]);if(auth.response)return auth.response;
+  await ensureV7Schema(context.env);
+  await ensureV7Enhancements(context.env);
   let body;try{body=await readJson(context.request,64_000);}catch(cause){return error(cause.code||"INVALID_REQUEST",cause.message,cause.status||400);}
   try{
     const result=await ingestSecurityEvent(context.env,{...body,platformId:auth.platform.id,sourceType:"platform"},{type:"platform",id:auth.platform.id,name:auth.platform.name,platformId:auth.platform.id});
