@@ -1,4 +1,38 @@
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+let customerDirectoryModulePromise = null;
+
+function loadCustomerDirectoryModule() {
+  if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
+  customerDirectoryModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-customer-directory]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/customer-directory.css?v=20260728-directory-1';
+      style.dataset.customerDirectory = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-customer-directory]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/customer-directory.js?v=20260728-directory-1';
+    script.async = false;
+    script.dataset.customerDirectory = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The Microsoft customer-directory module could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return customerDirectoryModulePromise;
+}
+
+function ensureCustomerDirectoryNavigation() {
+  if (document.querySelector('[data-route="customer-directory"]')) return;
+  const connectedSystems = document.querySelector('[data-route="platforms"]');
+  const button = document.createElement('button');
+  button.className = 'nav-item';
+  button.dataset.route = 'customer-directory';
+  button.dataset.permission = 'platforms:read';
+  button.textContent = 'Microsoft customer directory';
+  connectedSystems?.parentElement?.insertBefore(button, connectedSystems);
+}
 
 async function loadSession(authResult) {
   let result = null;
@@ -54,6 +88,8 @@ async function boot() {
   showApp();
   setLoading('Opening Head Office services…');
   try {
+    await loadCustomerDirectoryModule();
+    ensureCustomerDirectoryNavigation();
     state.reference = await loadReference();
     renderNavigation();
     const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'control-room' : 'dashboard');
