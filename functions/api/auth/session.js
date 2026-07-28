@@ -10,6 +10,7 @@ export const onRequestGet = async ({ request, env }) => {
     : { session: null, status: "microsoft_not_configured" };
   const session = microsoftInspection.session || (configured ? await getSession(request, env) : null);
   return json({
+    authRevision: "canonical-session-v3",
     configured,
     authentication: microsoft.configured ? "microsoft_entra" : (localConfigured ? "local" : "unconfigured"),
     microsoft: {
