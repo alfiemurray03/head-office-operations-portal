@@ -267,8 +267,11 @@ export async function completeMicrosoftLogin(request, env) {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  headers.append("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
-  headers.append("Set-Cookie", cookie(TRANSACTION_COOKIE, "", 0));
+  // Send exactly one Set-Cookie header on the OAuth callback. Cloudflare Pages
+  // may fold multiple Set-Cookie values on a redirect; when that happens the
+  // browser can reject the session cookie altogether. The short-lived OIDC
+  // transaction cookie is harmless and will expire naturally after 10 minutes.
+  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
   return new Response(null, { status: 303, headers });
 }
 
