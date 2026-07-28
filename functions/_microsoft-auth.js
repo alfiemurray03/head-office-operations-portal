@@ -267,11 +267,11 @@ export async function completeMicrosoftLogin(request, env) {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  // Send exactly one Set-Cookie header on the OAuth callback. Cloudflare Pages
-  // may fold multiple Set-Cookie values on a redirect; when that happens the
-  // browser can reject the session cookie altogether. The short-lived OIDC
-  // transaction cookie is harmless and will expire naturally after 10 minutes.
-  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
+  // The OIDC transaction cookie has already been proved to survive the
+  // Microsoft round-trip on this host. Promote that same cookie into the
+  // authenticated session instead of depending on the browser accepting a
+  // second cookie during the OAuth callback.
+  headers.set("Set-Cookie", cookie(TRANSACTION_COOKIE, session, 28_800));
   return new Response(null, { status: 303, headers });
 }
 
@@ -282,7 +282,9 @@ export async function getMicrosoftSession(request, env) {
 export async function inspectMicrosoftSession(request, env) {
   const secret = sessionSecret(env);
   if (!secret) return { session: null, status: "signing_secret_missing" };
-  const raw = readCookie(request, SESSION_COOKIE) || readCookie(request, "__Host-ho_session");
+  const raw = readCookie(request, SESSION_COOKIE)
+    || readCookie(request, "__Host-ho_session")
+    || readCookie(request, TRANSACTION_COOKIE);
   if (!raw) return { session: null, status: "session_cookie_missing" };
   const session = await readSignedPayload(raw, secret);
   if (!session) return { session: null, status: "session_cookie_invalid" };
