@@ -13,12 +13,18 @@ export const onRequestPut = async context => {
 
   const reviewId = cleanText(body.reviewId, 100);
   const decision = cleanText(body.decision, 40);
-  const customerId = cleanText(body.customerId, 100) || null;
+  let customerId = cleanText(body.customerId, 100) || null;
   const reason = cleanText(body.reason, 1000);
   if (!reviewId || !["link_existing", "create_new", "dismiss"].includes(decision)) {
     return error("INVALID_DIRECTORY_REVIEW", "Select a valid review item and decision.");
   }
   if (reason.length < 5) return error("REVIEW_REASON_REQUIRED", "Record why this identity-linking decision is appropriate.");
+
+  if (decision === "link_existing" && customerId) {
+    const customer = await context.env.DB.prepare("SELECT id FROM customers WHERE id=? OR customer_number=?").bind(customerId, customerId).first();
+    if (!customer) return error("CUSTOMER_NOT_FOUND", "The universal customer number could not be found.", 404);
+    customerId = customer.id;
+  }
 
   try {
     const result = await resolveCustomerDirectoryReview(context.env, reviewId, decision, customerId, auth.session.sub, reason);
