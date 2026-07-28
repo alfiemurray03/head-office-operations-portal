@@ -1,0 +1,308 @@
+/* Planyx application shell adapted for the Head Office Customer Operations Centre. */
+
+body.ops-tailwind .login-screen {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background:
+    radial-gradient(circle at 22% 16%, rgba(59,130,246,.22), transparent 28rem),
+    radial-gradient(circle at 82% 78%, rgba(14,165,233,.16), transparent 32rem),
+    linear-gradient(145deg,#07111f 0%,#0c1a31 48%,#111f3b 100%) !important;
+  color: #f8fafc;
+}
+body.ops-tailwind .login-topbar,
+body.ops-tailwind .login-footer {
+  width: min(1220px,calc(100% - 40px));
+  margin: 0 auto;
+  border: 0 !important;
+  background: transparent !important;
+}
+body.ops-tailwind .login-topbar { padding: 24px 0; }
+body.ops-tailwind .login-footer { padding: 20px 0 24px; color: #94a3b8; font-size: 12px; }
+body.ops-tailwind .login-brand { gap: 13px; }
+body.ops-tailwind .brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 13px !important;
+  background: linear-gradient(145deg,#2563eb,#0ea5e9) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 26px rgba(37,99,235,.32);
+  font-family: var(--px-font-heading) !important;
+  font-size: 14px;
+  font-weight: 800;
+}
+body.ops-tailwind .login-brand strong { color: #fff; font-family: var(--px-font-heading); font-size: 15px; }
+body.ops-tailwind .login-brand span { color: #a9b8cd; font-size: 12px; }
+body.ops-tailwind .version-badge,
+body.ops-tailwind .product-badge {
+  border: 1px solid rgba(96,165,250,.22) !important;
+  border-radius: 999px !important;
+  background: rgba(37,99,235,.14) !important;
+  color: #bfdbfe !important;
+  font-size: 10px !important;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+body.ops-tailwind .login-stage { display: grid; place-items: center; padding: 36px 20px 60px; }
+body.ops-tailwind .login-card {
+  position: relative;
+  width: min(520px,100%);
+  padding: 42px !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  border-radius: 22px !important;
+  background: rgba(15,28,50,.72) !important;
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: 0 34px 100px rgba(2,6,23,.46),inset 0 1px 0 rgba(255,255,255,.08) !important;
+  overflow: hidden;
+}
+body.ops-tailwind .login-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(135deg,rgba(96,165,250,.22),transparent 34%,rgba(14,165,233,.13) 72%,transparent);
+  mask: linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  padding: 1px;
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+}
+body.ops-tailwind .security-seal {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(96,165,250,.24);
+  border-radius: 18px !important;
+  background: linear-gradient(145deg,rgba(37,99,235,.28),rgba(14,165,233,.14)) !important;
+  color: #93c5fd !important;
+  box-shadow: 0 16px 40px rgba(37,99,235,.20);
+}
+body.ops-tailwind .login-card .eyebrow { color: #93c5fd !important; }
+body.ops-tailwind .login-card h1 { margin: 8px 0 14px; color: #fff !important; font-size: clamp(30px,5vw,42px); }
+body.ops-tailwind .login-intro { color: #c3cede !important; font-size: 15px; line-height: 1.75; }
+body.ops-tailwind .login-assurance { gap: 8px; }
+body.ops-tailwind .login-assurance span {
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  color: #b9c7d9;
+}
+
+body.ops-tailwind .app-shell { min-height: 100dvh; background: transparent !important; }
+body.ops-tailwind .ops-header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  border: 0 !important;
+  background: rgba(255,255,255,.82) !important;
+  color: var(--px-foreground) !important;
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow: 0 1px 0 var(--px-border),0 8px 30px rgba(15,23,42,.05) !important;
+}
+html[data-ops-theme="dark"] body.ops-tailwind .ops-header { background: rgba(8,17,32,.86) !important; }
+body.ops-tailwind .ops-header-main {
+  min-height: 72px !important;
+  max-width: none !important;
+  padding: 0 28px !important;
+  gap: 22px;
+}
+body.ops-tailwind .ops-brand { gap: 12px; text-decoration: none; }
+body.ops-tailwind .ops-brand .brand-mark { width: 40px; height: 40px; border-radius: 12px !important; }
+body.ops-tailwind .ops-brand-copy strong { color: var(--px-foreground) !important; font-family: var(--px-font-heading); font-size: 15px; }
+body.ops-tailwind .ops-brand-copy span { color: var(--px-muted-foreground) !important; font-size: 11px; }
+body.ops-tailwind .primary-header-navigation { gap: 4px; }
+body.ops-tailwind .header-nav-item {
+  min-height: 40px;
+  padding: 9px 13px !important;
+  border: 0 !important;
+  border-radius: var(--px-radius-sm) !important;
+  background: transparent !important;
+  color: var(--px-muted-foreground) !important;
+  font-size: 12px;
+  font-weight: 650;
+  transition: background var(--px-transition),color var(--px-transition),transform var(--px-transition);
+}
+body.ops-tailwind .header-nav-item:hover { background: var(--px-secondary) !important; color: var(--px-foreground) !important; }
+body.ops-tailwind .header-nav-item.active { background: var(--px-primary-soft) !important; color: var(--px-primary) !important; }
+body.ops-tailwind .ops-header-actions { gap: 8px; }
+body.ops-tailwind .all-tools-button,
+body.ops-tailwind .theme-button,
+body.ops-tailwind .account-menu summary {
+  min-height: 40px;
+  border: 1px solid var(--px-border) !important;
+  border-radius: var(--px-radius) !important;
+  background: var(--px-card) !important;
+  color: var(--px-foreground) !important;
+  box-shadow: var(--px-shadow-xs);
+  transition: border-color var(--px-transition),box-shadow var(--px-transition),transform var(--px-transition);
+}
+body.ops-tailwind .all-tools-button:hover,
+body.ops-tailwind .theme-button:hover,
+body.ops-tailwind .account-menu summary:hover { border-color: rgba(37,99,235,.35) !important; box-shadow: var(--px-shadow-sm); }
+body.ops-tailwind .avatar {
+  border: 0 !important;
+  background: linear-gradient(145deg,#2563eb,#0ea5e9) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(37,99,235,.24);
+}
+body.ops-tailwind .account-summary-copy strong { color: var(--px-foreground) !important; }
+body.ops-tailwind .account-summary-copy span { color: var(--px-muted-foreground) !important; }
+body.ops-tailwind .account-menu-panel {
+  margin-top: 9px;
+  border: 1px solid var(--px-border) !important;
+  border-radius: var(--px-radius-lg) !important;
+  background: var(--px-popover) !important;
+  color: var(--px-foreground) !important;
+  box-shadow: var(--px-shadow-xl) !important;
+}
+body.ops-tailwind .ops-subheader {
+  min-height: 54px !important;
+  max-width: none !important;
+  padding: 7px 28px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--px-border) !important;
+  background: transparent !important;
+}
+body.ops-tailwind .breadcrumbs { color: var(--px-muted-foreground) !important; font-size: 12px; }
+body.ops-tailwind .breadcrumbs strong { color: var(--px-foreground) !important; }
+body.ops-tailwind .global-search {
+  width: min(640px,52vw) !important;
+  min-height: 40px !important;
+  padding: 0 13px;
+  border: 1px solid var(--px-border) !important;
+  border-radius: var(--px-radius) !important;
+  background: var(--px-card) !important;
+  color: var(--px-foreground) !important;
+  box-shadow: var(--px-shadow-xs);
+}
+body.ops-tailwind .global-search:focus-within { border-color: var(--px-ring) !important; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+body.ops-tailwind .global-search input { color: var(--px-foreground) !important; }
+body.ops-tailwind .global-search kbd { border: 1px solid var(--px-border); border-radius: 5px; background: var(--px-secondary); color: var(--px-muted-foreground); }
+
+body.ops-tailwind .content { max-width: none !important; padding: 34px 38px 56px !important; }
+body.ops-tailwind .main-shell { min-width: 0; background: transparent !important; }
+body.ops-tailwind .system-footer {
+  max-width: none !important;
+  min-height: 62px;
+  padding: 15px 38px !important;
+  border-top: 1px solid var(--px-border) !important;
+  background: rgba(255,255,255,.52) !important;
+  color: var(--px-muted-foreground) !important;
+  backdrop-filter: blur(18px);
+}
+html[data-ops-theme="dark"] body.ops-tailwind .system-footer { background: rgba(8,17,32,.45) !important; }
+body.ops-tailwind .system-footer strong { color: var(--px-foreground) !important; }
+
+@media (min-width:1024px) {
+  body.ops-tailwind .app-shell {
+    display: grid !important;
+    grid-template-columns: 272px minmax(0,1fr) !important;
+    grid-template-rows: auto minmax(0,1fr) !important;
+  }
+  body.ops-tailwind .ops-header { grid-column: 1/-1; grid-row: 1; }
+  body.ops-tailwind .tools-drawer {
+    position: sticky !important;
+    top: 127px !important;
+    grid-column: 1;
+    grid-row: 2;
+    z-index: 80 !important;
+    display: flex !important;
+    flex-direction: column;
+    width: 272px !important;
+    min-height: calc(100vh - 127px) !important;
+    height: calc(100vh - 127px) !important;
+    max-height: calc(100vh - 127px) !important;
+    inset: auto !important;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-right: 1px solid var(--px-sidebar-border) !important;
+    border-radius: 0 !important;
+    background: var(--px-sidebar) !important;
+    color: var(--px-sidebar-foreground) !important;
+    box-shadow: none !important;
+  }
+  body.ops-tailwind .tools-drawer-heading {
+    padding: 22px 18px 16px !important;
+    border-bottom: 1px solid var(--px-sidebar-border) !important;
+    background: transparent !important;
+  }
+  body.ops-tailwind .tools-drawer-heading strong { color: var(--px-foreground) !important; font-family: var(--px-font-heading); font-size: 13px; }
+  body.ops-tailwind .tools-drawer-heading span { color: var(--px-muted-foreground) !important; font-size: 10px; }
+  body.ops-tailwind .drawer-close { display: none !important; }
+  body.ops-tailwind #mainNavigation { flex: 1; display: block !important; padding: 12px 10px 20px !important; overflow-y: auto; }
+  body.ops-tailwind .nav-group { padding: 7px 0 12px !important; border-bottom: 1px solid var(--px-sidebar-border) !important; }
+  body.ops-tailwind .nav-group:last-child { border-bottom: 0 !important; }
+  body.ops-tailwind .nav-label {
+    margin: 12px 10px 7px !important;
+    color: var(--px-muted-foreground) !important;
+    font-size: 9px !important;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  body.ops-tailwind .tools-drawer .nav-item {
+    position: relative;
+    width: 100%;
+    min-height: 41px;
+    margin: 2px 0;
+    padding: 10px 12px !important;
+    border: 0 !important;
+    border-radius: var(--px-radius-sm) !important;
+    background: transparent !important;
+    color: var(--px-muted-foreground) !important;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    transition: background var(--px-transition),color var(--px-transition),transform var(--px-transition);
+  }
+  body.ops-tailwind .tools-drawer .nav-item:hover { background: var(--px-secondary) !important; color: var(--px-foreground) !important; transform: translateX(2px); }
+  body.ops-tailwind .tools-drawer .nav-item.active {
+    background: var(--px-sidebar-accent) !important;
+    color: var(--px-primary) !important;
+    box-shadow: inset 3px 0 0 var(--px-primary) !important;
+  }
+  body.ops-tailwind .tools-drawer-footer {
+    padding: 14px 18px !important;
+    border-top: 1px solid var(--px-sidebar-border) !important;
+    background: transparent !important;
+    color: var(--px-muted-foreground) !important;
+  }
+  body.ops-tailwind .tools-drawer-footer strong { color: var(--px-foreground) !important; }
+  body.ops-tailwind .main-shell { grid-column: 2; grid-row: 2; min-height: calc(100vh - 127px); }
+  body.ops-tailwind .menu-backdrop,body.ops-tailwind .all-tools-button { display: none !important; }
+}
+
+@media (max-width:1180px) and (min-width:1024px) {
+  body.ops-tailwind .app-shell { grid-template-columns: 244px minmax(0,1fr) !important; }
+  body.ops-tailwind .tools-drawer { width: 244px !important; }
+  body.ops-tailwind .content { padding: 28px 26px 48px !important; }
+}
+@media (max-width:1023px) {
+  body.ops-tailwind .all-tools-button { display: inline-flex !important; }
+  body.ops-tailwind .content { padding: 25px 18px 42px !important; }
+  body.ops-tailwind .tools-drawer {
+    border: 1px solid var(--px-border) !important;
+    border-radius: 0 var(--px-radius-xl) var(--px-radius-xl) 0 !important;
+    background: var(--px-card) !important;
+    color: var(--px-foreground) !important;
+    box-shadow: var(--px-shadow-xl) !important;
+  }
+}
+@media (max-width:760px) {
+  body.ops-tailwind .ops-header-main,body.ops-tailwind .ops-subheader { padding-left: 13px !important; padding-right: 13px !important; }
+  body.ops-tailwind .primary-header-navigation { display: none !important; }
+  body.ops-tailwind .ops-brand-copy span,body.ops-tailwind .product-badge,body.ops-tailwind .account-summary-copy { display: none !important; }
+  body.ops-tailwind .global-search { width: 100% !important; }
+  body.ops-tailwind .breadcrumbs { display: none !important; }
+  body.ops-tailwind .content { padding: 20px 12px 36px !important; }
+  body.ops-tailwind .login-card { padding: 30px 24px !important; border-radius: 18px !important; }
+}
