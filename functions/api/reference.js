@@ -17,7 +17,8 @@ export const onRequestGet = async context => {
   const [platforms, staff, units, roles, markerTypes, restrictionTypes, settings] = await context.env.DB.batch([
     context.env.DB.prepare(`SELECT p.id,p.code,p.name,p.status,p.last_health_check_at,
       o.health_status,o.public_url,o.hosting_provider,o.last_heartbeat_at,o.release_version,o.release_commit
-      FROM platforms p LEFT JOIN platform_operational_profiles o ON o.platform_id=p.id ORDER BY p.name`),
+      FROM platforms p LEFT JOIN platform_operational_profiles o ON o.platform_id=p.id
+      WHERE p.status!='disabled' ORDER BY p.name`),
     context.env.DB.prepare("SELECT id,display_name,email,status,authentication_source FROM staff_members WHERE status IN ('active','invited') ORDER BY display_name"),
     context.env.DB.prepare("SELECT id,code,name,unit_type,status,parent_unit_id FROM organisation_units ORDER BY unit_type,name"),
     context.env.DB.prepare("SELECT code,name,description,permissions_json,status FROM role_definitions WHERE status='active' ORDER BY name"),
