@@ -1,42 +1,83 @@
+const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+async function loadSession(authResult) {
+  let result = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    result = await api('/api/auth/session');
+    if (result.authenticated || authResult !== 'success') return result;
+    await pause(300 * (attempt + 1));
+  }
+  return result;
+}
+
+async function loadReference() {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try { return await api('/api/reference'); }
+    catch (error) {
+      lastError = error;
+      if (error.status === 401 || error.status === 403) throw error;
+      await pause(400 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+function showStartupFailure(error) {
+  $('#viewRoot').innerHTML = `<div class="panel"><div class="empty-state"><strong>You are signed in, but Head Office services did not finish starting</strong><span>${escapeHtml(error.message || 'The service is temporarily unavailable.')}</span><div style="margin-top:16px"><button class="button primary" id="retryStartupButton">Retry opening Head Office</button></div></div></div>`;
+  $('#retryStartupButton')?.addEventListener('click', () => boot());
+}
+
 async function boot() {
-  const fragment = new URLSearchParams(location.hash.startsWith("#auth_session=") ? location.hash.slice(1) : "");
+  const fragment = new URLSearchParams(location.hash.startsWith('#auth_session=') ? location.hash.slice(1) : '');
   const query = new URLSearchParams(location.search);
-  const handoff = fragment.get("auth_session") || query.get("auth_session");
+  const handoff = fragment.get('auth_session') || query.get('auth_session');
   if (handoff) retainSession(handoff);
-  const authResult = query.get("auth_result");
-  query.delete("auth_result");
-  query.delete("auth_session");
-  if (handoff || authResult) history.replaceState({}, "", `${location.pathname}${query.toString() ? `?${query}` : ""}#/control-room`);
+  const authResult = query.get('auth_result');
+  query.delete('auth_result');
+  query.delete('auth_session');
+  if (handoff || authResult) history.replaceState({}, '', `${location.pathname}${query.toString() ? `?${query}` : ''}#/control-room`);
+
   try {
-    state.session = await api("/api/auth/session");
-    if (!state.session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare.");
-    $("#microsoftLogin").hidden = !state.session.microsoft?.configured;
-    if (!state.session.authenticated) return showLogin(authResult === "success" ? `Microsoft approved the sign-in, but the Centre could not open the staff session (${state.session.sessionStatus || "unknown"}).` : "");
-    state.reference = await api("/api/reference");
-    showApp();
+    state.session = await loadSession(authResult);
+    if (!state.session.configured) return showLogin('Microsoft staff sign-in has not been configured in Cloudflare.');
+    $('#microsoftLogin').hidden = !state.session.microsoft?.configured;
+    if (!state.session.authenticated) {
+      return showLogin(authResult === 'success'
+        ? `Microsoft approved the sign-in, but the Centre could not establish the staff session (${state.session.sessionStatus || 'unknown'}).`
+        : '');
+    }
+  } catch (error) {
+    return showLogin(error.message);
+  }
+
+  showApp();
+  setLoading('Opening Head Office services…');
+  try {
+    state.reference = await loadReference();
     renderNavigation();
-    const initialRoute = location.hash.startsWith("#/") ? routeFromHash() : (hasPermission("risk:read") ? "control-room" : "dashboard");
+    const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'control-room' : 'dashboard');
     navigate(initialRoute, true);
   } catch (error) {
-    showLogin(error.message);
+    showStartupFailure(error);
   }
 }
 
-$("#menuButton").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
-$("#signOutButton").addEventListener("click", async () => {
-  const result = await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => ({}));
+$('#menuButton').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+$('#signOutButton').addEventListener('click', async () => {
+  const result = await api('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => ({}));
   clearSession();
   if (result.redirect) location.assign(result.redirect); else location.reload();
 });
-$("#globalSearch").addEventListener("keydown", event => {
-  if (event.key === "Enter") { state.customerFilters.q = event.currentTarget.value.trim(); navigate("customers"); }
+$('#globalSearch').addEventListener('keydown', event => {
+  if (event.key === 'Enter') { state.customerFilters.q = event.currentTarget.value.trim(); navigate('customers'); }
 });
-document.addEventListener("keydown", event => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#globalSearch").focus(); }
-  if (event.key === "Escape" && $("#modal").open) closeModal();
+document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#globalSearch').focus(); }
+  if (event.key === 'Escape' && $('#modal').open) closeModal();
 });
-document.addEventListener("click", event => handleClick(event.target).catch(error => toast("Action could not be completed", error.message, "error")));
-document.addEventListener("submit", event => { event.preventDefault(); handleForm(event.target); });
-window.addEventListener("hashchange", () => renderRoute(routeFromHash()));
-setInterval(() => { $("#systemClock").textContent = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium" }).format(new Date()); }, 1000);
+document.addEventListener('click', event => handleClick(event.target).catch(error => toast('Action could not be completed', error.message, 'error')));
+document.addEventListener('submit', event => { event.preventDefault(); handleForm(event.target); });
+window.addEventListener('hashchange', () => renderRoute(routeFromHash()));
+setInterval(() => { $('#systemClock').textContent = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date()); }, 1000);
 boot();
