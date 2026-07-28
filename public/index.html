@@ -4,79 +4,194 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <meta name="theme-color" content="#0b1220">
-  <title>Head Office Operations Centre · Version 7</title>
+  <meta name="theme-color" content="#ffffff">
+  <title>Head Office Customer Operations Centre · Version 7</title>
   <link rel="stylesheet" href="/styles.css?v=20260728-v7-3">
   <link rel="stylesheet" href="/v7.css?v=20260728-v7-3">
+  <link rel="stylesheet" href="/operations-tailwind.css?v=20260728-ops-1">
 </head>
-<body class="locked">
+<body class="ops-tailwind locked">
   <section class="login-screen" id="loginScreen">
-    <div class="login-brand">
-      <div class="brand-mark">JA</div>
-      <div><strong>JA Group Services Ltd</strong><span>Head Office Operations Centre · Version 7</span></div>
+    <div class="login-topbar">
+      <div class="login-brand">
+        <div class="brand-mark">JA</div>
+        <div>
+          <strong>JA Group Services Ltd</strong>
+          <span>Head Office Customer Operations Centre</span>
+        </div>
+      </div>
+      <span class="version-badge">Version 7</span>
     </div>
-    <div class="login-card">
-      <div class="security-seal" aria-hidden="true">⌾</div>
-      <p class="eyebrow">Authorised Head Office staff access</p>
-      <h1>Sign in to Head Office</h1>
-      <p class="login-intro">Use your JA Group Services Microsoft work account. This is one company-wide Head Office portal. Access, decisions and changes are recorded in the Head Office audit history.</p>
-      <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
-        <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        Sign in with Microsoft <span>→</span>
-      </a>
-      <p class="configuration-note" id="configurationNote" role="alert"></p>
-      <div class="login-assurance"><span>🔐 Microsoft Entra</span><span>🧾 Audited access</span><span>🏢 Head Office controlled</span></div>
+
+    <div class="login-stage">
+      <div class="login-card">
+        <div class="security-seal" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M12 3 5.5 5.7v5.6c0 4.3 2.6 7.8 6.5 9.7 3.9-1.9 6.5-5.4 6.5-9.7V5.7L12 3Z"/>
+            <path d="m9.3 12 1.8 1.8 3.8-4"/>
+          </svg>
+        </div>
+        <p class="eyebrow">Authorised Head Office staff</p>
+        <h1>Customer Operations Centre</h1>
+        <p class="login-intro">Sign in with your JA Group Services Microsoft work account. Customer operations, decisions and privileged actions are recorded in the Head Office audit history.</p>
+        <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
+          <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          Continue with Microsoft
+        </a>
+        <p class="configuration-note" id="configurationNote" role="alert"></p>
+        <div class="login-assurance" aria-label="Access controls">
+          <span>Microsoft Entra</span>
+          <span>Role controlled</span>
+          <span>Fully audited</span>
+        </div>
+      </div>
     </div>
-    <div class="login-footer"><span>Internal Head Office system · Authorised use only</span><span>Company No. 16314179</span></div>
+
+    <div class="login-footer">
+      <span>Internal Head Office system · Authorised use only</span>
+      <span>JA Group Services Ltd · Company No. 16314179</span>
+    </div>
   </section>
 
   <div class="app-shell" id="appShell" hidden>
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark">JA</div><div><strong>Head Office</strong><span>Operations Centre · V7</span></div></div>
-      <nav id="mainNavigation" aria-label="Main navigation">
-        <p class="nav-label">Version 7 control</p>
-        <button class="nav-item" data-route="control-room" data-permission="risk:read"><span>◉</span> Control Room</button>
-        <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read"><span>⌁</span> Risk intelligence</button>
-        <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read"><span>◆</span> Incidents & breaches</button>
-        <button class="nav-item" data-route="central-operations" data-permission="operations:read"><span>▦</span> Central operations</button>
-        <p class="nav-label">Customer operations</p>
-        <button class="nav-item" data-route="dashboard"><span>⌂</span> Operations overview</button>
-        <button class="nav-item" data-route="customers" data-permission="customers:read"><span>◎</span> Universal customers</button>
-        <button class="nav-item" data-route="cases" data-permission="cases:read"><span>▣</span> Case management</button>
-        <button class="nav-item" data-route="communications" data-permission="communications:read"><span>✉</span> Communications</button>
-        <button class="nav-item" data-route="payments" data-permission="payments:read"><span>£</span> Payments & approvals</button>
-        <p class="nav-label">Risk & compliance</p>
-        <button class="nav-item" data-route="security" data-permission="security:read"><span>◇</span> Security control centre</button>
-        <button class="nav-item" data-route="complaints" data-permission="complaints:read"><span>☷</span> Complaints</button>
-        <button class="nav-item" data-route="data-protection" data-permission="data_protection:*"><span>◫</span> Data protection</button>
-        <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*"><span>◈</span> Safeguarding</button>
-        <p class="nav-label">System administration</p>
-        <button class="nav-item" data-route="security-levels" data-permission="risk:read"><span>≡</span> Security levels</button>
-        <button class="nav-item" data-route="platforms" data-permission="platforms:read"><span>⌘</span> Connected systems</button>
-        <button class="nav-item" data-route="staff" data-permission="administration:read"><span>♙</span> Staff & access</button>
-        <button class="nav-item" data-route="audit" data-permission="audit:read"><span>◷</span> Audit history</button>
-        <button class="nav-item" data-route="settings" data-permission="configuration:read"><span>⚙</span> System settings</button>
+    <header class="ops-header">
+      <div class="ops-header-main">
+        <a class="ops-brand" href="#/control-room" aria-label="Head Office Customer Operations Centre home">
+          <div class="brand-mark">JA</div>
+          <div class="ops-brand-copy">
+            <strong>Head Office</strong>
+            <span>Customer Operations Centre</span>
+          </div>
+          <span class="product-badge">V7</span>
+        </a>
+
+        <nav class="primary-header-navigation" aria-label="Primary Head Office navigation">
+          <button class="nav-item header-nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
+          <button class="nav-item header-nav-item" data-route="customers" data-permission="customers:read">Customers</button>
+          <button class="nav-item header-nav-item" data-route="cases" data-permission="cases:read">Cases</button>
+          <button class="nav-item header-nav-item" data-route="central-operations" data-permission="operations:read">Operations</button>
+          <button class="nav-item header-nav-item" data-route="incidents-v7" data-permission="incidents:read">Incidents</button>
+        </nav>
+
+        <div class="ops-header-actions">
+          <button class="all-tools-button" id="menuButton" type="button" aria-label="Open all Head Office tools" aria-controls="sidebar" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span>All tools</span>
+          </button>
+          <button class="theme-button" id="themeToggle" type="button" aria-label="Switch colour theme">
+            <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+            <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>
+          </button>
+
+          <details class="account-menu">
+            <summary>
+              <div class="avatar" id="userInitials">--</div>
+              <div class="account-summary-copy">
+                <strong id="userName">Staff member</strong>
+                <span id="userRole">Authorised access</span>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+            </summary>
+            <div class="account-menu-panel">
+              <p class="account-menu-label">Operating authority</p>
+              <strong>JA Group Services Ltd — Head Office</strong>
+              <select id="operatingContext" hidden disabled aria-hidden="true"><option value="HEAD_OFFICE">JA Group Services Ltd — Head Office</option></select>
+              <button id="signOutButton" type="button" class="account-signout">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 5H5v14h5M13 8l4 4-4 4M17 12H9"/></svg>
+                Sign out
+              </button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="ops-subheader">
+        <div class="breadcrumbs" aria-label="Breadcrumb">
+          <span>Head Office</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          <strong id="currentRouteLabel">Control Room</strong>
+        </div>
+        <div class="global-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+          <input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search Head Office records">
+          <kbd>Ctrl K</kbd>
+        </div>
+      </div>
+    </header>
+
+    <aside class="sidebar tools-drawer" id="sidebar" aria-label="All Head Office tools">
+      <div class="tools-drawer-heading">
+        <div>
+          <strong>Head Office tools</strong>
+          <span>All authorised customer operations and controls</span>
+        </div>
+        <button class="drawer-close" id="drawerCloseButton" type="button" aria-label="Close all tools">×</button>
+      </div>
+      <nav id="mainNavigation" aria-label="All Head Office navigation">
+        <section class="nav-group">
+          <p class="nav-label">Control and intelligence</p>
+          <button class="nav-item" data-route="control-room" data-permission="risk:read">Control Room</button>
+          <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read">Risk intelligence</button>
+          <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read">Incidents &amp; data breaches</button>
+          <button class="nav-item" data-route="central-operations" data-permission="operations:read">Central operations</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Customer operations</p>
+          <button class="nav-item" data-route="dashboard">Operations overview</button>
+          <button class="nav-item" data-route="customers" data-permission="customers:read">Universal customers</button>
+          <button class="nav-item" data-route="cases" data-permission="cases:read">Case management</button>
+          <button class="nav-item" data-route="communications" data-permission="communications:read">Communications</button>
+          <button class="nav-item" data-route="payments" data-permission="payments:read">Payments &amp; approvals</button>
+          <button class="nav-item" data-route="complaints" data-permission="complaints:read">Complaints</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Risk and compliance</p>
+          <button class="nav-item" data-route="security" data-permission="security:read">Security control centre</button>
+          <button class="nav-item" data-route="data-protection" data-permission="data_protection:*">Data protection</button>
+          <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*">Safeguarding</button>
+          <button class="nav-item" data-route="security-levels" data-permission="risk:read">Security levels</button>
+        </section>
+        <section class="nav-group">
+          <p class="nav-label">Administration</p>
+          <button class="nav-item" data-route="platforms" data-permission="platforms:read">Connected systems</button>
+          <button class="nav-item" data-route="staff" data-permission="administration:read">Staff &amp; access</button>
+          <button class="nav-item" data-route="audit" data-permission="audit:read">Audit history</button>
+          <button class="nav-item" data-route="settings" data-permission="configuration:read">System settings</button>
+        </section>
       </nav>
-      <div class="sidebar-footer"><div class="environment"><span></span><b id="environmentName">Production</b></div><small>JA Group Services Ltd<br>Head Office controlled · Version 7</small></div>
+      <div class="tools-drawer-footer">
+        <span class="production-dot"></span>
+        <strong id="environmentName">Production</strong>
+        <span>JA Group Services Ltd · Head Office controlled</span>
+      </div>
     </aside>
+    <button class="menu-backdrop" id="menuBackdrop" type="button" aria-label="Close all Head Office tools"></button>
 
     <main class="main-shell">
-      <header class="topbar">
-        <button class="icon-button menu-button" id="menuButton" aria-label="Open navigation">☰</button>
-        <div class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search customer, case or reference…" aria-label="Search records"><kbd>Ctrl K</kbd></div>
-        <div class="top-actions">
-          <div class="context-switcher" aria-label="Operating authority"><span>Operating authority</span><strong>JA Group Services Ltd — Head Office</strong><select id="operatingContext" hidden disabled aria-hidden="true"><option value="HEAD_OFFICE">JA Group Services Ltd — Head Office</option></select></div>
-          <div class="user"><div class="avatar" id="userInitials">--</div><div><strong id="userName">Staff member</strong><span id="userRole">Authorised access</span></div></div>
-          <button class="icon-button" id="signOutButton" title="Sign out" aria-label="Sign out">↪</button>
+      <div class="content" id="viewRoot">
+        <div class="loading-state"><span class="spinner"></span><p>Opening Head Office Customer Operations Centre…</p></div>
+      </div>
+      <footer class="system-footer">
+        <div>
+          <strong>JA Group Services Ltd</strong>
+          <span>Head Office Customer Operations Centre · Version 7</span>
         </div>
-      </header>
-      <div class="content" id="viewRoot"><div class="loading-state"><span class="spinner"></span><p>Opening Head Office Version 7…</p></div></div>
-      <footer class="system-footer"><span>JA Group Services Ltd · Head Office Operations Centre · Version 7</span><span id="systemClock"></span></footer>
+        <span id="systemClock"></span>
+      </footer>
     </main>
   </div>
 
-  <dialog id="modal"><div class="modal-shell"><header><div><p class="eyebrow" id="modalEyebrow">Head Office</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div><button class="icon-button" data-close-modal aria-label="Close">×</button></header><div class="modal-content" id="modalContent"></div></div></dialog>
+  <dialog id="modal">
+    <div class="modal-shell">
+      <header>
+        <div><p class="eyebrow" id="modalEyebrow">Head Office</p><h2 id="modalTitle">Record</h2><p id="modalDescription"></p></div>
+        <button class="icon-button" data-close-modal aria-label="Close">×</button>
+      </header>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </dialog>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
   <script src="/js/core.js?v=20260728-v7-3" defer></script>
   <script src="/js/views-operations.js?v=20260728-v7-3" defer></script>
   <script src="/js/views-control.js?v=20260728-v7-3" defer></script>
@@ -85,6 +200,7 @@
   <script src="/js/views-v7.js?v=20260728-v7-3" defer></script>
   <script src="/js/v7-overrides.js?v=20260728-v7-3" defer></script>
   <script src="/js/head-office-context.js?v=20260728-v7-3" defer></script>
+  <script src="/js/operations-shell.js?v=20260728-ops-1" defer></script>
   <script src="/js/boot.js?v=20260728-v7-3" defer></script>
 </body>
 </html>
