@@ -38,11 +38,28 @@ export function cookies(request) {
   return Object.fromEntries((request.headers.get("Cookie") || "").split(";").map(v => v.trim().split(/=(.*)/s)).filter(v => v[0]));
 }
 
+function requestWithPreferredAuthCookies(request) {
+  const rawCookieHeader = request.headers.get("Cookie") || "";
+  const parts = rawCookieHeader.split(";").map(value => value.trim()).filter(Boolean);
+  const hostSession = parts.find(value => value.startsWith("__Host-ho_session="));
+  const hostTransaction = parts.find(value => value.startsWith("__Host-ho_oidc_tx="));
+  if (!hostSession && !hostTransaction) return request;
+
+  const preferred = [];
+  if (hostSession) preferred.push(`ho_session=${hostSession.slice("__Host-ho_session=".length)}`);
+  if (hostTransaction) preferred.push(`ho_oidc_tx=${hostTransaction.slice("__Host-ho_oidc_tx=".length)}`);
+  const remaining = parts.filter(value => !value.startsWith("ho_session=") && !value.startsWith("ho_oidc_tx="));
+  const headers = new Headers(request.headers);
+  headers.set("Cookie", [...preferred, ...remaining].join("; "));
+  return new Request(request, { headers });
+}
+
 export async function getSession(request, env) {
+  const canonicalRequest = requestWithPreferredAuthCookies(request);
   const { getMicrosoftSession } = await import("./_microsoft-auth.js");
-  const microsoftSession = await getMicrosoftSession(request, env);
+  const microsoftSession = await getMicrosoftSession(canonicalRequest, env);
   if (microsoftSession) return microsoftSession;
-  const token = cookies(request).ho_session;
+  const token = cookies(canonicalRequest).ho_session;
   if (!token || !env.SESSION_SECRET) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature || !safeEqual(await hmac(payload, env.SESSION_SECRET), signature)) return null;
