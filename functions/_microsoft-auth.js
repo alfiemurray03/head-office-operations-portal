@@ -10,7 +10,7 @@ const LOGOUT_ENDPOINT = `${AUTHORITY}/oauth2/v2.0/logout`;
 const ISSUER = `https://login.microsoftonline.com/${TENANT_ID}/v2.0`;
 const CALLBACK_PATH = "/api/auth/microsoft/callback";
 const TRANSACTION_COOKIE = "ho_oidc_tx";
-const SESSION_COOKIE = "__Host-ho_session";
+const SESSION_COOKIE = "ho_session";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -54,14 +54,6 @@ function readCookie(request, name) {
 
 function cookie(name, value, maxAge) {
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
-}
-
-function htmlEscape(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 }
 
 async function signedPayload(value, secret) {
@@ -270,28 +262,13 @@ export async function completeMicrosoftLogin(request, env) {
   }
   const returnUrl = new URL(safeReturnPath(transaction.returnTo), url.origin);
   returnUrl.searchParams.set("auth_result", "success");
-  const destination = returnUrl.toString();
   const headers = new Headers({
-    "Content-Type": "text/html; charset=utf-8",
+    Location: returnUrl.toString(),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  headers.append("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
-  // Complete the cookie hand-off in a first-party document before navigating to
-  // the application. This avoids intermediaries losing Set-Cookie while cloning
-  // or normalising a redirect response.
-  return new Response(`<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="refresh" content="0;url=${htmlEscape(destination)}">
-  <title>Opening Customer Operations Centre</title>
-</head>
-<body>
-  <p>Microsoft sign-in complete. <a href="${htmlEscape(destination)}">Continue to the Customer Operations Centre</a>.</p>
-</body>
-</html>`, { status: 200, headers });
+  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
+  return new Response(null, { status: 303, headers });
 }
 
 export async function getMicrosoftSession(request, env) {
@@ -301,7 +278,7 @@ export async function getMicrosoftSession(request, env) {
 export async function inspectMicrosoftSession(request, env) {
   const secret = sessionSecret(env);
   if (!secret) return { session: null, status: "signing_secret_missing" };
-  const raw = readCookie(request, SESSION_COOKIE) || readCookie(request, "ho_session");
+  const raw = readCookie(request, SESSION_COOKIE) || readCookie(request, "__Host-ho_session");
   if (!raw) return { session: null, status: "session_cookie_missing" };
   const session = await readSignedPayload(raw, secret);
   if (!session) return { session: null, status: "session_cookie_invalid" };
@@ -315,12 +292,14 @@ export function microsoftLogout(request) {
   const url = new URL(request.url);
   const destination = new URL(LOGOUT_ENDPOINT);
   destination.searchParams.set("post_logout_redirect_uri", `${url.origin}/`);
+  const headers = new Headers({
+    Location: destination.toString(),
+    "Cache-Control": "no-store"
+  });
+  headers.append("Set-Cookie", cookie(SESSION_COOKIE, "", 0));
+  headers.append("Set-Cookie", cookie("__Host-ho_session", "", 0));
   return new Response(null, {
     status: 302,
-    headers: {
-      Location: destination.toString(),
-      "Set-Cookie": cookie(SESSION_COOKIE, "", 0),
-      "Cache-Control": "no-store"
-    }
+    headers
   });
 }
