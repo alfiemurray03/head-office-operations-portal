@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#0f172a">
   <title>Head Office Customer Operations Portal</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20260728-1">
 </head>
 <body class="locked">
   <section class="login-screen" id="loginScreen">
@@ -106,6 +106,6 @@
   <dialog id="platformDialog"><form id="platformForm"><div class="dialog-heading"><div><p class="eyebrow">Connected platform</p><h2>Register a website</h2><p>Create the platform identity before issuing an API key.</p></div><button type="button" data-close>×</button></div><label>Platform name<input name="name" maxlength="120" required></label><label>Platform code<input name="code" maxlength="40" pattern="[A-Za-z0-9_-]+" required><small>For example: PLANYX</small></label><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Register platform</button></div></form></dialog>
   <dialog id="credentialDialog"><form id="credentialForm"><div class="dialog-heading"><div><p class="eyebrow">API credential</p><h2>Generate a connector key</h2><p id="credentialPlatformName"></p></div><button type="button" data-close>×</button></div><input type="hidden" name="platformId"><label>Credential name<input name="name" maxlength="100" placeholder="Production website" required></label><fieldset><legend>Permitted API scopes</legend><label><input type="checkbox" name="scopes" value="customers:read"> Read linked customers</label><label><input type="checkbox" name="scopes" value="customers:write"> Register and link customers</label><label><input type="checkbox" name="scopes" value="security:read"> Read enforceable restrictions</label><label><input type="checkbox" name="scopes" value="cases:write"> Create Head Office cases</label><label><input type="checkbox" name="scopes" value="events:write"> Submit platform events</label></fieldset><p class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Generate key</button></div></form></dialog>
   <dialog id="keyDialog"><div class="key-result"><div class="dialog-heading"><div><p class="eyebrow">Generated successfully</p><h2>Copy this API key now</h2><p>It cannot be viewed again after this window is closed.</p></div></div><pre id="generatedKey"></pre><button class="primary-button" id="copyKeyButton">Copy API key</button><button class="secondary-button" data-close>Close</button></div></dialog>
-  <script src="/app.js" type="module"></script>
+  <script src="/app.js?v=20260728-1" type="module"></script>
 </body>
 </html>
