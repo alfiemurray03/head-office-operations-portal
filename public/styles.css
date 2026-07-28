@@ -37,6 +37,11 @@ body.locked { overflow: hidden; }
 .login-options{display:flex;align-items:center;justify-content:space-between;margin:13px 0}.login-options label{font-size:9px;color:#687589}.login-options button{border:0;background:transparent;color:#2d63c9;font-size:9px;font-weight:700}
 .login-error{min-height:15px;margin:0;color:#bd3348;font-size:9px;font-weight:700}
 .login-submit{width:100%;height:43px;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:5px}
+.microsoft-login{text-decoration:none;margin-top:18px}
+.microsoft-mark{display:grid;grid-template-columns:repeat(2,7px);grid-template-rows:repeat(2,7px);gap:2px}
+.microsoft-mark i:nth-child(1){background:#f35325}.microsoft-mark i:nth-child(2){background:#81bc06}.microsoft-mark i:nth-child(3){background:#05a6f0}.microsoft-mark i:nth-child(4){background:#ffba08}
+.local-login{margin-top:17px;border-top:1px solid var(--line);padding-top:13px}
+.local-login summary{cursor:pointer;color:var(--muted);font-size:9px;text-align:center}
 .preview-credentials{margin-top:19px;padding:12px 14px;border:1px solid #ead8a9;background:#fff9e9;border-radius:8px;color:#71500d;font-size:9px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .preview-credentials strong{grid-column:1/-1}.preview-credentials code{font-weight:800;color:#503706}
 .login-footer{display:flex;justify-content:space-between;color:#71879f;font-size:9px}

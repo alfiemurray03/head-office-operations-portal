@@ -119,7 +119,14 @@ async function boot() {
   renderModules();
   try {
     const session = await api("/api/auth/session");
-    if (!session.configured) return showLogin("Local sign-in has not been configured in Cloudflare yet.");
+    const authError = new URLSearchParams(location.search).get("auth_error");
+    if (authError) {
+      history.replaceState({}, "", location.pathname);
+      return showLogin(authError);
+    }
+    if (!session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare yet.");
+    $("#microsoftLogin").hidden = !session.microsoft?.configured;
+    $("#localLogin").hidden = session.authentication !== "local";
     if (!session.authenticated) return showLogin();
     showApp(session.user);
     await Promise.all([loadDashboard(), loadCustomers(), loadCases(), loadSecurity(), loadPlatforms()]);
@@ -139,7 +146,11 @@ $("#loginForm").addEventListener("submit", async event => {
   } catch (error) { $("#loginError").textContent = error.message; }
 });
 $("#showPassword").addEventListener("click", () => { $("#password").type = $("#password").type === "password" ? "text" : "password"; });
-$("#signOutButton").addEventListener("click", async () => { await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => {}); showLogin(); });
+$("#signOutButton").addEventListener("click", async () => {
+  const result = await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => ({}));
+  if (result.redirect) location.assign(result.redirect);
+  else showLogin();
+});
 $("#menuButton").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
 $$(".nav-item").forEach(item => item.addEventListener("click", () => showView(item.dataset.view)));
 $$("[data-action='new-customer']").forEach(b => b.addEventListener("click", () => $("#customerDialog").showModal()));

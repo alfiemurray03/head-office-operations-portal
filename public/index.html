@@ -15,7 +15,13 @@
       <div class="login-lock">⌾</div>
       <p class="eyebrow">Authorised staff access</p>
       <h1>Sign in to Head Office</h1>
-      <p class="login-intro">Use your temporary local staff account. Microsoft staff sign-in will replace this during the identity phase.</p>
+      <p class="login-intro">Use your JA Group Services Microsoft work account. Access is restricted to authorised staff in the company tenant.</p>
+      <a class="primary-button login-submit microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
+        <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        Sign in with Microsoft <span>→</span>
+      </a>
+      <details class="local-login" id="localLogin">
+        <summary>Emergency local sign-in</summary>
       <form id="loginForm">
         <label for="username">Username</label>
         <div class="login-field"><span>♙</span><input id="username" name="username" autocomplete="username" required></div>
@@ -24,6 +30,7 @@
         <p class="login-error" id="loginError" role="alert"></p>
         <button class="primary-button login-submit" type="submit">Sign in securely <span>→</span></button>
       </form>
+      </details>
       <p class="configuration-note" id="configurationNote"></p>
     </div>
     <div class="login-footer"><span>Internal system · Authorised use only</span><span>Company No. 16314179</span></div>
@@ -63,7 +70,7 @@
       <div class="content">
         <section class="view active" id="dashboard">
           <div class="page-heading"><div><p class="eyebrow">Head Office control layer</p><h1>Operational command centre</h1><p>Company-wide customer operations, risk and service oversight.</p></div><button class="primary-button" data-action="new-case">＋ Create case</button></div>
-          <div class="notice" id="setupNotice"><div class="notice-icon">i</div><div><strong>Foundation stage</strong><p>Live platform and Microsoft identity connections are not enabled. Only records held in this portal database are shown.</p></div></div>
+          <div class="notice" id="setupNotice"><div class="notice-icon">i</div><div><strong>Controlled Head Office system</strong><p>Staff identity is verified through the JA Group Services Microsoft tenant. Operational records shown here come from the connected Head Office database.</p></div></div>
           <div class="metrics">
             <article class="metric-card"><div class="metric-icon blue">◎</div><div><span>Universal customers</span><strong id="metricCustomers">0</strong><small>Central register</small></div></article>
             <article class="metric-card"><div class="metric-icon amber">▣</div><div><span>Open cases</span><strong id="metricCases">0</strong><small id="metricDue">0 overdue</small></div></article>

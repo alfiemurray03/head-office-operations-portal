@@ -39,6 +39,9 @@ export function cookies(request) {
 }
 
 export async function getSession(request, env) {
+  const { getMicrosoftSession } = await import("./_microsoft-auth.js");
+  const microsoftSession = await getMicrosoftSession(request, env);
+  if (microsoftSession) return microsoftSession;
   const token = cookies(request).ho_session;
   if (!token || !env.SESSION_SECRET) return null;
   const [payload, signature] = token.split(".");

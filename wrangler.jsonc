@@ -5,7 +5,12 @@
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "APP_ENV": "Preview"
+    "APP_ENV": "Production",
+    "ADMIN_OIDC_TENANT_ID": "53477196-db21-46d2-8123-00be3d6882da",
+    "ADMIN_OIDC_CLIENT_ID": "4f5c0708-f580-4514-b710-3cb780939348",
+    "ADMIN_OIDC_ISSUER": "https://login.microsoftonline.com/53477196-db21-46d2-8123-00be3d6882da/v2.0",
+    "ADMIN_OIDC_AUTHORISE_ENDPOINT": "https://login.microsoftonline.com/53477196-db21-46d2-8123-00be3d6882da/oauth2/v2.0/authorize",
+    "ADMIN_OIDC_TOKEN_ENDPOINT": "https://login.microsoftonline.com/53477196-db21-46d2-8123-00be3d6882da/oauth2/v2.0/token"
   },
   "d1_databases": [
     {
