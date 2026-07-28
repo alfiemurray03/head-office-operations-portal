@@ -5,6 +5,7 @@ const OPS_ROUTE_LABELS = {
   "central-operations": "Central Head Office Operations",
   dashboard: "Operations Overview",
   customers: "Universal Customer Register",
+  "customer-directory": "Microsoft Customer Directory",
   cases: "Case & Investigation Register",
   communications: "Communications Record",
   payments: "Payments, Refunds & Approvals",
@@ -19,11 +20,222 @@ const OPS_ROUTE_LABELS = {
   settings: "Governed Configuration"
 };
 
+const HEAD_OFFICE_WORKSPACES = {
+  command: {
+    label: "Executive Control",
+    shortLabel: "Control",
+    code: "CTRL",
+    route: "control-room",
+    permission: "risk:read",
+    description: "Live oversight of operational demand, security posture, incidents and decisions requiring Head Office authority.",
+    routes: [
+      ["control-room", "Control room", "risk:read"],
+      ["dashboard", "Operations overview", ""]
+    ]
+  },
+  customer: {
+    label: "Customer Operations Centre",
+    shortLabel: "Customer operations",
+    code: "COC",
+    route: "central-operations",
+    permission: "operations:read",
+    description: "Company-wide customer identity, casework, communications and service activity in one operational workspace.",
+    routes: [
+      ["central-operations", "Operations queue", "operations:read"],
+      ["customers", "Customer register", "customers:read"],
+      ["customer-directory", "External ID directory", "platforms:read"],
+      ["cases", "Cases & investigations", "cases:read"],
+      ["communications", "Communications", "communications:read"]
+    ]
+  },
+  security: {
+    label: "Security Operations Centre",
+    shortLabel: "Security operations",
+    code: "SOC",
+    route: "risk-intelligence",
+    permission: "risk:read",
+    description: "Fraud signals, security markers, restrictions, protected records and governed enforcement decisions.",
+    routes: [
+      ["risk-intelligence", "Risk intelligence", "risk:read"],
+      ["security", "Markers & restrictions", "security:read"],
+      ["security-levels", "Control taxonomy", "risk:read"],
+      ["data-protection", "Data protection", "data_protection:*"],
+      ["safeguarding", "Safeguarding", "safeguarding:*"]
+    ]
+  },
+  incident: {
+    label: "Incident & Breach Command",
+    shortLabel: "Incident command",
+    code: "IC",
+    route: "incidents-v7",
+    permission: "incidents:read",
+    description: "Triage, containment, breach assessment, recovery and evidence for operational and security incidents.",
+    routes: [
+      ["incidents-v7", "Incident command", "incidents:read"],
+      ["audit", "Incident evidence", "audit:read"],
+      ["data-protection", "Breach assessment", "data_protection:*"]
+    ]
+  },
+  redress: {
+    label: "Complaints, Refunds & Disputes",
+    shortLabel: "Redress & disputes",
+    code: "CRD",
+    route: "complaints",
+    permission: "complaints:read",
+    description: "Formal complaint handling, payment disputes, refunds, approvals and customer redress decisions.",
+    routes: [
+      ["complaints", "Complaints & redress", "complaints:read"],
+      ["payments", "Refunds & disputes", "payments:read"],
+      ["cases", "Linked casework", "cases:read"],
+      ["communications", "Customer contact", "communications:read"]
+    ]
+  },
+  assurance: {
+    label: "Assurance & Administration",
+    shortLabel: "Assurance & admin",
+    code: "A&A",
+    route: "audit",
+    permission: "audit:read",
+    description: "Connected systems, staff authority, audit evidence and controlled production configuration.",
+    routes: [
+      ["platforms", "Connected systems", "platforms:read"],
+      ["staff", "Staff authority", "administration:read"],
+      ["audit", "Audit & evidence", "audit:read"],
+      ["settings", "Configuration", "configuration:read"]
+    ]
+  }
+};
+
+const ROUTE_WORKSPACE = {
+  "control-room": "command",
+  dashboard: "command",
+  "central-operations": "customer",
+  customers: "customer",
+  "customer-directory": "customer",
+  cases: "customer",
+  communications: "customer",
+  "risk-intelligence": "security",
+  security: "security",
+  "security-levels": "security",
+  "data-protection": "security",
+  safeguarding: "security",
+  "incidents-v7": "incident",
+  complaints: "redress",
+  payments: "redress",
+  platforms: "assurance",
+  staff: "assurance",
+  audit: "assurance",
+  settings: "assurance"
+};
+
+function ensureWorkspaceStyles() {
+  if (document.querySelector('link[data-workspace-shell]')) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "/workspace-shell.css?v=20260728-workspace-1";
+  link.dataset.workspaceShell = "true";
+  document.head.append(link);
+}
+
+function workspaceForRoute(route) {
+  return ROUTE_WORKSPACE[route] || "command";
+}
+
+function workspaceButton(key, workspace) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "nav-item workspace-tab";
+  button.dataset.route = workspace.route;
+  button.dataset.workspaceTarget = key;
+  if (workspace.permission) button.dataset.permission = workspace.permission;
+  button.innerHTML = `<span class="workspace-tab-code">${workspace.code}</span><span class="workspace-tab-copy"><strong>${workspace.shortLabel}</strong><small>${workspace.label}</small></span>`;
+  return button;
+}
+
+function ensureWorkspaceChrome() {
+  const header = document.querySelector(".ops-header");
+  const subheader = document.querySelector(".ops-subheader");
+  if (!header || !subheader || document.querySelector("#workspaceSwitcher")) return;
+
+  const switcher = document.createElement("nav");
+  switcher.id = "workspaceSwitcher";
+  switcher.className = "workspace-switcher";
+  switcher.setAttribute("aria-label", "Head Office workspaces");
+  for (const [key, workspace] of Object.entries(HEAD_OFFICE_WORKSPACES)) {
+    switcher.append(workspaceButton(key, workspace));
+  }
+  header.insertBefore(switcher, subheader);
+
+  const context = document.createElement("section");
+  context.id = "workspaceContext";
+  context.className = "workspace-contextbar";
+  context.innerHTML = `
+    <div class="workspace-context-copy">
+      <span class="workspace-context-kicker">JA Group Services Ltd · Head Office</span>
+      <div><strong id="workspaceTitle">Executive Control</strong><small id="workspaceDescription"></small></div>
+    </div>
+    <nav id="workspaceNavigation" class="workspace-context-navigation" aria-label="Current workspace tools"></nav>`;
+  header.append(context);
+
+  const drawerHeading = document.querySelector(".tools-drawer-heading strong");
+  const drawerDescription = document.querySelector(".tools-drawer-heading span");
+  if (drawerHeading) drawerHeading.textContent = "All Head Office functions";
+  if (drawerDescription) drawerDescription.textContent = "Complete authorised function index";
+}
+
+function renderWorkspaceNavigation(key) {
+  const workspace = HEAD_OFFICE_WORKSPACES[key] || HEAD_OFFICE_WORKSPACES.command;
+  const navigation = document.querySelector("#workspaceNavigation");
+  if (!navigation) return;
+  navigation.innerHTML = "";
+  for (const [route, label, permission] of workspace.routes) {
+    if (permission && typeof hasPermission === "function") {
+      try { if (!hasPermission(permission)) continue; } catch {}
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "nav-item workspace-context-link";
+    button.dataset.route = route;
+    if (permission) button.dataset.permission = permission;
+    button.textContent = label;
+    navigation.append(button);
+  }
+}
+
+function updateWorkspaceChrome(route = routeFromHash()) {
+  const workspaceKey = workspaceForRoute(route);
+  const workspace = HEAD_OFFICE_WORKSPACES[workspaceKey];
+  document.body.dataset.workspace = workspaceKey;
+
+  const title = document.querySelector("#workspaceTitle");
+  const description = document.querySelector("#workspaceDescription");
+  if (title) title.textContent = workspace.label;
+  if (description) description.textContent = workspace.description;
+
+  renderWorkspaceNavigation(workspaceKey);
+
+  document.querySelectorAll("[data-workspace-target]").forEach(button => {
+    button.classList.toggle("active", button.dataset.workspaceTarget === workspaceKey);
+    if (button.dataset.workspaceTarget === workspaceKey) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  document.querySelectorAll("#workspaceNavigation [data-route]").forEach(button => {
+    button.classList.toggle("active", button.dataset.route === route);
+  });
+
+  const view = document.querySelector("#viewRoot");
+  if (view) {
+    view.dataset.workspace = workspaceKey;
+    view.classList.add("workspace-view");
+  }
+}
+
 function updateOperationsRouteChrome(route = routeFromHash()) {
   const label = OPS_ROUTE_LABELS[route] || "Head Office";
   const target = document.querySelector("#currentRouteLabel");
   if (target) target.textContent = label;
   document.title = `${label} · Head Office Operations & Security Centre`;
+  updateWorkspaceChrome(route);
 }
 
 function closeOperationsTools() {
@@ -40,6 +252,9 @@ function applyOperationsTheme(theme) {
 }
 
 (function initialiseOperationsShell() {
+  ensureWorkspaceStyles();
+  ensureWorkspaceChrome();
+
   let savedTheme = "light";
   try {
     savedTheme = localStorage.getItem("head_office_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -70,7 +285,9 @@ function applyOperationsTheme(theme) {
   const originalRenderRoute = renderRoute;
   renderRoute = async function renderOperationsRoute(route = routeFromHash()) {
     updateOperationsRouteChrome(route);
-    return originalRenderRoute(route);
+    const result = await originalRenderRoute(route);
+    updateWorkspaceChrome(route);
+    return result;
   };
 
   window.addEventListener("hashchange", () => updateOperationsRouteChrome(routeFromHash()));
