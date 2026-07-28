@@ -81,5 +81,5 @@ jobs:
           done
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM detection_rules;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platform_operational_profiles;"
-          sqlite3 /tmp/head-office-central.db "SELECT code,status FROM platforms WHERE code='PROFILE_CENTRE';"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
           sqlite3 /tmp/head-office-central.db "PRAGMA foreign_key_check;"

@@ -1,6 +1,16 @@
 // The portal has one operating authority: JA Group Services Ltd — Head Office.
 // Divisions and services remain record sources and integrations, not staff contexts.
 
+(function loadFinalHeadOfficeLayout() {
+  if (!document.querySelector('link[data-planyx-layout-fixes]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/planyx-layout-fixes.css?v=20260728-central-2';
+    link.dataset.planyxLayoutFixes = 'true';
+    document.head.append(link);
+  }
+})();
+
 (function loadHeadOfficeShellBehaviour() {
   // The transferred Planyx design now owns the entire visual shell. Retain only
   // the compatibility behaviour from clean-shell.js; loading clean-shell.css
@@ -8,7 +18,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('script[data-clean-shell]')) return;
     const script = document.createElement('script');
-    script.src = '/js/clean-shell.js?v=20260728-central-1';
+    script.src = '/js/clean-shell.js?v=20260728-central-2';
     script.async = false;
     script.dataset.cleanShell = 'true';
     document.body.append(script);
