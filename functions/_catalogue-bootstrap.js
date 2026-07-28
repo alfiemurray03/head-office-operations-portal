@@ -1,10 +1,13 @@
 const ROLES = [
   ["SYSTEM_ADMINISTRATOR","System Administrator","Full technical, operational and configuration authority.",["*"]],
-  ["HEAD_OFFICE_OPERATIONS","Head Office Operations","Company-wide customer operations, communications, payments, complaints and cases.",["dashboard:read","customers:*","cases:*","communications:*","payments:*","approvals:*","complaints:*","security:read","audit:read","platforms:read"]],
-  ["SECURITY_OFFICER","Security Officer","Security markers, restrictions, account recovery and controlled investigations.",["dashboard:read","customers:read","cases:*","communications:read","security:*","audit:read","platforms:read"]],
-  ["BRANCH_OPERATOR","Branch Operator","Customer operations limited to a connected division.",["dashboard:read","customers:read","cases:read","cases:create","communications:*"]],
-  ["DPO_RESTRICTED","Data Protection Officer","Restricted data protection case and audit authority.",["dashboard:read","customers:read","cases:read","cases:create","data_protection:*","communications:read","audit:read"]],
-  ["SAFEGUARDING_RESTRICTED","Designated Safeguarding Officer","Restricted safeguarding concern authority.",["dashboard:read","customers:read","cases:read","cases:create","safeguarding:*","communications:read","audit:read"]]
+  ["HEAD_OFFICE_OPERATIONS","Head Office Operations","Company-wide customer operations, communications, payments, complaints and cases.",["dashboard:read","customers:*","cases:*","communications:*","payments:*","approvals:*","complaints:*","operations:*","risk:read","risk:write","incidents:read","security:read","audit:read","platforms:read"]],
+  ["SECURITY_OFFICER","Security Officer","Security markers, restrictions, fraud alerts, account recovery and controlled investigations.",["dashboard:read","customers:read","cases:*","communications:read","security:*","risk:*","incidents:*","operations:read","audit:read","platforms:read"]],
+  ["INCIDENT_MANAGER","Incident Manager","Coordinates cyber incidents, personal-data breach assessment, containment, recovery and post-incident review.",["dashboard:read","customers:read","cases:*","communications:read","risk:*","incidents:*","operations:*","data_protection:read","audit:read","platforms:read"]],
+  ["FRAUD_OPERATIONS","Fraud Operations","Investigates payment fraud, refund abuse, account takeover and transaction disputes.",["dashboard:read","customers:read","cases:*","communications:read","payments:*","approvals:*","risk:*","incidents:read","operations:*","security:read","audit:read","platforms:read"]],
+  ["COMPLAINTS_MANAGER","Complaints Manager","Owns central complaints, remedies, deadlines, root-cause analysis and final responses.",["dashboard:read","customers:read","cases:*","communications:*","complaints:*","operations:*","payments:read","approvals:read","risk:read","audit:read"]],
+  ["BRANCH_OPERATOR","Branch Operator","Customer operations limited to an assigned division.",["dashboard:read","customers:read","cases:read","cases:create","communications:*"]],
+  ["DPO_RESTRICTED","Data Protection Officer","Restricted data protection, breach assessment and audit authority.",["dashboard:read","customers:read","cases:read","cases:create","data_protection:*","communications:read","risk:read","incidents:*","operations:read","audit:read"]],
+  ["SAFEGUARDING_RESTRICTED","Designated Safeguarding Officer","Restricted safeguarding concern and incident authority.",["dashboard:read","customers:read","cases:read","cases:create","safeguarding:*","communications:read","risk:read","incidents:*","operations:read","audit:read"]]
 ];
 
 const MARKERS = [

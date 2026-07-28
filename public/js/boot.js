@@ -6,7 +6,7 @@ async function boot() {
   const authResult = query.get("auth_result");
   query.delete("auth_result");
   query.delete("auth_session");
-  if (handoff || authResult) history.replaceState({}, "", `${location.pathname}${query.toString() ? `?${query}` : ""}#/dashboard`);
+  if (handoff || authResult) history.replaceState({}, "", `${location.pathname}${query.toString() ? `?${query}` : ""}#/control-room`);
   try {
     state.session = await api("/api/auth/session");
     if (!state.session.configured) return showLogin("Microsoft staff sign-in has not been configured in Cloudflare.");
@@ -15,7 +15,8 @@ async function boot() {
     state.reference = await api("/api/reference");
     showApp();
     renderNavigation();
-    navigate(routeFromHash(), true);
+    const initialRoute = location.hash.startsWith("#/") ? routeFromHash() : (hasPermission("risk:read") ? "control-room" : "dashboard");
+    navigate(initialRoute, true);
   } catch (error) {
     showLogin(error.message);
   }

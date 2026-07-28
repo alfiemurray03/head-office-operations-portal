@@ -1,5 +1,6 @@
 import { audit, cleanNullableText, cleanText, error, json, normaliseDate, readJson } from "../_shared.js";
 import { canAccessCaseType, findCase, findCustomer, requirePermission } from "../_operations.js";
+import { ingestSecurityEvent } from "../_risk-engine.js";
 
 const STATUSES = new Set(["pending", "authorised", "captured", "failed", "refund_requested", "refunded", "disputed", "cancelled"]);
 
@@ -43,10 +44,12 @@ export const onRequestPost = async context => {
   if (platformId && !await context.env.DB.prepare("SELECT id FROM platforms WHERE id=?").bind(platformId).first()) return error("PLATFORM_NOT_FOUND", "The selected division or platform was not found.", 404);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  const resolvedCustomerId = customer?.id || caseRecord?.customer_id || null;
+  const resolvedPlatformId = platformId || caseRecord?.platform_id || null;
   const statements = [context.env.DB.prepare(`INSERT INTO payment_references
     (id,customer_id,platform_id,provider,provider_customer_reference,provider_payment_reference,currency,amount_minor,status,occurred_at,created_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(id, customer?.id || caseRecord?.customer_id || null, platformId || caseRecord?.platform_id || null, provider, providerCustomerReference, providerPaymentReference, currency, amountMinor, status, occurredAt, now)];
+    .bind(id, resolvedCustomerId, resolvedPlatformId, provider, providerCustomerReference, providerPaymentReference, currency, amountMinor, status, occurredAt, now)];
   let approvalId = null;
   if (status === "refund_requested") {
     const setting = await context.env.DB.prepare("SELECT value_json FROM system_settings WHERE setting_key='payments.refund_approval_threshold_minor'").first();
@@ -66,13 +69,27 @@ export const onRequestPost = async context => {
     if (String(cause).includes("provider_payment_reference")) return error("DUPLICATE_PAYMENT_REFERENCE", "That provider payment reference has already been recorded.", 409);
     throw cause;
   }
+  const eventType = ({ authorised:"payment.succeeded",captured:"payment.succeeded",failed:"payment.failed",refund_requested:"refund.requested",refunded:"refund.completed",disputed:"chargeback.created",pending:"payment.pending",cancelled:"payment.cancelled" })[status];
+  let risk = null;
+  try {
+    risk = await ingestSecurityEvent(context.env,{
+      eventType,category:status.startsWith("refund") ? "refund" : status === "disputed" ? "dispute" : "payment",
+      customerId:resolvedCustomerId,platformId:resolvedPlatformId,caseId:caseRecord?.id || null,
+      amountMinor,currency,occurredAt,paymentFingerprintHash:body.paymentFingerprintHash,
+      countryCode:body.countryCode,deviceHash:body.deviceHash,ipHash:body.ipHash,
+      externalEventId:providerPaymentReference,dedupeKey:`payment:${provider}:${providerPaymentReference}:${status}`,
+      attributes:{provider,newDevice:Boolean(body.newDevice),providerCustomerReference,approvalId}
+    },{type:"staff",id:auth.session.sub,name:auth.session.displayName});
+  } catch (cause) {
+    console.error(JSON.stringify({event:"payment_risk_processing_failed",paymentReference:providerPaymentReference,message:cause instanceof Error?cause.message:"Unknown error"}));
+  }
   await audit(context.env, auth.session, "payment.recorded", "payment_reference", id, {
     label: status === "refund_requested" ? "Refund request recorded" : "Payment reference recorded",
     reference: providerPaymentReference,
-    customerId: customer?.id || caseRecord?.customer_id || null,
+    customerId: resolvedCustomerId,
     caseId: caseRecord?.id || null,
     requestId: context.data.requestId,
-    after: { provider, providerPaymentReference, currency, amountMinor, status, approvalId }
+    after: { provider, providerPaymentReference, currency, amountMinor, status, approvalId, riskLevel:risk?.event?.riskLevel || null }
   });
-  return json({ id, approvalId }, 201);
+  return json({ id, approvalId, risk:risk?.event || null }, 201);
 };
