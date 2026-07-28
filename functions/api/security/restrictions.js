@@ -1,5 +1,6 @@
 import { audit, cleanNullableText, cleanText, error, json, normaliseDate, readJson } from "../../_shared.js";
 import { findCase, findCustomer, recalculateCustomerSecurity, requirePermission } from "../../_operations.js";
+import { applyRestrictionEnforcement } from "../../_central-access.js";
 
 export const onRequestPost = async context => {
   const auth = await requirePermission(context, "security:write");
@@ -24,7 +25,9 @@ export const onRequestPost = async context => {
     const marker = await context.env.DB.prepare("SELECT id FROM security_markers WHERE id=? AND customer_id=?").bind(markerId, customer.id).first();
     if (!marker) return error("MARKER_NOT_FOUND", "The selected marker does not belong to this customer.", 404);
   }
-  if (scope !== "company_wide" && !await context.env.DB.prepare("SELECT id FROM platforms WHERE id=? OR code=?").bind(scope, scope).first()) return error("INVALID_SCOPE", "The selected restriction scope is not a registered division.");
+  if (scope !== "company_wide" && !await context.env.DB.prepare("SELECT id FROM platforms WHERE id=? OR code=?").bind(scope, scope).first()) {
+    return error("INVALID_SCOPE", "The selected restriction scope is not a registered division.");
+  }
   const reviewAt = body.reviewAt ? normaliseDate(body.reviewAt) : new Date(Date.now() + 14 * 86_400_000).toISOString();
   const expiresAt = body.expiresAt ? normaliseDate(body.expiresAt) : null;
   if (!reviewAt || (body.expiresAt && !expiresAt)) return error("INVALID_DATE", "Enter a valid review or expiry date.");
@@ -35,13 +38,15 @@ export const onRequestPost = async context => {
     VALUES (?,?,?,?,?,?,?,'active',?,?,?,?)`)
     .bind(id, customer.id, caseRecord?.id || null, markerId, restrictionType, scope, reason, auth.session.sub, now, reviewAt, expiresAt).run();
   await recalculateCustomerSecurity(context.env, customer.id);
+  const restriction = { id, customer_id: customer.id, restriction_type: restrictionType, scope, reason, applied_at: now };
+  const enforcement = await applyRestrictionEnforcement(context.env, restriction, type);
   await audit(context.env, auth.session, "security.restriction_applied", "restriction", id, {
-    label: "Customer restriction applied",
+    label: "Customer restriction applied and enforced",
     reference: customer.customer_number,
     customerId: customer.id,
     caseId: caseRecord?.id || null,
     requestId: context.data.requestId,
-    after: { restrictionType, scope, enforcementAction: type.enforcement_action, status: "active", reviewAt, expiresAt }
+    after: { restrictionType, scope, enforcementAction: type.enforcement_action, status: "active", reviewAt, expiresAt, enforcement }
   });
-  return json({ id, enforcementAction: type.enforcement_action }, 201);
+  return json({ id, enforcementAction: type.enforcement_action, enforcement }, 201);
 };
