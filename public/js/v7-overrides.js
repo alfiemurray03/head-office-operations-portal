@@ -46,3 +46,56 @@ handleClick = async function(target) {
   }
   return priorHandleClickV7Connector(target);
 };
+
+/* Customer records are full workspace pages, not nested scrolling modals. */
+const customerRecordWorkspaceReady = new Promise((resolve, reject) => {
+  if (!document.querySelector('link[data-customer-record-workspace]')) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/customer-record-workspace.css?v=20260728-1';
+    style.dataset.customerRecordWorkspace = 'true';
+    document.head.append(style);
+  }
+
+  const existing = document.querySelector('script[data-customer-record-workspace]');
+  if (existing) {
+    if (window.renderCustomerRecordWorkspace) return resolve();
+    existing.addEventListener('load', resolve, { once: true });
+    existing.addEventListener('error', () => reject(new Error('The customer record workspace could not be loaded.')), { once: true });
+    return;
+  }
+
+  const script = document.createElement('script');
+  script.src = '/js/customer-record-workspace.js?v=20260728-1';
+  script.async = false;
+  script.dataset.customerRecordWorkspace = 'true';
+  script.addEventListener('load', resolve, { once: true });
+  script.addEventListener('error', () => reject(new Error('The customer record workspace could not be loaded.')), { once: true });
+  document.head.append(script);
+});
+
+const renderRouteBeforeCustomerWorkspace = renderRoute;
+renderRoute = async function(route = routeFromHash()) {
+  const resolvedRoute = String(route || '');
+  if (!resolvedRoute.startsWith('customers/')) return renderRouteBeforeCustomerWorkspace(resolvedRoute);
+
+  state.route = resolvedRoute;
+  $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.route === 'customers'));
+  $('#sidebar').classList.remove('open');
+  setLoading('Opening the universal customer record…');
+
+  try {
+    await customerRecordWorkspaceReady;
+    const id = decodeURIComponent(resolvedRoute.slice('customers/'.length));
+    if (!id) return navigate('customers', true);
+    return await window.renderCustomerRecordWorkspace(id);
+  } catch (error) {
+    $('#viewRoot').innerHTML = `<div class="panel"><div class="empty-state"><strong>The customer record could not be opened</strong><span>${escapeHtml(error.message)}</span><div style="margin-top:14px"><button class="button secondary" data-route="customers">Return to customer register</button></div></div></div>`;
+    toast('Customer record unavailable', error.message, 'error');
+  }
+};
+
+openCustomer = function(id) {
+  closeModal();
+  return navigate(`customers/${encodeURIComponent(id)}`);
+};
