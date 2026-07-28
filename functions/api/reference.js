@@ -3,11 +3,13 @@ import { requirePermission } from "../_operations.js";
 import { ensureProductionSchema } from "../_schema-bootstrap.js";
 import { ensureProductionCatalogues } from "../_catalogue-bootstrap.js";
 import { ensureV7Schema } from "../_v7-schema.js";
+import { ensureV7Enhancements } from "../_v7-enhancements.js";
 
 export const onRequestGet = async context => {
   await ensureProductionSchema(context.env);
   await ensureProductionCatalogues(context.env);
   await ensureV7Schema(context.env);
+  await ensureV7Enhancements(context.env);
   const auth = await requirePermission(context, "dashboard:read");
   if (auth.response) return auth.response;
   const [platforms, staff, units, roles, markerTypes, restrictionTypes, settings] = await context.env.DB.batch([
