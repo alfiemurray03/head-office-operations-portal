@@ -52,6 +52,11 @@ function readCookie(request, name) {
   return part ? decodeURIComponent(part.slice(prefix.length)) : "";
 }
 
+function readBearer(request) {
+  const authorization = request.headers.get("Authorization") || "";
+  return authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+}
+
 function cookie(name, value, maxAge) {
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }
@@ -242,9 +247,6 @@ export async function beginMicrosoftLogin(request, env) {
     status: 302,
     headers: {
       Location: authorise.toString(),
-      // Keep the already accepted first-party cookie for the authenticated
-      // session. The signed OIDC transaction inside it is still valid for only
-      // ten minutes; after callback it becomes an opaque key to the D1 session.
       "Set-Cookie": cookie(TRANSACTION_COOKIE, transaction, 28_800),
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer"
@@ -294,14 +296,7 @@ export async function completeMicrosoftLogin(request, env) {
     exp: Date.now() + 8 * 60 * 60 * 1000,
     version: 2
   };
-  // Do not depend on a replacement cookie being accepted during the OAuth
-  // callback. The browser has already returned ho_oidc_tx successfully, so
-  // promote that exact token into a server-side authenticated session.
   await storeMicrosoftSession(env, transactionToken, sessionData);
-  // Authentication must not be discarded because a secondary audit write fails.
-  // The callback has already validated Microsoft and resolved the authorised
-  // staff member at this point, so issue the session and report audit failures
-  // separately for operational follow-up.
   try {
     await audit(env, {
       sub: staff.id,
@@ -316,6 +311,8 @@ export async function completeMicrosoftLogin(request, env) {
   }
   const returnUrl = new URL(safeReturnPath(transaction.returnTo), url.origin);
   returnUrl.searchParams.set("auth_result", "success");
+  const browserSession = await signedPayload(sessionData, sessionSecret(env));
+  returnUrl.hash = `auth_session=${encodeURIComponent(browserSession)}`;
   const headers = new Headers({
     Location: returnUrl.toString(),
     "Cache-Control": "no-store",
@@ -332,14 +329,12 @@ export async function inspectMicrosoftSession(request, env) {
   const secret = sessionSecret(env);
   if (!secret) return { session: null, status: "signing_secret_missing" };
   const candidates = [
+    readBearer(request),
     readCookie(request, SESSION_COOKIE),
     readCookie(request, "__Host-ho_session"),
     readCookie(request, TRANSACTION_COOKIE)
   ].filter(Boolean);
   if (!candidates.length) return { session: null, status: "session_cookie_missing" };
-
-  // Earlier deployments used several cookie names. Never let a stale or
-  // malformed legacy cookie mask a valid current Microsoft session.
   let lastStatus = "session_cookie_invalid";
   for (const raw of candidates) {
     const session = await readSignedPayload(raw, secret);
