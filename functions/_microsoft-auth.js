@@ -260,15 +260,56 @@ export async function completeMicrosoftLogin(request, env) {
       message: error instanceof Error ? error.message : "Unknown audit error"
     }));
   }
-  const returnUrl = new URL(safeReturnPath(transaction.returnTo), url.origin);
-  returnUrl.searchParams.set("auth_result", "success");
+  const handoff = await signedPayload({
+    purpose: "microsoft_session_handoff",
+    session,
+    returnTo: safeReturnPath(transaction.returnTo),
+    expiresAt: Date.now() + 2 * 60 * 1000
+  }, sessionSecret(env));
+  const returnUrl = new URL("/", url.origin);
+  returnUrl.hash = `auth_handoff=${encodeURIComponent(handoff)}`;
   const headers = new Headers({
     Location: returnUrl.toString(),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  headers.set("Set-Cookie", cookie(SESSION_COOKIE, session, 28_800));
+  headers.set("Set-Cookie", cookie(TRANSACTION_COOKIE, "", 0));
   return new Response(null, { status: 303, headers });
+}
+
+export async function finaliseMicrosoftLogin(request, env) {
+  const secret = sessionSecret(env);
+  if (!secret) throw new Error("The Centre session signing secret is unavailable.");
+  const body = await request.json().catch(() => null);
+  const handoff = await readSignedPayload(body?.handoff, secret);
+  if (
+    !handoff ||
+    handoff.purpose !== "microsoft_session_handoff" ||
+    !Number.isFinite(Number(handoff.expiresAt)) ||
+    Number(handoff.expiresAt) < Date.now()
+  ) {
+    throw new Error("The Microsoft session hand-off is invalid or has expired.");
+  }
+  const session = await readSignedPayload(handoff.session, secret);
+  if (
+    !session ||
+    session.version !== 2 ||
+    session.tenantId !== TENANT_ID ||
+    !Number.isFinite(Number(session.exp)) ||
+    Number(session.exp) < Date.now()
+  ) {
+    throw new Error("The Microsoft session could not be validated.");
+  }
+  const headers = new Headers({
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer"
+  });
+  headers.set("Set-Cookie", cookie(SESSION_COOKIE, handoff.session, 28_800));
+  return new Response(JSON.stringify({
+    authenticated: true,
+    returnTo: safeReturnPath(handoff.returnTo)
+  }), { status: 200, headers });
 }
 
 export async function getMicrosoftSession(request, env) {

@@ -171,6 +171,20 @@ async function loadConfiguration() {
 
 async function boot() {
   renderModules();
+  if (location.hash.startsWith("#auth_handoff=")) {
+    const handoff = decodeURIComponent(location.hash.slice("#auth_handoff=".length));
+    history.replaceState({}, "", location.pathname);
+    try {
+      const result = await api("/api/auth/microsoft/finalise", {
+        method: "POST",
+        body: JSON.stringify({ handoff })
+      });
+      if (!result.authenticated) throw new Error("The Centre did not confirm the Microsoft session.");
+      history.replaceState({}, "", result.returnTo || "/");
+    } catch (error) {
+      return showLogin(error.message);
+    }
+  }
   const authParameters = new URLSearchParams(location.search);
   const authError = authParameters.get("auth_error");
   const authResult = authParameters.get("auth_result");
