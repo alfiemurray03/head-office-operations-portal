@@ -30,13 +30,20 @@ export const onRequestPost=async context=>{
   await ensureV7Schema(context.env);let body;try{body=await readJson(context.request);}catch(cause){return error(cause.code||"INVALID_REQUEST",cause.message,cause.status||400);}
   const title=cleanText(body.title,180),description=cleanText(body.description,3000),serviceArea=cleanText(body.serviceArea||"general",60),taskType=cleanText(body.taskType||"head_office_action",80);
   if(title.length<3||description.length<5)return error("INVALID_TASK","Complete the task title and description.");
+  const suppliedCustomer=cleanNullableText(body.customerId,100);
+  let customerId=null;
+  if(suppliedCustomer){
+    const customer=await context.env.DB.prepare("SELECT id FROM customers WHERE id=? OR customer_number=? LIMIT 1").bind(suppliedCustomer,suppliedCustomer).first();
+    if(!customer)return error("CUSTOMER_NOT_FOUND","Search for and select a valid customer from the Universal Customer Register.",404);
+    customerId=customer.id;
+  }
   const id=crypto.randomUUID(),reference=taskReference(),now=new Date().toISOString();
   const dueAt=body.dueAt&&!Number.isNaN(Date.parse(body.dueAt))?new Date(body.dueAt).toISOString():new Date(Date.now()+72*60*60_000).toISOString();
   await context.env.DB.prepare(`INSERT INTO operations_tasks
     (id,task_reference,service_area,task_type,customer_id,case_id,incident_id,title,description,priority,status,due_at,assigned_staff_id,checklist_json,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,'open',?,?,?, ?,?)`)
-    .bind(id,reference,serviceArea,taskType,cleanNullableText(body.customerId,100),cleanNullableText(body.caseId,100),cleanNullableText(body.incidentId,100),title,description,cleanText(body.priority||"normal",20),dueAt,cleanNullableText(body.assignedStaffId,100),JSON.stringify(Array.isArray(body.checklist)?body.checklist.slice(0,30):[]),now,now).run();
-  await audit(context.env,auth.session,"operations.task.created","operations_task",id,{label:"Head Office task created",reference,requestId:context.data.requestId});
+    .bind(id,reference,serviceArea,taskType,customerId,cleanNullableText(body.caseId,100),cleanNullableText(body.incidentId,100),title,description,cleanText(body.priority||"normal",20),dueAt,cleanNullableText(body.assignedStaffId,100),JSON.stringify(Array.isArray(body.checklist)?body.checklist.slice(0,30):[]),now,now).run();
+  await audit(context.env,auth.session,"operations.task.created","operations_task",id,{label:"Head Office task created",reference,customerId,requestId:context.data.requestId});
   return json({id,reference},201);
 };
 
