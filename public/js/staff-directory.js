@@ -81,18 +81,46 @@
     return `<article class="metric-card"><div><span>${escapeHtml(labelText)}</span><strong>${Number(value || 0).toLocaleString('en-GB')}</strong><small>${escapeHtml(detail)}</small></div></article>`;
   }
 
+  function tenantSource(item) {
+    if (!item.entra_object_id) return '<span class="tag">Manual record</span><br><small>Not linked to the Microsoft tenant</small>';
+    const sourceStatus = item.directory_status || 'unclassified';
+    const sourceLabel = sourceStatus === 'guest' ? 'Guest account' : `${label(sourceStatus)} tenant account`;
+    const identifier = item.user_principal_name || item.directory_mail || item.entra_object_id;
+    return `${tag(sourceStatus)}<br><small>${escapeHtml(sourceLabel)} · ${escapeHtml(identifier)}</small>`;
+  }
+
+  function connectorPanel() {
+    const status = directoryData?.directoryConnector || {};
+    const connector = status.connector || {};
+    const configured = Boolean(status.configured);
+    const pending = Boolean(status.continuationPending);
+    const stateText = !configured ? 'Microsoft Graph connection unavailable' : pending ? 'Tenant import in progress' : connector.status === 'connected' ? 'Tenant connected' : label(connector.status || 'configured');
+    const detail = !configured
+      ? 'The existing Head Office Microsoft app or secret is not available to the deployed Functions.'
+      : pending
+        ? `The import is continuing in safe batches. ${Number(status.totals?.discovered || 0).toLocaleString('en-GB')} tenant users have been recorded so far.`
+        : connector.last_success_at
+          ? `Last successful tenant reconciliation: ${formatDate(connector.last_success_at)}.`
+          : 'The existing Head Office Microsoft login app is ready to import the tenant.';
+    return `<section class="panel" style="margin-bottom:16px"><div class="panel-header"><div><p class="eyebrow">Microsoft tenant source</p><h2>${escapeHtml(stateText)}</h2><p>${escapeHtml(detail)}</p></div>
+      ${hasPermission('administration:write') && configured ? '<button class="button primary" data-action="staff-directory-sync">↻ Synchronise Microsoft tenant</button>' : ''}</div>
+      <div class="panel-body"><div class="notice"><div><strong>Directory membership does not grant portal access.</strong><br>All JA Group Services tenant users may appear here, but Head Office access still requires a separate authorised portal identity and role. Customer records remain completely independent.</div></div>
+      ${connector.last_error_message ? `<div class="notice danger"><div><strong>Latest Microsoft sync error</strong><br>${escapeHtml(connector.last_error_message)}</div></div>` : ''}</div></section>`;
+  }
+
   function staffRows() {
     const staff = directoryData?.staff || [];
-    if (!staff.length) return `<tr><td colspan="9">${emptyState('No staff profiles found', 'Add the first Staff Directory profile or change the filters.')}</td></tr>`;
+    if (!staff.length) return `<tr><td colspan="10">${emptyState('No staff profiles found', 'Synchronise the Microsoft tenant, add the first Staff Directory profile or change the filters.')}</td></tr>`;
     return staff.map(item => `<tr>
       <td class="mono"><strong>${escapeHtml(item.staff_number)}</strong></td>
       <td><div class="primary-cell"><div class="mini-avatar">${initials(item.display_name)}</div><div><strong>${escapeHtml(item.display_name)}</strong><small>${escapeHtml(item.email)}</small></div></div></td>
-      <td><strong>${escapeHtml(item.job_title || 'Role not recorded')}</strong><br><small>${escapeHtml(label(item.employment_type))}</small></td>
-      <td><strong>${escapeHtml(item.organisation_unit_name || item.division_code || 'Head Office')}</strong><br><small>${escapeHtml(item.department || '')}</small></td>
+      <td><strong>${escapeHtml(item.job_title || item.directory_job_title || 'Role not recorded')}</strong><br><small>${escapeHtml(label(item.employment_type))}</small></td>
+      <td><strong>${escapeHtml(item.organisation_unit_name || item.division_code || 'Head Office')}</strong><br><small>${escapeHtml(item.department || item.directory_department || '')}</small></td>
       <td>${tag(item.status)}</td>
-      <td>${item.linked_staff_member_id ? `<span class="tag active">Linked</span><br><small>${escapeHtml((item.role_codes || 'No role assigned').split(',').map(label).join(', '))}</small>` : '<span class="tag">Directory only</span>'}</td>
+      <td>${tenantSource(item)}</td>
+      <td>${item.linked_staff_member_id ? `<span class="tag active">Linked</span><br><small>${escapeHtml((item.role_codes || 'No role assigned').split(',').map(label).join(', '))}</small>` : '<span class="tag">Directory only</span><br><small>No Head Office portal authority</small>'}</td>
       <td>${Number(item.open_review_count || 0) ? `<span class="tag review">${Number(item.open_review_count)} open</span>` : '<span class="tag active">None</span>'}</td>
-      <td>${formatDate(item.updated_at)}</td>
+      <td>${formatDate(item.directory_last_synced_at || item.updated_at)}</td>
       <td><div class="inline-actions">
         ${hasPermission('administration:write') ? `<button class="button secondary small" data-action="staff-directory-edit" data-id="${escapeHtml(item.id)}">Edit</button>
           <button class="button secondary small" data-action="staff-directory-review" data-id="${escapeHtml(item.id)}">Manual review</button>
@@ -119,15 +147,37 @@
     return directoryData;
   }
 
+  async function synchroniseTenant(button) {
+    if (button) button.disabled = true;
+    let result = null;
+    try {
+      for (let batch = 0; batch < 12; batch += 1) {
+        result = await api('/api/staff-directory/sync', { method: 'POST', body: JSON.stringify({ mode: 'delta' }) });
+        if (!result.partial) break;
+      }
+      if (result?.partial) {
+        toast('Microsoft tenant import is continuing', `${Number(result.totals?.discovered || 0).toLocaleString('en-GB')} users recorded. Remaining pages will continue automatically.`);
+      } else {
+        toast('Microsoft tenant synchronised', `${Number(result?.totals?.discovered || 0).toLocaleString('en-GB')} tenant users are reflected in the Staff Directory.`);
+      }
+      return renderStaffDirectory();
+    } catch (error) {
+      toast('Microsoft tenant sync failed', error.message, 'error');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
   async function renderStaffDirectory() {
     await loadDirectory();
     const metrics = directoryData.metrics || {};
     const divisions = [...new Set((directoryData.staff || []).map(item => item.division_code).filter(Boolean))].sort();
-    $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">People and authority</p><h1>Staff Directory</h1><p>Independent operational records for directors, employees, contractors and other authorised workers.</p></div>${hasPermission('administration:write') ? '<button class="button primary" data-action="staff-directory-add">＋ Add staff profile</button>' : ''}</div>
+    $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">People and authority</p><h1>Staff Directory</h1><p>Independent operational records for directors, employees, contractors, guests and other authorised workers.</p></div><div class="inline-actions">${hasPermission('administration:write') ? '<button class="button secondary" data-action="staff-directory-sync">↻ Sync tenant</button><button class="button primary" data-action="staff-directory-add">＋ Add staff profile</button>' : ''}</div></div>
       <div class="notice"><div><strong>Staff is staff. Customer is customer.</strong><br>The same email may appear in the Staff Directory and the Unique Customer Register. The records remain separate, use different identifiers and never merge automatically.</div></div>
-      <div class="metrics">${metric('Staff profiles', metrics.total, 'Independent Staff Directory records')}${metric('Active staff', metrics.active, 'Currently active')}${metric('Portal identities', metrics.portal_linked, 'Linked Microsoft staff identities')}${metric('Directors', metrics.directors, 'Active director records')}${metric('Former staff', metrics.former, 'Left or archived')}</div>
-      <section class="panel"><div class="panel-body"><form class="toolbar" data-form="staff-directory-filter"><label class="search-field"><span>Search</span><input name="q" value="${escapeHtml(directoryFilters.q || '')}" placeholder="Staff number, name, email, title or department"></label><select name="status"><option value="">All statuses</option>${staffStatuses.map(value => option(value, directoryFilters.status)).join('')}</select><select name="division"><option value="">All divisions</option>${divisions.map(value => option(value, directoryFilters.division, value)).join('')}</select><button class="button secondary">Apply filters</button></form></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Staff number</th><th>Staff member</th><th>Position</th><th>Division / department</th><th>Status</th><th>Portal authority</th><th>Manual reviews</th><th>Updated</th><th></th></tr></thead><tbody>${staffRows()}</tbody></table></div></section>
+      ${connectorPanel()}
+      <div class="metrics">${metric('Staff profiles', metrics.total, 'Independent operational records')}${metric('Tenant users', metrics.tenant_linked, 'Linked by Microsoft object ID')}${metric('Active staff', metrics.active, 'Operationally active')}${metric('Portal identities', metrics.portal_linked, 'Separately authorised access')}${metric('Guest accounts', metrics.guest_accounts, 'Microsoft tenant guests')}${metric('Inactive tenant users', metrics.inactive_directory_accounts, 'Disabled or deleted at source')}</div>
+      <section class="panel"><div class="panel-body"><form class="toolbar" data-form="staff-directory-filter"><label class="search-field"><span>Search</span><input name="q" value="${escapeHtml(directoryFilters.q || '')}" placeholder="Staff number, name, email, title, object ID or department"></label><select name="status"><option value="">All statuses</option>${staffStatuses.map(value => option(value, directoryFilters.status)).join('')}</select><select name="division"><option value="">All divisions</option>${divisions.map(value => option(value, directoryFilters.division, value)).join('')}</select><button class="button secondary">Apply filters</button></form></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Staff number</th><th>Staff member</th><th>Position</th><th>Division / department</th><th>Status</th><th>Microsoft tenant</th><th>Portal authority</th><th>Manual reviews</th><th>Updated</th><th></th></tr></thead><tbody>${staffRows()}</tbody></table></div></section>
       <section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2>Manual staff assurance reviews</h2><p>No automatic checks are created from Staff Directory records, customer records or matching email addresses.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Opened</th><th>Staff number</th><th>Staff member</th><th>Review</th><th>Status</th><th>Reason</th><th>Outcome</th></tr></thead><tbody>${reviewRows()}</tbody></table></div></section>`;
   }
 
@@ -149,12 +199,13 @@
     if (!element) return baseHandleClick(target);
     const action = element.dataset.action;
     if (!action.startsWith('staff-directory-')) return baseHandleClick(target);
+    if (action === 'staff-directory-sync') return synchroniseTenant(element);
     const profile = (directoryData?.staff || []).find(item => item.id === element.dataset.id);
     if (action === 'staff-directory-add') return profileModal();
     if (action === 'staff-directory-edit' && profile) return profileModal(profile);
     if (action === 'staff-directory-review' && profile) return reviewModal(profile);
     if (action === 'staff-directory-link' && profile) return linkPortalModal(profile);
-    if (action === 'staff-directory-unlink' && profile) return modalForm('Unlink Microsoft staff access identity', `${profile.staff_number} · ${profile.display_name}`, { form: 'staff-directory-unlink-portal', attributes: `data-profile-id="${escapeHtml(profile.id)}"`, html: '<div class="notice danger"><div><strong>Directory record retained</strong><br>This removes only the staff access link. It does not delete the Staff Directory profile or affect any customer record.</div></div>' }, 'Unlink access identity', 'Staff access authority');
+    if (action === 'staff-directory-unlink' && profile) return modalForm('Unlink Microsoft staff access identity', `${profile.staff_number} · ${profile.display_name}`, { form: 'staff-directory-unlink-portal', attributes: `data-profile-id="${escapeHtml(profile.id)}"`, html: '<div class="notice danger"><div><strong>Directory record retained</strong><br>This removes only the staff access link. It does not delete the Staff Directory profile, its Microsoft tenant source or any customer record.</div></div>' }, 'Unlink access identity', 'Staff access authority');
     if (action === 'staff-directory-review-close') {
       const review = (directoryData?.reviews || []).find(item => item.id === element.dataset.id);
       if (review) return closeReviewModal(review);
@@ -195,7 +246,7 @@
       }
       if (name === 'staff-directory-unlink-portal') {
         await api('/api/staff-directory', { method: 'PUT', body: JSON.stringify({ action: 'unlink_portal_identity', profileId: form.dataset.profileId }) });
-        closeModal(); toast('Microsoft staff access identity unlinked', 'The Staff Directory profile remains active.'); return renderStaffDirectory();
+        closeModal(); toast('Microsoft staff access identity unlinked', 'The Staff Directory and Microsoft tenant records remain active.'); return renderStaffDirectory();
       }
     } catch (error) {
       if (errorElement) errorElement.textContent = error.message;
