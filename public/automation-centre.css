@@ -1,0 +1,45 @@
+/* Automation and Scheduling Centre — Planyx Admin aligned workspace. */
+.automation-centre-page{display:grid;gap:20px}
+.automation-policy-banner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 18px;border:1px solid var(--ja-border);border-radius:16px;background:var(--ja-surface);box-shadow:var(--ja-shadow-sm)}
+.automation-policy-banner[data-enabled="true"]{border-color:color-mix(in srgb,var(--ja-green) 24%,var(--ja-border));background:color-mix(in srgb,var(--ja-green-soft) 55%,var(--ja-surface))}
+.automation-policy-banner[data-enabled="false"]{border-color:color-mix(in srgb,var(--ja-amber) 30%,var(--ja-border));background:var(--ja-amber-soft)}
+.automation-policy-banner strong{display:block;color:var(--ja-text);font-size:14px}
+.automation-policy-banner p{margin:3px 0 0;color:var(--ja-muted);font-size:12px}
+.automation-schedule-panel{overflow:hidden}
+.automation-schedule-list{display:grid;background:var(--ja-surface)}
+.automation-schedule-row{display:grid;grid-template-columns:minmax(260px,1.5fr) minmax(170px,.9fr) minmax(180px,.95fr) minmax(190px,1fr) minmax(130px,.7fr);grid-template-areas:"identity job cadence next state" "identity actions actions actions actions";gap:14px 18px;padding:18px;border-bottom:1px solid var(--ja-border);background:var(--ja-surface);transition:background-color .15s ease}
+.automation-schedule-row:last-child{border-bottom:0}
+.automation-schedule-row:hover{background:color-mix(in srgb,var(--ja-blue) 3%,var(--ja-surface))}
+.automation-schedule-row[data-status="paused"]{background:color-mix(in srgb,var(--ja-amber-soft) 42%,var(--ja-surface))}
+.automation-schedule-row[data-status="disabled"],.automation-schedule-row[data-status="completed"]{opacity:.78}
+.automation-schedule-identity{grid-area:identity;display:flex;align-items:flex-start;gap:12px;min-width:0}
+.automation-job-icon{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border:1px solid color-mix(in srgb,var(--ja-blue) 25%,var(--ja-border));border-radius:12px;background:var(--ja-blue-soft);color:var(--ja-blue);font-size:20px;font-weight:800}
+.automation-schedule-identity>div:last-child{min-width:0}
+.automation-schedule-identity strong{display:block;color:var(--ja-text);font-size:13px;line-height:1.35}
+.automation-schedule-identity span{display:block;margin-top:4px;color:var(--ja-muted);font-size:11px;line-height:1.45}
+.automation-schedule-identity small{display:block;margin-top:7px;color:var(--ja-subtle);font-size:9px;overflow-wrap:anywhere}
+.automation-schedule-job{grid-area:job}.automation-schedule-cadence{grid-area:cadence}.automation-schedule-next{grid-area:next}.automation-schedule-state{grid-area:state}
+.automation-schedule-job,.automation-schedule-cadence,.automation-schedule-next,.automation-schedule-state{min-width:0}
+.automation-schedule-job>span,.automation-schedule-cadence>span,.automation-schedule-next>span,.automation-schedule-state>span{display:block;margin-bottom:5px;color:var(--ja-subtle);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.automation-schedule-job strong,.automation-schedule-cadence strong,.automation-schedule-next strong{display:block;color:var(--ja-text-soft);font-size:11px;line-height:1.4}
+.automation-schedule-job small,.automation-schedule-cadence small,.automation-schedule-next small,.automation-schedule-state small{display:block;margin-top:4px;color:var(--ja-muted);font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.automation-schedule-actions{grid-area:actions;display:flex;justify-content:flex-end;padding-top:13px;border-top:1px solid var(--ja-border)}
+.automation-row-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
+.automation-error{color:var(--ja-red)!important}
+.automation-safety-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.automation-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.automation-form-grid>.full{grid-column:1/-1}
+.automation-schedule-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;padding:15px;border:1px solid var(--ja-border);border-radius:14px;background:var(--ja-surface-subtle)}
+.automation-schedule-fields[hidden],.automation-parameter-panel[hidden]{display:none!important}
+.automation-parameter-panel{padding:15px;border:1px solid color-mix(in srgb,var(--ja-blue) 20%,var(--ja-border));border-radius:14px;background:var(--ja-blue-soft)}
+.automation-inline-field{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.automation-inline-field>span{color:var(--ja-muted);font-size:12px;font-weight:650}
+.automation-weekdays{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.automation-weekday{position:relative;cursor:pointer}
+.automation-weekday input{position:absolute;opacity:0;pointer-events:none}
+.automation-weekday span{display:grid;place-items:center;min-width:42px;min-height:34px;padding:6px 9px;border:1px solid var(--ja-border-strong);border-radius:9px;background:var(--ja-surface);color:var(--ja-text-soft);font-size:10px;font-weight:750}
+.automation-weekday input:checked+span{border-color:var(--ja-blue);background:var(--ja-blue);color:#fff;box-shadow:0 5px 12px rgba(37,99,235,.18)}
+.automation-modal-notice{margin-top:16px}
+@media(max-width:1280px){.automation-schedule-row{grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(160px,1fr));grid-template-areas:"identity job state" "identity cadence next" "actions actions actions"}}
+@media(max-width:900px){.automation-schedule-row{grid-template-columns:1fr 1fr;grid-template-areas:"identity identity" "job cadence" "next state" "actions actions"}.automation-safety-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.automation-policy-banner{align-items:flex-start;flex-direction:column}.automation-schedule-row{grid-template-columns:1fr;grid-template-areas:"identity" "job" "cadence" "next" "state" "actions"}.automation-schedule-actions,.automation-row-actions{justify-content:flex-start}.automation-row-actions .button{flex:1 1 42%}.automation-form-grid,.automation-schedule-fields{grid-template-columns:1fr}.automation-form-grid>.full{grid-column:auto}.automation-schedule-fields.full,.automation-parameter-panel.full{grid-column:1/-1}}

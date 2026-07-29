@@ -4,7 +4,7 @@
   "main": "workers/customer-directory-automation.js",
   "compatibility_date": "2026-07-28",
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["* * * * *"]
   },
   "vars": {
     "PORTAL_BASE_URL": "https://customerops.jagroupservices.co.uk"

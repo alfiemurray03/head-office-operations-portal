@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [migration, service, syncApi, automationApi, webhook, recordsApi, statusApi, worker, ui, boot] = await Promise.all([
+const [migration, service, syncApi, automationApi, scheduler, webhook, recordsApi, statusApi, worker, ui, boot] = await Promise.all([
   read('migrations/0012_stripe_reconciliation_and_catalog.sql'),
   read('functions/_stripe-reconciliation.js'),
   read('functions/api/integrations/stripe/sync.js'),
   read('functions/api/automation/stripe/sync.js'),
+  read('functions/_automation-scheduler.js'),
   read('functions/_stripe-webhook-handler.js'),
   read('functions/api/integrations/stripe/records.js'),
   read('functions/api/integrations/stripe/status.js'),
@@ -34,8 +35,19 @@ assert.match(service, /gross_minor[\s\S]*refunds_minor[\s\S]*fees_minor[\s\S]*ne
 
 assert.match(syncApi, /configuration:write/, 'Only authorised configuration staff may run a manual Stripe backfill.');
 assert.match(syncApi, /integration\.stripe_reconciled/, 'Manual reconciliation must be audited.');
-assert.match(automationApi, /AUTOMATION_SECRET/, 'Automatic Stripe reconciliation must require the automation secret.');
-assert.match(worker, /\/api\/automation\/stripe\/sync/, 'The hourly automation worker must invoke Stripe reconciliation.');
+assert.match(automationApi, /AUTOMATION_SECRET/, 'The legacy automatic Stripe endpoint must remain credential protected.');
+assert.match(worker, /\/api\/automation\/scheduler\/tick/,
+  'The Worker must invoke the governed scheduler instead of a hard-coded hourly Stripe endpoint.');
+assert.match(scheduler, /code: "stripe_reconciliation"/,
+  'Stripe reconciliation must remain a registered scheduler job.');
+assert.match(scheduler, /division: "all"|parameters\.division/,
+  'The governed Stripe schedule must support both divisions or an explicitly selected division.');
+assert.match(scheduler, /integrations\.stripe_planyx_enabled/,
+  'Planyx Stripe must retain a separate system setting gate.');
+assert.match(scheduler, /integrations\.stripe_profile_centre_enabled/,
+  'Profile Centre Stripe must retain a separate system setting gate.');
+assert.match(scheduler, /syncStripeAccounts\(env, \{ mode: "full"/,
+  'The registered scheduler job must execute the historical and current Stripe reconciliation engine.');
 
 assert.match(webhook, /processStripeReconciliationEvent/, 'Signed webhooks must update reconciliation records immediately.');
 for (const eventType of ['refund.created','refund.updated','refund.failed','charge.dispute.updated','charge.dispute.closed']) {
