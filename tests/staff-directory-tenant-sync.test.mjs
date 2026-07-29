@@ -5,6 +5,7 @@ const sync = fs.readFileSync('functions/_staff-entra-sync.js', 'utf8');
 const directoryApi = fs.readFileSync('functions/api/staff-directory.js', 'utf8');
 const manualSyncApi = fs.readFileSync('functions/api/staff-directory/sync.js', 'utf8');
 const automaticSyncApi = fs.readFileSync('functions/api/automation/staff-directory/sync.js', 'utf8');
+const scheduler = fs.readFileSync('functions/_automation-scheduler.js', 'utf8');
 const ui = fs.readFileSync('public/js/staff-directory.js', 'utf8');
 const worker = fs.readFileSync('workers/customer-directory-automation.js', 'utf8');
 const migration = fs.readFileSync('migrations/0015_staff_tenant_directory_sync.sql', 'utf8');
@@ -41,7 +42,13 @@ assert.match(automaticSyncApi, /customerRecordsAffected: false/);
 assert.match(ui, /Synchronise (Microsoft )?tenant/);
 assert.match(ui, /Directory membership does not grant portal access/);
 assert.match(ui, /\/api\/staff-directory\/sync/);
-assert.match(worker, /\/api\/automation\/staff-directory\/sync/);
-assert.match(worker, /JA Group Services Microsoft staff tenant/);
+assert.match(worker, /\/api\/automation\/scheduler\/tick/,
+  'The Worker must now invoke the governed scheduler rather than a hard-coded staff endpoint.');
+assert.match(scheduler, /code: "staff_directory_sync"/,
+  'Staff tenant reconciliation must remain a registered scheduler job.');
+assert.match(scheduler, /syncStaffTenantDirectory\(env, "delta"/,
+  'The registered scheduler job must execute the existing bounded staff delta synchronisation.');
+assert.match(scheduler, /portal access/i,
+  'The scheduler catalogue must preserve the rule that tenant sync does not grant portal access.');
 
 console.log('Staff Directory Microsoft tenant sync checks passed.');
