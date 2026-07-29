@@ -231,9 +231,16 @@ async function recordResult(env, service, actor, requestId, mode, result, starte
     .bind(crypto.randomUUID(), service.code, service.label, mode, result.status, cleanText(result.summary, 1000), JSON.stringify(result.details || {}), actor?.sub || null, requestId || null, startedAt, completedAt, durationMs).run();
 }
 
+function retainedDays(settings) {
+  return Math.max(7, Math.min(Number(settings.values["tests.result_retention_days"] || 90), 365));
+}
+
+async function removeExpiredResults(env, settings) {
+  await env.DB.prepare("DELETE FROM service_test_runs WHERE started_at < datetime('now', ?)").bind(`-${retainedDays(settings)} days`).run();
+}
+
 export async function runSystemServiceTest(env, code, actor, requestId, options = {}) {
-  await ensureSystemSettingsReady(env);
-  const settings = await getSystemSettings(env);
+  const settings = options.settingsSnapshot || await getSystemSettings(env);
   if (settings.values["system.test_centre_enabled"] === false) {
     throw Object.assign(new Error("The System Test Centre is disabled in System Settings."), { code: "TEST_CENTRE_DISABLED", status: 503 });
   }
@@ -252,14 +259,25 @@ export async function runSystemServiceTest(env, code, actor, requestId, options 
   const completedAt = new Date().toISOString();
   const durationMs = Date.now() - started;
   await recordResult(env, service, actor, requestId, mode, result, startedAt, completedAt, durationMs);
-  const retentionDays = Math.max(7, Math.min(Number(settings.values["tests.result_retention_days"] || 90), 365));
-  await env.DB.prepare("DELETE FROM service_test_runs WHERE started_at < datetime('now', ?)").bind(`-${retentionDays} days`).run();
+  if (!options.skipRetentionCleanup) await removeExpiredResults(env, settings);
   return { service: { ...service, enabled: service.settingKey ? settings.values[service.settingKey] !== false : true }, mode, ...result, startedAt, completedAt, durationMs };
 }
 
 export async function runAllSafeSystemTests(env, actor, requestId) {
+  await ensureSystemSettingsReady(env);
+  const settings = await getSystemSettings(env);
+  if (settings.values["system.test_centre_enabled"] === false) {
+    throw Object.assign(new Error("The System Test Centre is disabled in System Settings."), { code: "TEST_CENTRE_DISABLED", status: 503 });
+  }
   const results = [];
-  for (const service of SYSTEM_SERVICE_CATALOG) results.push(await runSystemServiceTest(env, service.code, actor, requestId, { mode: "safe" }));
+  for (const service of SYSTEM_SERVICE_CATALOG) {
+    results.push(await runSystemServiceTest(env, service.code, actor, requestId, {
+      mode: "safe",
+      settingsSnapshot: settings,
+      skipRetentionCleanup: true
+    }));
+  }
+  await removeExpiredResults(env, settings);
   return results;
 }
 
