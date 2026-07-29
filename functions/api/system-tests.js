@@ -21,10 +21,11 @@ export const onRequestPost = async context => {
 
   const serviceCode = cleanText(body.serviceCode || body.service || "all", 100).toLowerCase();
   const mode = body.mode === "controlled" ? "controlled" : "safe";
+  const actor = { ...auth.session, email: cleanText(auth.session.email || auth.session.username, 254).toLowerCase() };
   try {
     const results = serviceCode === "all"
-      ? await runAllSafeSystemTests(context.env, auth.session, context.data.requestId)
-      : [await runSystemServiceTest(context.env, serviceCode, auth.session, context.data.requestId, { mode, confirmation: body.confirmation })];
+      ? await runAllSafeSystemTests(context.env, actor, context.data.requestId)
+      : [await runSystemServiceTest(context.env, serviceCode, actor, context.data.requestId, { mode, confirmation: body.confirmation })];
     const counts = results.reduce((total, item) => {
       total[item.status] = Number(total[item.status] || 0) + 1;
       return total;
