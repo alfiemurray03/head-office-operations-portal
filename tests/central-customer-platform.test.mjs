@@ -11,10 +11,12 @@ const [
   access,
   events,
   customerApi,
+  customerListApi,
   workspace,
   platforms,
   platformsApi,
   platformRecordApi,
+  operationsApi,
   actions,
   index,
   tokens,
@@ -23,6 +25,11 @@ const [
   layoutFixes,
   headOfficeContext,
   modalSystem,
+  customerPicker,
+  customerPickerCss,
+  viewsV7,
+  modals,
+  v7Overrides,
   cleanShell,
   router
 ] = await Promise.all([
@@ -34,10 +41,12 @@ const [
   read('functions/_central-access.js'),
   read('functions/_central-events.js'),
   read('functions/api/customers/[id].js'),
+  read('functions/api/customers.js'),
   read('public/js/customer-record-workspace.js'),
   read('public/js/central-platform-ui.js'),
   read('functions/api/platforms.js'),
   read('functions/api/platforms/[id].js'),
+  read('functions/api/v7/operations.js'),
   read('public/js/actions.js'),
   read('public/index.html'),
   read('public/planyx-tokens.css'),
@@ -46,6 +55,11 @@ const [
   read('public/planyx-layout-fixes.css'),
   read('public/js/head-office-context.js'),
   read('public/js/modal-system.js'),
+  read('public/js/customer-picker.js'),
+  read('public/customer-picker.css'),
+  read('public/js/views-v7.js'),
+  read('public/js/modals.js'),
+  read('public/js/v7-overrides.js'),
   read('public/js/clean-shell.js'),
   read('public/js/central-router.js')
 ]);
@@ -91,6 +105,28 @@ for (const heading of [
 ]) assert.match(workspace, new RegExp(heading), `${heading} must appear in the universal customer workspace.`);
 assert.match(workspace, /data-action="restriction-lift"/, 'Staff must be able to lift active restrictions from the customer record.');
 assert.doesNotMatch(workspace, /openModal\s*\(/, 'The full customer record must never return to a modal.');
+
+assert.match(customerListApi, /customer_contact_points/, 'Customer search must include saved mobile contact points.');
+assert.match(customerListApi, /\) mobile/, 'Customer lookup results must return the primary mobile number for staff confirmation.');
+assert.match(customerListApi, /url\.searchParams\.get\("limit"\)/, 'The shared picker must be able to request a bounded result set.');
+assert.match(customerPicker, /input\[name="customerNumber"\]/, 'Every legacy Universal Customer Number field must be enhanced.');
+assert.match(customerPicker, /input\[name="customerId"\]/, 'Every internal customer ID field must be enhanced.');
+assert.match(customerPicker, /input\[name="customer_id"\]/, 'Snake-case customer references must be enhanced for future workflows.');
+assert.match(customerPicker, /input\[name="ucn"\]/, 'UCN aliases must be enhanced for future workflows.');
+assert.match(customerPicker, /\/api\/customers\?q=/, 'The picker must search the real Universal Customer Register.');
+assert.match(customerPicker, /MutationObserver/, 'Customer controls added by lazy modules and modals must be enhanced automatically.');
+assert.match(customerPicker, /data-selected-customer-id/, 'The selected customer identity must be retained separately from the visible name.');
+assert.match(customerPicker, /Search for the customer and select the correct record/, 'Typed text must never be submitted as an unverified customer reference.');
+assert.match(customerPickerCss, /customer-picker-results/, 'Search results must use the dedicated Planyx-aligned dropdown.');
+assert.match(customerPickerCss, /html\[data-ops-theme="dark"\]/, 'The customer picker must have complete dark-mode styling.');
+assert.match(modalSystem, /customer-picker\.js/, 'The shared customer picker must load for the whole portal.');
+assert.match(modalSystem, /customer-picker\.css/, 'The customer picker design layer must load for the whole portal.');
+assert.match(modalSystem, /enhanceCustomerReferences/, 'Every controlled modal must be checked for customer-reference fields.');
+assert.match(viewsV7, /name="customerId"/, 'Head Office tasks must remain linked through the selected customer ID.');
+assert.match(modals, /name="customerNumber"/, 'Cases, communications, markers, restrictions and payments must use the shared customer selector.');
+assert.match(v7Overrides, /name="customerNumber"/, 'Risk-aware case and payment forms must use the shared customer selector.');
+assert.match(operationsApi, /WHERE id=\? OR customer_number=\?/, 'Head Office tasks must resolve a selected customer ID or UCN to the authoritative record.');
+assert.match(operationsApi, /CUSTOMER_NOT_FOUND/, 'Invalid or stale customer references must be rejected clearly.');
 
 assert.match(platforms, /Nothing is assumed automatically/, 'The platform workspace must state that system details are controlled, not guessed.');
 assert.match(platforms, /data-action="edit-platform"/, 'Every connected-system card must expose an edit control.');
