@@ -245,14 +245,16 @@ export async function syncCustomerDirectoryBounded(env, requestedMode, startedBy
         token,
         headers: { Prefer: `odata.maxpagesize=${DIRECTORY_USERS_PER_PAGE}` }
       });
-      chunkStats.pages += 1;
+      const pageStats = emptyStats();
+      pageStats.pages = 1;
       for (const user of Array.isArray(page.value) ? page.value : []) {
         const result = await upsertDirectoryUser(env, user, connector.tenant_id, new Date().toISOString());
-        for (const key of STAT_KEYS) chunkStats[key] += Number(result[key] || 0);
+        for (const key of STAT_KEYS) pageStats[key] += Number(result[key] || 0);
       }
+      addStats(chunkStats, pageStats);
+      addStats(cumulativeStats, pageStats);
       nextUrl = page["@odata.nextLink"] || null;
       deltaLink = page["@odata.deltaLink"] || deltaLink;
-      addStats(cumulativeStats, { ...chunkStats, pages: chunkStats.pages - cumulativeStats.pages });
       if (nextUrl) await saveCheckpoint(env, mode, nextUrl, cumulativeStats, startedBy, checkpoint?.started_at || startedAt);
     }
 
