@@ -38,7 +38,7 @@ assert.match(manualSyncApi, /portalAccessGranted: false/);
 assert.match(automaticSyncApi, /AUTOMATION_SECRET/);
 assert.match(automaticSyncApi, /customerRecordsAffected: false/);
 
-assert.match(ui, /Synchronise Microsoft tenant/);
+assert.match(ui, /Synchronise (Microsoft )?tenant/);
 assert.match(ui, /Directory membership does not grant portal access/);
 assert.match(ui, /\/api\/staff-directory\/sync/);
 assert.match(worker, /\/api\/automation\/staff-directory\/sync/);

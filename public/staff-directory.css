@@ -1,0 +1,238 @@
+/* Staff Directory only. Keeps the familiar portal table style without a wide spreadsheet layout. */
+
+.staff-directory-workspace .staff-directory-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 160px 180px auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.staff-directory-workspace .staff-directory-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-directory-workspace .staff-directory-list-header p {
+  margin: 2px 0 0;
+}
+
+.staff-directory-workspace .staff-directory-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.staff-directory-workspace .staff-directory-page-controls span {
+  color: var(--enterprise-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.staff-directory-workspace .staff-directory-table-wrap {
+  overflow: hidden;
+}
+
+.staff-directory-workspace .staff-directory-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.staff-directory-workspace .staff-directory-table th,
+.staff-directory-workspace .staff-directory-table td {
+  min-width: 0;
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.staff-directory-workspace .staff-directory-table th:nth-child(1),
+.staff-directory-workspace .staff-directory-table td:nth-child(1) { width: 32%; }
+.staff-directory-workspace .staff-directory-table th:nth-child(2),
+.staff-directory-workspace .staff-directory-table td:nth-child(2) { width: 26%; }
+.staff-directory-workspace .staff-directory-table th:nth-child(3),
+.staff-directory-workspace .staff-directory-table td:nth-child(3) { width: 14%; }
+.staff-directory-workspace .staff-directory-table th:nth-child(4),
+.staff-directory-workspace .staff-directory-table td:nth-child(4) { width: 18%; }
+.staff-directory-workspace .staff-directory-table th:nth-child(5),
+.staff-directory-workspace .staff-directory-table td:nth-child(5) { width: 10%; }
+
+.staff-directory-workspace .staff-directory-table .primary-cell {
+  min-width: 0;
+}
+
+.staff-directory-workspace .staff-directory-table .primary-cell > div:last-child,
+.staff-directory-workspace .staff-directory-role,
+.staff-directory-workspace .staff-directory-assurance {
+  min-width: 0;
+}
+
+.staff-directory-workspace .staff-directory-table strong,
+.staff-directory-workspace .staff-directory-table small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-directory-workspace .staff-directory-number {
+  margin-top: 3px;
+  color: var(--enterprise-muted);
+  font-size: 9px;
+}
+
+.staff-directory-workspace .staff-directory-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.staff-directory-workspace .staff-directory-row-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.staff-directory-workspace .staff-directory-detail-row[hidden] {
+  display: none;
+}
+
+.staff-directory-workspace .staff-directory-detail-row td {
+  padding: 0;
+  background: var(--enterprise-surface-2);
+}
+
+.staff-directory-workspace .staff-directory-detail-panel {
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--enterprise-border-soft);
+  border-bottom: 1px solid var(--enterprise-border-soft);
+}
+
+.staff-directory-workspace .staff-directory-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+
+.staff-directory-workspace .staff-directory-detail-field {
+  min-width: 0;
+}
+
+.staff-directory-workspace .staff-directory-detail-field > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--enterprise-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.staff-directory-workspace .staff-directory-detail-field > strong,
+.staff-directory-workspace .staff-directory-detail-field > small,
+.staff-directory-workspace .staff-directory-detail-field > code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.staff-directory-workspace .staff-directory-detail-field > code {
+  color: var(--enterprise-muted);
+  font-size: 9px;
+}
+
+.staff-directory-workspace .staff-directory-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--enterprise-border-soft);
+}
+
+.staff-directory-workspace .staff-review-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.staff-directory-workspace .staff-review-table th:nth-child(1),
+.staff-directory-workspace .staff-review-table td:nth-child(1) { width: 25%; }
+.staff-directory-workspace .staff-review-table th:nth-child(2),
+.staff-directory-workspace .staff-review-table td:nth-child(2) { width: 17%; }
+.staff-directory-workspace .staff-review-table th:nth-child(3),
+.staff-directory-workspace .staff-review-table td:nth-child(3) { width: 15%; }
+.staff-directory-workspace .staff-review-table th:nth-child(4),
+.staff-directory-workspace .staff-review-table td:nth-child(4) { width: 31%; }
+.staff-directory-workspace .staff-review-table th:nth-child(5),
+.staff-directory-workspace .staff-review-table td:nth-child(5) { width: 12%; }
+
+.staff-directory-workspace .staff-review-table td {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1120px) {
+  .staff-directory-workspace .staff-directory-toolbar {
+    grid-template-columns: minmax(240px, 1fr) 150px 160px;
+  }
+
+  .staff-directory-workspace .staff-directory-toolbar .button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .staff-directory-workspace .staff-directory-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-directory-workspace .staff-directory-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-directory-workspace .staff-directory-toolbar .button {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+
+  .staff-directory-workspace .staff-directory-list-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-directory-workspace .staff-directory-table th:nth-child(2),
+  .staff-directory-workspace .staff-directory-table td:nth-child(2),
+  .staff-directory-workspace .staff-directory-table th:nth-child(4),
+  .staff-directory-workspace .staff-directory-table td:nth-child(4) {
+    display: none;
+  }
+
+  .staff-directory-workspace .staff-directory-table th:nth-child(1),
+  .staff-directory-workspace .staff-directory-table td:nth-child(1) { width: 58%; }
+  .staff-directory-workspace .staff-directory-table th:nth-child(3),
+  .staff-directory-workspace .staff-directory-table td:nth-child(3) { width: 24%; }
+  .staff-directory-workspace .staff-directory-table th:nth-child(5),
+  .staff-directory-workspace .staff-directory-table td:nth-child(5) { width: 18%; }
+
+  .staff-directory-workspace .staff-directory-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-directory-workspace .staff-review-table th:nth-child(3),
+  .staff-directory-workspace .staff-review-table td:nth-child(3),
+  .staff-directory-workspace .staff-review-table th:nth-child(4),
+  .staff-directory-workspace .staff-review-table td:nth-child(4) {
+    display: none;
+  }
+
+  .staff-directory-workspace .staff-review-table th:nth-child(1),
+  .staff-directory-workspace .staff-review-table td:nth-child(1) { width: 48%; }
+  .staff-directory-workspace .staff-review-table th:nth-child(2),
+  .staff-directory-workspace .staff-review-table td:nth-child(2) { width: 28%; }
+  .staff-directory-workspace .staff-review-table th:nth-child(5),
+  .staff-directory-workspace .staff-review-table td:nth-child(5) { width: 24%; }
+}
