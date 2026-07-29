@@ -1,4 +1,4 @@
-import { syncCustomerDirectory as runDirectorySync } from "./_customer-entra.js";
+import { syncCustomerDirectoryBounded as runDirectorySync } from "./_customer-entra-bounded-sync.js";
 
 const INVALID_CUSTOMER_VALUES = "VALUES (?,?,?,?,?,NULL,?,'clear',?,?,?,?,?)";
 const CORRECT_CUSTOMER_VALUES = "VALUES (?,?,?,?,?,NULL,?,'clear',?,?,?,?)";
