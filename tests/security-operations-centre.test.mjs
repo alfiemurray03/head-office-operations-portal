@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [
   migration,
+  stripeDivisionMigration,
   controlPlane,
   lockdownApi,
   platformState,
@@ -13,14 +14,18 @@ const [
   notifications,
   directorySync,
   stripeControl,
-  stripeWebhook,
+  legacyStripeWebhook,
+  stripeWebhookHandler,
+  stripeDivisionRoute,
   stripeStatus,
+  stripeTest,
   stripeRecords,
   socUi,
   socCss,
   boot
 ] = await Promise.all([
   read('migrations/0010_security_operations_control_plane.sql'),
+  read('migrations/0011_stripe_division_connectors.sql'),
   read('functions/_security-control-plane.js'),
   read('functions/api/security/lockdowns.js'),
   read('functions/api/platform/security/state.js'),
@@ -31,7 +36,10 @@ const [
   read('functions/api/customer-directory/sync.js'),
   read('functions/_stripe-control.js'),
   read('functions/api/webhooks/stripe.js'),
+  read('functions/_stripe-webhook-handler.js'),
+  read('functions/api/webhooks/stripe/[division].js'),
   read('functions/api/integrations/stripe/status.js'),
+  read('functions/api/integrations/stripe/test.js'),
   read('functions/api/integrations/stripe/records.js'),
   read('public/js/security-operations-centre.js'),
   read('public/security-operations-centre.css'),
@@ -45,6 +53,16 @@ for (const table of [
 ]) {
   assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`), `${table} must exist in the operations control-plane schema.`);
 }
+
+for (const table of [
+  'stripe_division_webhook_events', 'stripe_division_customer_links', 'stripe_division_payment_records',
+  'stripe_division_order_records', 'stripe_division_subscription_records'
+]) {
+  assert.match(stripeDivisionMigration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`), `${table} must separate Stripe division data.`);
+}
+assert.match(stripeDivisionMigration, /UNIQUE\(connector_code,event_id\)/, 'Webhook idempotency must be namespaced by division.');
+assert.match(stripeDivisionMigration, /PLANYX/, 'The Planyx Stripe connector must be governed.');
+assert.match(stripeDivisionMigration, /PROFILE_CENTRE/, 'The Profile Centre Stripe connector must be governed.');
 
 for (const markerCode of ['SMC-IDC','SMC-ATO','SMC-PYR','SMC-SAF','SMC-EIV','SMC-UAA','SMC-CVU']) {
   assert.match(migration, new RegExp(markerCode), `${markerCode} must be a real governed marker code.`);
@@ -79,23 +97,29 @@ assert.match(notifications, /Idempotency-Key/, 'Welcome messages must be sent id
 assert.match(directorySync, /dispatchPendingCustomerWelcomeNotifications/,
   'A completed JA Group Services ID sync must dispatch pending UCN welcome notices.');
 
-assert.match(stripeWebhook, /Stripe-Signature/, 'Stripe webhook signatures must be verified against the raw payload.');
-assert.match(stripeWebhook, /processStripeWebhookEvent/, 'The existing Stripe webhook must feed the central normalisation service.');
-assert.match(stripeControl, /stripe_payment_records/, 'Stripe payment records must be normalised.');
-assert.match(stripeControl, /stripe_order_records/, 'Stripe Checkout orders must be normalised.');
-assert.match(stripeControl, /stripe_subscription_records/, 'Stripe subscriptions must be normalised.');
+assert.match(stripeControl, /STRIPE_PLANYX_SECRET_KEY/, 'Planyx must have its own Stripe API key binding.');
+assert.match(stripeControl, /STRIPE_PLANYX_WEBHOOK_SECRET/, 'Planyx must have its own Stripe signing secret binding.');
+assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_SECRET_KEY/, 'Profile Centre must have its own Stripe API key binding.');
+assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_WEBHOOK_SECRET/, 'Profile Centre must have its own Stripe signing secret binding.');
+assert.match(stripeControl, /stripe_division_payment_records/, 'Stripe payments must be namespaced by division.');
 assert.match(stripeControl, /metadata\.ucn/, 'Stripe objects must support direct UCN linking through metadata.');
-assert.match(stripeStatus, /stripeOperationalStatus/, 'Staff must be able to inspect Stripe configuration and webhook health.');
-assert.match(stripeRecords, /payments[\s\S]*orders[\s\S]*subscriptions/, 'Staff must be able to read all three Stripe operational record classes.');
+assert.match(stripeWebhookHandler, /Stripe-Signature/, 'Division webhooks must verify Stripe signatures against the raw payload.');
+assert.match(stripeWebhookHandler, /Thin event payloads are not accepted/, 'Thin payloads must be explicitly rejected.');
+assert.match(stripeWebhookHandler, /processStripeWebhookEvent\(context\.env, connector/, 'The webhook must pass the authoritative division connector into normalisation.');
+assert.match(stripeDivisionRoute, /context\.params\.division/, 'The route must resolve the division from the webhook URL.');
+assert.match(legacyStripeWebhook, /STRIPE_DIVISION_REQUIRED/, 'The unsafe shared Stripe endpoint must be retired.');
+assert.match(stripeStatus, /stripeOperationalStatus/, 'Staff must be able to inspect both Stripe connections and webhook health.');
+assert.match(stripeTest, /planyx[\s\S]*profile-centre/, 'Staff must be able to test both division API connections.');
+assert.match(stripeRecords, /stripeDivisionRecords/, 'Staff must read Stripe records through the division-aware store.');
 
-assert.match(socUi, /Security Operations Centre/, 'The new portal must present itself as a Security Operations Centre.');
+assert.match(socUi, /Security Operations Centre/, 'The portal must present itself as a Security Operations Centre.');
 assert.match(socUi, /Initiate critical lockdown/, 'The manual critical lockdown action must be visible to authorised staff.');
 assert.match(socUi, /Stripe Control & Webhooks/, 'Stripe operations must have a dedicated staff workspace.');
-assert.match(socUi, /Unique Customer Register/, 'The new interface must use the approved UCN terminology.');
+assert.match(socUi, /Unique Customer Register/, 'The interface must use the approved UCN terminology.');
 assert.match(socCss, /max-height:\s*min\(54vh, 520px\)/, 'Large data tables must scroll internally instead of making the whole page excessively long.');
 assert.match(socCss, /position:\s*sticky/, 'Dense operational tables must retain visible headings while scrolling.');
 assert.match(socCss, /grid-template-columns:\s*repeat\(6/, 'The command centre must use a compact desktop metric grid.');
-assert.match(boot, /loadSecurityOperationsModule/, 'The new Security Operations Centre module must load during boot.');
+assert.match(boot, /loadSecurityOperationsModule/, 'The Security Operations Centre module must load during boot.');
 assert.match(boot, /hasPermission\('risk:read'\) \? 'security-operations'/,
   'Authorised risk staff must land in the Security Operations Centre by default.');
 
