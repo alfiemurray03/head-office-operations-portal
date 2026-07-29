@@ -114,21 +114,37 @@ Staff can inspect or retry pending welcome notifications through:
 
 ## Stripe configuration
 
-Configure these encrypted Cloudflare environment values:
+Planyx and Profile Centre use separate Stripe accounts and must remain separate inside Head Office. Never reuse an API key or webhook signing secret between the divisions.
 
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PUBLISHABLE_KEY` — optional for this internal portal
+Configure these encrypted Cloudflare values:
 
-Do not expose `STRIPE_SECRET_KEY` or `STRIPE_WEBHOOK_SECRET` in browser code.
+### Planyx
 
-Create a Stripe webhook destination using this production endpoint:
+- `STRIPE_PLANYX_SECRET_KEY`
+- `STRIPE_PLANYX_WEBHOOK_SECRET`
+- `STRIPE_PLANYX_PUBLISHABLE_KEY` — optional for the internal portal
+
+Snapshot webhook endpoint:
 
 ```text
-https://customerops.jagroupservices.co.uk/api/webhooks/stripe
+https://customerops.jagroupservices.co.uk/api/webhooks/stripe/planyx
 ```
 
-Select these events:
+### Profile Centre
+
+- `STRIPE_PROFILE_CENTRE_SECRET_KEY`
+- `STRIPE_PROFILE_CENTRE_WEBHOOK_SECRET`
+- `STRIPE_PROFILE_CENTRE_PUBLISHABLE_KEY` — optional for the internal portal
+
+Snapshot webhook endpoint:
+
+```text
+https://customerops.jagroupservices.co.uk/api/webhooks/stripe/profile-centre
+```
+
+Only Snapshot destinations are accepted. Thin event payloads are rejected because the Head Office processor requires the complete signed `data.object` snapshot.
+
+For each division, select only these events:
 
 - `customer.created`
 - `customer.updated`
@@ -144,47 +160,52 @@ Select these events:
 - `invoice.paid`
 - `invoice.payment_failed`
 
-Copy the signing secret for that exact destination into `STRIPE_WEBHOOK_SECRET`. Test-mode and live-mode destinations have different secrets and must not be mixed.
+Each Snapshot destination has its own `whsec_` signing secret. Test-mode and live-mode secrets must not be mixed. Roll a signing secret immediately when it is exposed in chat, email, source control, logs or a support ticket, then replace the corresponding Cloudflare value.
+
+The old shared endpoint `/api/webhooks/stripe` is retired and returns an error. It must not be configured in Stripe.
 
 ## Linking Stripe activity to a UCN
 
-Where JA Group Services creates a Stripe Customer, Checkout Session, PaymentIntent or Subscription, add metadata:
+Where a division creates a Stripe Customer, Checkout Session, PaymentIntent or Subscription, add the UCN as metadata:
 
 ```json
 {
-  "ucn": "1234567890",
-  "platformCode": "PLANYX"
+  "ucn": "1234567890"
 }
 ```
 
-The webhook processor attempts linkage in this order:
+The division is determined authoritatively from the webhook URL and its matching signing secret. The webhook processor attempts customer linkage in this order:
 
 1. UCN in Stripe metadata or Checkout `client_reference_id`.
-2. Existing Stripe Customer link.
-3. A unique verified-email match.
+2. An existing Stripe Customer link within the same division.
+3. One unique verified-email match.
 
-Unlinked Stripe records remain visible for operational reconciliation and must be reviewed rather than guessed.
+Unlinked Stripe records remain visible for operational reconciliation and must be reviewed rather than guessed. Customer and payment identifiers are namespaced by division so the two Stripe accounts cannot overwrite each other's records.
 
 ## Stripe records retained by Head Office
 
-The portal normalises:
+The portal normalises separately for Planyx and Profile Centre:
 
 - payments, charges and invoices
 - Checkout orders
 - subscriptions
 - webhook processing status and errors
 
-Relevant payment and dispute events also continue into the existing fraud and risk engine.
+Relevant payment and dispute events also continue into the existing fraud and risk engine with the division recorded on the event.
 
 ## Database migration and deployment
 
-Apply all D1 migrations, including `0010_security_operations_control_plane.sql`, before relying on the new controls in production.
+Apply all D1 migrations, including:
+
+- `0010_security_operations_control_plane.sql`
+- `0011_stripe_division_connectors.sql`
 
 After deployment, complete these checks:
 
 1. Open the Security Operations Centre and confirm the connected-system count.
-2. Test the Stripe API connection.
-3. Send a signed Stripe test event and confirm it appears in Stripe Control & Webhooks.
-4. Run a JA Group Services ID delta sync and confirm a new customer receives one UCN welcome email.
-5. Confirm a test security marker appears in the connected website CRM with its marker code and reference.
-6. In a non-production test system, initiate and lift a manual lockdown and confirm the site's own maintenance setting remains unchanged.
+2. Test the Planyx Stripe API connection.
+3. Test the Profile Centre Stripe API connection.
+4. Send one signed Snapshot test event to each division endpoint and confirm both appear under the correct division.
+5. Run a JA Group Services ID delta sync and confirm a new customer receives one UCN welcome email.
+6. Confirm a test security marker appears in the connected website CRM with its marker code and reference.
+7. In a non-production test system, initiate and lift a manual lockdown and confirm the site's own maintenance setting remains unchanged.
