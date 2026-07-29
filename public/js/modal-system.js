@@ -71,6 +71,24 @@
     if (headerUser) new MutationObserver(syncUser).observe(headerUser, { childList: true, characterData: true, subtree: true });
   }
 
+  function enforceAutomaticDiditDelivery() {
+    const forms = document.querySelectorAll('form[data-form="didit-start"], form[data-form="didit-random-commit"]');
+    forms.forEach(form => {
+      const checkbox = form.querySelector('input[name="sendNotificationEmails"]');
+      if (!checkbox) return;
+      const container = checkbox.closest('label');
+      if (!container) {
+        checkbox.checked = true;
+        return;
+      }
+      container.className = 'didit-start-auto-email full';
+      container.innerHTML = `
+        <input type="hidden" name="sendNotificationEmails" value="true">
+        <span class="didit-auto-email-icon" aria-hidden="true">✓</span>
+        <span><strong>Customer email will be sent automatically</strong><small>Didit sends the secure verification invitation directly to the verified customer email address. The hosted link is also shown once to authorised Head Office staff.</small></span>`;
+    });
+  }
+
   function resetModalPosition() {
     const modal = document.getElementById('modal');
     const shell = modal?.querySelector('.modal-shell');
@@ -98,8 +116,10 @@
     originalOpenModal(...args);
     ensureParityStyleLast();
     synchroniseTheme();
+    enforceAutomaticDiditDelivery();
     resetModalPosition();
     requestAnimationFrame(() => {
+      enforceAutomaticDiditDelivery();
       resetModalPosition();
       focusFirstUsefulControl();
       resetModalPosition();
