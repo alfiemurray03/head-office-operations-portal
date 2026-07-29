@@ -5,6 +5,7 @@ let diditOperationsModulePromise = null;
 let securityOperationsModulePromise = null;
 let stripeReconciliationModulePromise = null;
 let systemControlModulePromise = null;
+let automationCentreModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -131,6 +132,28 @@ function loadSystemControlModule() {
   return systemControlModulePromise;
 }
 
+function loadAutomationCentreModule() {
+  if (automationCentreModulePromise) return automationCentreModulePromise;
+  automationCentreModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-automation-centre]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/automation-centre.css?v=20260730-automation-centre-1';
+      style.dataset.automationCentre = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-automation-centre]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/automation-centre.js?v=20260730-automation-centre-1';
+    script.async = false;
+    script.dataset.automationCentre = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The Automation and Scheduling Centre could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return automationCentreModulePromise;
+}
+
 function ensureCustomerDirectoryNavigation() {
   if (document.querySelector('[data-route="customer-directory"]')) return;
   const connectedSystems = document.querySelector('[data-route="platforms"]');
@@ -143,16 +166,26 @@ function ensureCustomerDirectoryNavigation() {
 }
 
 function ensureSystemControlNavigation() {
-  if (document.querySelector('#mainNavigation [data-route="test-centre"]')) return;
   const settings = document.querySelector('#mainNavigation [data-route="settings"]');
   if (!settings?.parentElement) return;
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'nav-item';
-  button.dataset.route = 'test-centre';
-  button.dataset.permission = 'configuration:read';
-  button.textContent = 'System Test Centre';
-  settings.parentElement.insertBefore(button, settings);
+  if (!document.querySelector('#mainNavigation [data-route="automation-centre"]')) {
+    const automation = document.createElement('button');
+    automation.type = 'button';
+    automation.className = 'nav-item';
+    automation.dataset.route = 'automation-centre';
+    automation.dataset.permission = 'configuration:read';
+    automation.textContent = 'Automation & Scheduling Centre';
+    settings.parentElement.insertBefore(automation, settings);
+  }
+  if (!document.querySelector('#mainNavigation [data-route="test-centre"]')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nav-item';
+    button.dataset.route = 'test-centre';
+    button.dataset.permission = 'configuration:read';
+    button.textContent = 'System Test Centre';
+    settings.parentElement.insertBefore(button, settings);
+  }
   settings.textContent = 'System Settings';
 }
 
@@ -211,6 +244,7 @@ async function boot() {
   setLoading('Opening automated Head Office services…');
   try {
     await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule(), loadSystemControlModule()]);
+    await loadAutomationCentreModule();
     ensureCustomerDirectoryNavigation();
     ensureSystemControlNavigation();
     window.ensureDiditNavigation?.();
