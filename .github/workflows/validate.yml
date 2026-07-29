@@ -66,6 +66,9 @@ jobs:
       - name: Validate central customer platform
         run: node tests/central-customer-platform.test.mjs
 
+      - name: Validate bounded customer directory sync
+        run: node tests/customer-directory-bounded-sync.test.mjs
+
       - name: Validate restriction access restoration
         run: node tests/restriction-access-restoration.test.mjs
 
@@ -109,6 +112,7 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_payment_records;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_order_records;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_subscription_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM customer_directory_sync_checkpoints;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_customer_records;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_balance_transactions;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_refund_records;"

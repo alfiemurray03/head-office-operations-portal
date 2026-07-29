@@ -16,11 +16,12 @@ async function renderCustomerDirectory() {
   const connector = data.connector || {};
   const counts = data.counts || {};
   const canManage = hasPermission('administration:write');
+  const syncInProgress = connector.status === 'syncing';
   const readiness = [
     enterpriseStatus('Cloudflare secrets', data.configured ? 'Configured' : 'Missing', data.configured ? 'Tenant, client and secret are available to the server.' : 'The three CUSTOMER_ENTRA secrets must be configured.'),
     enterpriseStatus('Microsoft Graph', connector.status || 'not configured', connector.lastTestedAt ? `Last tested ${formatDate(connector.lastTestedAt)}` : 'Connection has not been tested.'),
-    enterpriseStatus('Change tracking', connector.deltaReady ? 'Delta ready' : 'Initial import required', connector.deltaReady ? 'Only directory changes will be requested after the first import.' : 'Run the first full import to establish a Microsoft delta position.'),
-    enterpriseStatus('Last successful sync', connector.lastSuccessAt ? formatDate(connector.lastSuccessAt) : 'Never', connector.lastErrorMessage || 'No unresolved connector error.')
+    enterpriseStatus('Change tracking', syncInProgress ? 'Import in progress' : connector.deltaReady ? 'Delta ready' : 'Initial import required', syncInProgress ? 'The directory is being imported in safe batches and will resume automatically.' : connector.deltaReady ? 'Only directory changes will be requested after the first import.' : 'Run the first full import to establish a Microsoft delta position.'),
+    enterpriseStatus('Last successful sync', connector.lastSuccessAt ? formatDate(connector.lastSuccessAt) : 'Never', connector.lastErrorMessage || (syncInProgress ? 'No unresolved error. More directory batches remain.' : 'No unresolved connector error.'))
   ].join('');
 
   const reviewRows = data.reviews.length ? data.reviews.map(item => `<tr>
@@ -53,12 +54,12 @@ async function renderCustomerDirectory() {
   </tr>`).join('') : `<tr><td colspan="8">${emptyState('No synchronisation runs recorded', 'The first import will create the initial evidence record.')}</td></tr>`;
 
   $('#viewRoot').innerHTML = `${enterpriseCommandBar('Microsoft customer directory', 'Identity source: JA Group Services ID External ID tenant')}
-    <div class="page-heading enterprise-heading"><div><p class="eyebrow">Identity and customer linkage</p><h1>External ID customer directory</h1><p>Read and manage customer identities in Microsoft Entra External ID while preserving one universal Head Office customer record across every connected service.</p></div>
+    <div class="page-heading enterprise-heading"><div><p class="eyebrow">Identity and customer linkage</p><h1>External ID customer directory</h1><p>Read and manage customer identities in Microsoft Entra External ID while preserving one Unique Customer Number and one Head Office customer record across every connected service.</p></div>
       <div class="heading-actions">${canManage ? `<button class="button secondary" data-action="directory-test">Test connection</button><button class="button secondary" data-action="directory-sync" data-mode="delta">Synchronise changes</button><button class="button primary" data-action="directory-sync" data-mode="full">Run full import</button>` : ''}</div></div>
     <section class="enterprise-readiness">${readiness}</section>
     <section class="enterprise-metrics-row directory-metrics">
       ${directoryMetric('Directory identities', counts.total, 'Microsoft users discovered')}
-      ${directoryMetric('Linked customers', counts.linked, 'Universal customer records linked')}
+      ${directoryMetric('Linked customers', counts.linked, 'Unique customer records linked')}
       ${directoryMetric('Review required', counts.review_required, 'Identity decisions waiting')}
       ${directoryMetric('Disabled accounts', counts.disabled, 'Microsoft accounts currently disabled')}
       ${directoryMetric('Deleted identities', counts.deleted, 'Retained for evidence and reconciliation')}
@@ -66,7 +67,7 @@ async function renderCustomerDirectory() {
     ${connector.lastErrorMessage ? `<div class="notice danger"><div><strong>Connector requires attention</strong><br>${escapeHtml(connector.lastErrorMessage)}</div></div>` : ''}
     <div class="directory-layout">
       <section class="panel"><div class="panel-header"><div><h2>Identity review queue</h2><p>Possible matches and incomplete identities are never silently merged.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Raised</th><th>Microsoft identity</th><th>Review</th><th>Reason</th><th>Proposed customer</th><th></th></tr></thead><tbody>${reviewRows}</tbody></table></div></section>
-      <section class="panel"><div class="panel-header"><div><h2>Directory identity register</h2><p>Microsoft account state, universal customer link and last reconciliation.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Microsoft identity</th><th>Customer no.</th><th>Directory state</th><th>Microsoft account</th><th>Head Office account</th><th>Last synced</th><th>Controlled actions</th></tr></thead><tbody>${identityRows}</tbody></table></div></section>
+      <section class="panel"><div class="panel-header"><div><h2>Directory identity register</h2><p>Microsoft account state, Unique Customer Number link and last reconciliation.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Microsoft identity</th><th>Customer no.</th><th>Directory state</th><th>Microsoft account</th><th>Head Office account</th><th>Last synced</th><th>Controlled actions</th></tr></thead><tbody>${identityRows}</tbody></table></div></section>
       <section class="panel"><div class="panel-header"><div><h2>Synchronisation evidence</h2><p>Every test, initial import and delta run is retained with counts and failures.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Started</th><th>Mode</th><th>Status</th><th>Received</th><th>Created</th><th>Linked</th><th>Review</th><th>Completed / error</th></tr></thead><tbody>${runRows}</tbody></table></div></section>
     </div>`;
 }
@@ -74,9 +75,9 @@ async function renderCustomerDirectory() {
 function directorySyncModal(mode) {
   const full = mode === 'full';
   modalForm(full ? 'Run full customer-directory import' : 'Synchronise Microsoft directory changes',
-    full ? 'This reads the full External ID customer directory and establishes a new delta position. Existing evidence is not deleted.' : 'This requests only users created, changed or removed since the previous successful sync.',
-    { form: 'customer-directory-sync', html: `<input type="hidden" name="mode" value="${full ? 'full' : 'delta'}"><div class="notice"><div><strong>${full ? 'Full reconciliation' : 'Incremental reconciliation'}</strong><br>${full ? 'Use this for the initial import or an authorised recovery exercise.' : 'This is the normal repeat synchronisation.'}</div></div>` },
-    full ? 'Run full import' : 'Synchronise changes', 'Microsoft External ID');
+    full ? 'This reads the full External ID customer directory in safe batches and establishes a new delta position. Existing evidence is not deleted.' : 'This continues any pending import first, then requests users created, changed or removed since the previous successful sync.',
+    { form: 'customer-directory-sync', html: `<input type="hidden" name="mode" value="${full ? 'full' : 'delta'}"><div class="notice"><div><strong>${full ? 'Full reconciliation' : 'Incremental reconciliation'}</strong><br>${full ? 'Use this for the initial import or an authorised recovery exercise. Large directories continue automatically across later batches.' : 'This is the normal repeat synchronisation.'}</div></div>` },
+    full ? 'Run import batch' : 'Synchronise changes', 'Microsoft External ID');
 }
 
 function directoryAccountModal(element) {
@@ -95,7 +96,7 @@ function directoryProfileModal(element) {
 
 function directoryReviewModal(element) {
   modalForm('Decide customer identity review', `Confirm how the Microsoft identity for ${element.dataset.name} should be handled.`, {
-    form: 'customer-directory-review', attributes: `data-review-id="${escapeHtml(element.dataset.id)}"`, html: `<label class="field"><span>Decision</span><select name="decision"><option value="link_existing">Link to an existing universal customer</option><option value="create_new">Create a new universal customer</option><option value="dismiss">Dismiss without linking</option></select></label><label class="field"><span>Existing universal customer number</span><input name="customerId" maxlength="100" value="${escapeHtml(element.dataset.customer || '')}" placeholder="Required when linking to an existing customer"></label><label class="field"><span>Decision reason and evidence</span><textarea name="reason" maxlength="1000" required></textarea></label>`
+    form: 'customer-directory-review', attributes: `data-review-id="${escapeHtml(element.dataset.id)}"`, html: `<label class="field"><span>Decision</span><select name="decision"><option value="link_existing">Link to an existing unique customer</option><option value="create_new">Create a new unique customer</option><option value="dismiss">Dismiss without linking</option></select></label><label class="field"><span>Existing Unique Customer Number</span><input name="customerId" maxlength="100" value="${escapeHtml(element.dataset.customer || '')}" placeholder="Required when linking to an existing customer"></label><label class="field"><span>Decision reason and evidence</span><textarea name="reason" maxlength="1000" required></textarea></label>`
   }, 'Record identity decision', 'Identity reconciliation');
 }
 
@@ -141,7 +142,11 @@ handleForm = async function customerDirectoryForm(form) {
   try {
     if (name === 'customer-directory-sync') {
       const result = await api('/api/customer-directory/sync', { method: 'POST', body: JSON.stringify({ mode: body.mode }) });
-      closeModal(); toast('Customer directory synchronised', `${directoryCount(result.stats.received)} Microsoft identities processed.`); return renderRoute('customer-directory');
+      closeModal();
+      toast(result.partial ? 'Directory batch completed' : 'Customer directory synchronised', result.partial
+        ? `${directoryCount(result.stats.received)} Microsoft identities processed. More remain and will continue automatically.`
+        : `${directoryCount(result.stats.received)} Microsoft identities processed.`);
+      return renderRoute('customer-directory');
     }
     if (name === 'customer-directory-review') {
       body.reviewId = form.dataset.reviewId;
