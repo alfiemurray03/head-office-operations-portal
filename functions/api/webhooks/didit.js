@@ -8,7 +8,7 @@ import {
 } from "../../_didit-webhook.js";
 
 function methodNotAllowed() {
-  return error("METHOD_NOT_ALLOWED", "Only GET, HEAD and POST are supported.", 405);
+  return error("METHOD_NOT_ALLOWED", "Only GET, HEAD and POST are supported.", 405, { allow: ["GET", "HEAD", "POST"] });
 }
 
 export const onRequestGet = async context => {
@@ -48,11 +48,16 @@ export const onRequestPost = async context => {
     });
   }
 
-  if (!accepted.accepted) {
-    return json({ received: true, duplicate: true, eventId: accepted.eventId }, 200);
-  }
-
-  const work = processDiditWebhook(context.env, verified).catch(async cause => {
+  try {
+    const processing = await processDiditWebhook(context.env, verified);
+    return json({
+      received: true,
+      accepted: accepted.accepted,
+      duplicate: !accepted.accepted,
+      eventId: accepted.eventId,
+      processing
+    }, 200);
+  } catch (cause) {
     await markDiditWebhookFailed(context.env, accepted.eventId, cause);
     console.error(JSON.stringify({
       event: "didit_webhook_processing_failed",
@@ -60,12 +65,11 @@ export const onRequestPost = async context => {
       sessionId: verified.sessionId,
       message: cause instanceof Error ? cause.message : "Unknown Didit processing error"
     }));
-  });
-
-  if (typeof context.waitUntil === "function") context.waitUntil(work);
-  else await work;
-
-  return json({ received: true, accepted: true, eventId: accepted.eventId }, 202);
+    return error("DIDIT_WEBHOOK_PROCESSING_FAILED", "The verified Didit event could not be applied safely. Didit should retry this delivery.", 503, {
+      retryable: true,
+      eventId: accepted.eventId
+    });
+  }
 };
 
 export const onRequest = async context => {
