@@ -66,6 +66,9 @@ jobs:
       - name: Validate central customer platform
         run: node tests/central-customer-platform.test.mjs
 
+      - name: Validate restriction access restoration
+        run: node tests/restriction-access-restoration.test.mjs
+
       - name: Validate Didit webhook security
         run: node tests/didit-webhook.test.mjs
 
