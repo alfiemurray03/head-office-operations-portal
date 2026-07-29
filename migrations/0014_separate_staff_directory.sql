@@ -49,12 +49,11 @@ CREATE TABLE IF NOT EXISTS staff_number_sequences (
   updated_at TEXT NOT NULL
 );
 
-INSERT INTO staff_number_sequences(sequence_key,next_value,updated_at)
+INSERT OR IGNORE INTO staff_number_sequences(sequence_key,next_value,updated_at)
 SELECT 'staff',
        COALESCE(MAX(CAST(substr(staff_number,5) AS INTEGER)),0)+1,
        datetime('now')
-FROM staff_directory_profiles
-ON CONFLICT(sequence_key) DO NOTHING;
+FROM staff_directory_profiles;
 
 CREATE TABLE IF NOT EXISTS staff_manual_reviews (
   id TEXT PRIMARY KEY,
