@@ -2,6 +2,7 @@ const pause = milliseconds => new Promise(resolve => setTimeout(resolve, millise
 let customerDirectoryModulePromise = null;
 let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
+let securityOperationsModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -69,6 +70,21 @@ function loadDiditOperationsModule() {
   return diditOperationsModulePromise;
 }
 
+function loadSecurityOperationsModule() {
+  if (securityOperationsModulePromise) return securityOperationsModulePromise;
+  securityOperationsModulePromise = new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-security-operations-centre]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/security-operations-centre.js?v=20260729-soc-1';
+    script.async = false;
+    script.dataset.securityOperationsCentre = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The Head Office Security Operations Centre could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return securityOperationsModulePromise;
+}
+
 function ensureCustomerDirectoryNavigation() {
   if (document.querySelector('[data-route="customer-directory"]')) return;
   const connectedSystems = document.querySelector('[data-route="platforms"]');
@@ -116,7 +132,7 @@ async function boot() {
   const authResult = query.get('auth_result');
   query.delete('auth_result');
   query.delete('auth_session');
-  if (handoff || authResult) history.replaceState({}, '', `${location.pathname}${query.toString() ? `?${query}` : ''}#/control-room`);
+  if (handoff || authResult) history.replaceState({}, '', `${location.pathname}${query.toString() ? `?${query}` : ''}#/security-operations`);
 
   try {
     state.session = await loadSession(authResult);
@@ -139,7 +155,10 @@ async function boot() {
     window.ensureDiditNavigation?.();
     state.reference = await loadReference();
     renderNavigation();
-    const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'control-room' : 'dashboard');
+    await loadSecurityOperationsModule();
+    window.ensureSecurityOperationsNavigation?.();
+    renderNavigation();
+    const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
     navigate(initialRoute, true);
   } catch (error) {
     showStartupFailure(error);
