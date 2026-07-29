@@ -18,6 +18,19 @@ body.ops-tailwind .platform-card-actions .button.danger {
   margin-left: auto;
 }
 
+/* The transferred shell previously hid this control whenever the desktop
+   sidebar was permanent. The current portal uses a floating full-page index,
+   so the All admin tools trigger must always remain available. */
+body.ops-tailwind #menuButton.all-tools-button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
 @media (min-width: 1024px) {
   body.ops-tailwind .app-shell {
     padding-top: 0 !important;
