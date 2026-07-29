@@ -22,6 +22,7 @@ const [
   components,
   layoutFixes,
   headOfficeContext,
+  modalSystem,
   router
 ] = await Promise.all([
   read('migrations/0008_central_customer_platform.sql'),
@@ -43,6 +44,7 @@ const [
   read('public/planyx-components.css'),
   read('public/planyx-layout-fixes.css'),
   read('public/js/head-office-context.js'),
+  read('public/js/modal-system.js'),
   read('public/js/central-router.js')
 ]);
 
@@ -120,7 +122,8 @@ assert.match(components, /\.customer-record-header/, 'The central customer works
 assert.match(layoutFixes, /\.app-shell[\s\S]*padding-top:\s*0 !important/, 'The current sticky header must start at the top of the viewport without a legacy spacer.');
 assert.doesNotMatch(layoutFixes, /--customerops-header-height|padding-top:\s*var\(--customerops-header-height\)/, 'The obsolete fixed-header offset must never return.');
 assert.doesNotMatch(layoutFixes, /\.tools-drawer[\s\S]*left:\s*0 !important/, 'The All admin tools menu must not be forced back into a permanent left sidebar.');
-assert.match(headOfficeContext, /planyx-admin-parity\.css/, 'The final Planyx Admin parity stylesheet must remain authoritative after lazy modules load.');
+assert.match(headOfficeContext, /planyx-layout-fixes\.css/, 'The compatibility layout stylesheet must remain available before the final parity layer.');
+assert.match(modalSystem, /planyx-admin-parity\.css/, 'The final Planyx Admin parity stylesheet must remain authoritative after lazy modules load.');
 assert.match(router, /navigate\(`customers\//, 'Customer rows must navigate into a full central workspace.');
 
 console.log('Central Customer Platform regression checks passed.');
