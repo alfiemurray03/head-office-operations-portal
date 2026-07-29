@@ -93,6 +93,9 @@ jobs:
       - name: Validate system control and diagnostics
         run: node tests/system-control.test.mjs
 
+      - name: Validate automation and scheduling centre
+        run: node tests/automation-scheduling-centre.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
@@ -139,6 +142,9 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_sync_runs;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM customer_notification_deliveries;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM service_test_runs;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_schedules;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_runs;"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions WHERE marker_code LIKE 'SMC-%';")" = "7"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_schedules WHERE job_code LIKE '%lockdown%';")" = "0"
           sqlite3 /tmp/head-office-central.db "PRAGMA foreign_key_check;"
