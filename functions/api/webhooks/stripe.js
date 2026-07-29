@@ -3,6 +3,7 @@ import { findCustomer } from "../../_operations.js";
 import { ensureV7Schema } from "../../_v7-schema.js";
 import { ensureV7Enhancements } from "../../_v7-enhancements.js";
 import { ingestSecurityEvent } from "../../_risk-engine.js";
+import { processStripeWebhookEvent } from "../../_stripe-control.js";
 
 const MAX_BODY_BYTES = 256_000;
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -27,7 +28,7 @@ async function verifyStripeSignature(rawBody, header, secret) {
 
 function metadataCustomerReference(object) {
   const metadata = object?.metadata || {};
-  return cleanNullableText(metadata.customer_number || metadata.universal_customer_number || metadata.customerNumber, 100);
+  return cleanNullableText(metadata.ucn || metadata.customer_number || metadata.universal_customer_number || metadata.customerNumber, 100);
 }
 
 async function resolveCustomer(env, object, transactionReference) {
@@ -63,15 +64,18 @@ function mapStripeEvent(event) {
     "refund.created": ["refund.requested", "refund"],
     "refund.failed": ["refund.failed", "refund"],
     "refund.updated": [object.status === "succeeded" ? "refund.completed" : "refund.updated", "refund"],
+    "charge.refunded": ["refund.completed", "refund"],
     "charge.dispute.created": ["chargeback.created", "dispute"],
     "charge.dispute.updated": ["chargeback.updated", "dispute"],
     "charge.dispute.closed": ["chargeback.closed", "dispute"],
     "review.opened": ["payment.review_opened", "payment"],
-    "review.closed": ["payment.review_closed", "payment"]
+    "review.closed": ["payment.review_closed", "payment"],
+    "invoice.payment_failed": ["payment.failed", "payment"],
+    "invoice.paid": ["payment.succeeded", "payment"]
   };
   const mapped = mappings[event?.type];
   if (!mapped) return null;
-  const amountMinor = object.amount ?? object.amount_received ?? object.amount_refunded ?? null;
+  const amountMinor = object.amount ?? object.amount_received ?? object.amount_refunded ?? object.amount_paid ?? object.total ?? null;
   const currency = typeof object.currency === "string" ? object.currency.toUpperCase() : null;
   const providerCustomerReference = typeof object.customer === "string" ? object.customer : object.customer?.id || null;
   const providerPaymentReference = object.id || event.id;
@@ -130,13 +134,15 @@ export const onRequestPost = async context => {
   let event;
   try { event = JSON.parse(rawBody); }
   catch { return error("INVALID_STRIPE_PAYLOAD", "The Stripe webhook body is not valid JSON.", 400); }
-  if (!event?.id || !event?.type) return error("INVALID_STRIPE_EVENT", "The Stripe event is incomplete.", 400);
-  const mapped = mapStripeEvent(event);
-  if (!mapped) return json({ received: true, ignored: true, eventId: event.id });
+  if (!event?.id || !event?.type || !event?.data?.object?.id) return error("INVALID_STRIPE_EVENT", "The Stripe event is incomplete.", 400);
 
   try {
     await ensureV7Schema(context.env);
     await ensureV7Enhancements(context.env);
+    const operations = await processStripeWebhookEvent(context.env, event, rawBody);
+    const mapped = mapStripeEvent(event);
+    if (!mapped) return json({ received: true, eventId: event.id, ignoredByRiskEngine: true, operations });
+
     const customer = await resolveCustomer(context.env, mapped.object, mapped.transactionReference);
     await storePaymentReference(context.env, mapped, customer);
     const fingerprint = paymentFingerprint(mapped.object);
@@ -163,9 +169,9 @@ export const onRequestPost = async context => {
         outcomeReason: mapped.object?.last_payment_error?.code || mapped.object?.reason || null
       }
     }, { type: "platform", id: "stripe", name: "Stripe" });
-    return json({ received: true, eventId: event.id, risk: result.event, duplicate: result.duplicate });
+    return json({ received: true, eventId: event.id, operations, risk: result.event, duplicate: result.duplicate });
   } catch (cause) {
     console.error(JSON.stringify({ event: "stripe_webhook_processing_failed", stripeEventId: event.id, stripeEventType: event.type, message: cause instanceof Error ? cause.message : "Unknown error" }));
-    return error("STRIPE_EVENT_PROCESSING_FAILED", "The Stripe event could not be processed.", 500);
+    return error(cause.code || "STRIPE_EVENT_PROCESSING_FAILED", cause.message || "The Stripe event could not be processed.", cause.status || 500);
   }
 };
