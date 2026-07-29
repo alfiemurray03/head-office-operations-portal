@@ -1,11 +1,18 @@
 (() => {
-  const socState = { platforms: [], lockdowns: [], stripe: null, stripeRecords: null, stripeTab: 'payments' };
+  const socState = {
+    platforms: [],
+    lockdowns: [],
+    stripe: null,
+    stripeRecords: null,
+    stripeTab: 'payments',
+    stripeDivision: 'all'
+  };
 
   function loadSocStyle() {
     if (document.querySelector('link[data-security-operations-centre]')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/security-operations-centre.css?v=20260729-soc-1';
+    link.href = '/security-operations-centre.css?v=20260729-soc-2';
     link.dataset.securityOperationsCentre = 'true';
     document.head.append(link);
   }
@@ -50,8 +57,9 @@
   }
 
   async function safeApi(path, fallback) {
-    try { return await api(path); }
-    catch (error) {
+    try {
+      return await api(path);
+    } catch (error) {
       console.warn('Security Operations Centre data unavailable', path, error);
       return fallback;
     }
@@ -100,6 +108,14 @@
     }).join('');
   }
 
+  function stripeConnectorReadiness(connectors = []) {
+    if (!connectors.length) return '<div class="soc-config-item"><div><strong>Stripe divisions</strong><span>Status unavailable</span></div>' + tag('action_required') + '</div>';
+    return connectors.map(connector => {
+      const ready = connector.configuration?.apiKeyConfigured && connector.configuration?.webhookSecretConfigured;
+      return `<div class="soc-config-item"><div><strong>${escapeHtml(connector.name)} Stripe</strong><span>${escapeHtml(connector.webhookEndpoint)}</span></div>${configLabel(ready)}</div>`;
+    }).join('');
+  }
+
   async function renderSecurityOperationsCentre() {
     $('#currentRouteLabel').textContent = 'Security Operations Centre';
     document.title = 'Security Operations Centre · JA Group Services Ltd';
@@ -107,7 +123,7 @@
       safeApi('/api/security', { markers: [], restrictions: [], metrics: {} }),
       safeApi('/api/security/lockdowns', { lockdowns: [], policy: {} }),
       safeApi('/api/platforms', { platforms: [] }),
-      safeApi('/api/integrations/stripe/status', { configuration: {}, counts: {}, recentEvents: [] }),
+      safeApi('/api/integrations/stripe/status', { connectors: [], configuration: {}, counts: {}, recentEvents: [] }),
       safeApi('/api/customer-directory/notifications', { configured: false, counts: {} })
     ]);
     const platforms = platformData.platforms || [];
@@ -134,7 +150,7 @@
         <div class="soc-status-item">${statusDot(operationalPlatforms.length === platforms.length && platforms.length > 0)}<div><strong>Connected systems</strong><span>${operationalPlatforms.length}/${platforms.length} reporting operational</span></div></div>
         <div class="soc-status-item">${statusDot(activeLockdowns.length === 0, activeLockdowns.length > 0)}<div><strong>Head Office lockdown</strong><span>${activeLockdowns.length ? `${activeLockdowns.length} active critical lockdown` : 'No active lockdowns'}</span></div></div>
         <div class="soc-status-item">${statusDot(Boolean(notifications.configured))}<div><strong>Resend customer notices</strong><span>${notifications.configured ? `${count(notifications.counts?.sent)} welcome messages sent` : 'Configuration required'}</span></div></div>
-        <div class="soc-status-item">${statusDot(stripeConfigured, Number(stripe.counts?.failed_events || 0) > 0)}<div><strong>Stripe intelligence</strong><span>${stripeConfigured ? `${count(stripe.counts?.failed_events)} failed webhook events` : 'API or webhook secret missing'}</span></div></div>
+        <div class="soc-status-item">${statusDot(stripeConfigured, Number(stripe.counts?.failed_events || 0) > 0)}<div><strong>Stripe divisions</strong><span>${stripeConfigured ? `2/2 configured · ${count(stripe.counts?.failed_events)} failed events` : 'One or more division connections require action'}</span></div></div>
       </section>
 
       <section class="soc-metric-grid" aria-label="Security operations metrics">
@@ -142,7 +158,7 @@
         <article class="soc-metric"><span>Active markers</span><strong>${count(security.metrics?.active_markers)}</strong><small>Coded customer security records</small></article>
         <article class="soc-metric"><span>Restrictions</span><strong>${count(security.metrics?.active_restrictions)}</strong><small>Enforced customer controls</small></article>
         <article class="soc-metric ${activeLockdowns.length ? 'critical' : ''}"><span>Site lockdowns</span><strong>${count(activeLockdowns.length)}</strong><small>Manual critical controls only</small></article>
-        <article class="soc-metric"><span>Stripe records</span><strong>${count(Number(stripe.counts?.payments || 0) + Number(stripe.counts?.orders || 0))}</strong><small>Payments and checkout orders</small></article>
+        <article class="soc-metric"><span>Stripe records</span><strong>${count(Number(stripe.counts?.payments || 0) + Number(stripe.counts?.orders || 0))}</strong><small>Planyx and Profile Centre</small></article>
         <article class="soc-metric"><span>Overdue reviews</span><strong>${count(security.metrics?.overdue_reviews)}</strong><small>Marker reviews requiring action</small></article>
       </section>
 
@@ -168,8 +184,7 @@
             <div class="soc-panel-body soc-config-list">
               <div class="soc-config-item"><div><strong>JA Group Services ID</strong><span>Automatic 10-digit UCN allocation from Entra External ID synchronisation</span></div>${tag('operational')}</div>
               <div class="soc-config-item"><div><strong>Resend welcome notification</strong><span>Sends the UCN after a new tenant identity is recognised</span></div>${configLabel(notifications.configured)}</div>
-              <div class="soc-config-item"><div><strong>Stripe API</strong><span>Secret-key connection for governed account checks and reconciliation</span></div>${configLabel(stripe.configuration?.apiKeyConfigured)}</div>
-              <div class="soc-config-item"><div><strong>Stripe webhook</strong><span>${escapeHtml(stripe.webhookEndpoint || '/api/webhooks/stripe')}</span></div>${configLabel(stripe.configuration?.webhookSecretConfigured)}</div>
+              ${stripeConnectorReadiness(stripe.connectors)}
             </div>
           </section>
         </div>
@@ -179,64 +194,80 @@
 
   function stripePaymentRows(rows) {
     if (!rows?.length) return '<tr><td colspan="7"><div class="soc-empty">No Stripe payment records received yet.</div></td></tr>';
-    return rows.map(row => `<tr><td>${formatDate(row.occurred_at)}</td><td><strong>${escapeHtml(row.customer_name || row.receipt_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_object_id)}</span></td><td>${escapeHtml(label(row.object_type))}</td><td>${row.amount_minor == null ? '—' : formatMoney(row.amount_minor, row.currency)}</td><td>${tag(row.status || 'unknown')}</td><td>${escapeHtml(row.platform_code || 'Unassigned')}</td></tr>`).join('');
+    return rows.map(row => `<tr><td>${formatDate(row.occurred_at)}</td><td><strong>${escapeHtml(row.customer_name || row.receipt_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_object_id)}</span></td><td>${escapeHtml(label(row.object_type))}</td><td>${row.amount_minor == null ? '—' : formatMoney(row.amount_minor, row.currency)}</td><td>${tag(row.status || 'unknown')}</td><td>${escapeHtml(row.platform_code || row.connector_code || 'Unassigned')}</td></tr>`).join('');
   }
 
   function stripeOrderRows(rows) {
     if (!rows?.length) return '<tr><td colspan="7"><div class="soc-empty">No Stripe checkout orders received yet.</div></td></tr>';
-    return rows.map(row => `<tr><td>${formatDate(row.occurred_at)}</td><td><strong>${escapeHtml(row.customer_name || row.customer_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_object_id)}</span></td><td>${row.amount_total_minor == null ? '—' : formatMoney(row.amount_total_minor, row.currency)}</td><td>${tag(row.status || 'unknown')}</td><td>${tag(row.payment_status || 'unknown')}</td><td>${escapeHtml(row.platform_code || 'Unassigned')}</td></tr>`).join('');
+    return rows.map(row => `<tr><td>${formatDate(row.occurred_at)}</td><td><strong>${escapeHtml(row.customer_name || row.customer_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_object_id)}</span></td><td>${row.amount_total_minor == null ? '—' : formatMoney(row.amount_total_minor, row.currency)}</td><td>${tag(row.status || 'unknown')}</td><td>${tag(row.payment_status || 'unknown')}</td><td>${escapeHtml(row.platform_code || row.connector_code || 'Unassigned')}</td></tr>`).join('');
   }
 
   function stripeSubscriptionRows(rows) {
     if (!rows?.length) return '<tr><td colspan="8"><div class="soc-empty">No Stripe subscriptions received yet.</div></td></tr>';
-    return rows.map(row => `<tr><td>${formatDate(row.updated_at)}</td><td><strong>${escapeHtml(row.customer_name || row.customer_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_subscription_id)}</span></td><td>${escapeHtml(row.price_id || '—')}</td><td>${tag(row.status)}</td><td>${formatDate(row.current_period_end, '—')}</td><td>${row.cancel_at_period_end ? 'Yes' : 'No'}</td><td>${escapeHtml(row.platform_code || 'Unassigned')}</td></tr>`).join('');
+    return rows.map(row => `<tr><td>${formatDate(row.updated_at)}</td><td><strong>${escapeHtml(row.customer_name || row.customer_email || 'Unlinked')}</strong><br><span class="soc-code">${escapeHtml(row.customer_number || 'No UCN')}</span></td><td><span class="soc-code">${escapeHtml(row.stripe_subscription_id)}</span></td><td>${escapeHtml(row.price_id || '—')}</td><td>${tag(row.status)}</td><td>${formatDate(row.current_period_end, '—')}</td><td>${row.cancel_at_period_end ? 'Yes' : 'No'}</td><td>${escapeHtml(row.platform_code || row.connector_code || 'Unassigned')}</td></tr>`).join('');
   }
 
   function stripeTable(records, tab) {
-    if (tab === 'orders') return `<table class="soc-compact-table"><thead><tr><th>Date</th><th>Customer</th><th>Checkout session</th><th>Total</th><th>Status</th><th>Payment</th><th>System</th></tr></thead><tbody>${stripeOrderRows(records.orders)}</tbody></table>`;
-    if (tab === 'subscriptions') return `<table class="soc-compact-table"><thead><tr><th>Updated</th><th>Customer</th><th>Subscription</th><th>Price</th><th>Status</th><th>Period ends</th><th>Cancel at end</th><th>System</th></tr></thead><tbody>${stripeSubscriptionRows(records.subscriptions)}</tbody></table>`;
-    return `<table class="soc-compact-table"><thead><tr><th>Date</th><th>Customer</th><th>Stripe object</th><th>Type</th><th>Amount</th><th>Status</th><th>System</th></tr></thead><tbody>${stripePaymentRows(records.payments)}</tbody></table>`;
+    if (tab === 'orders') return `<table class="soc-compact-table"><thead><tr><th>Date</th><th>Customer</th><th>Checkout session</th><th>Total</th><th>Status</th><th>Payment</th><th>Division</th></tr></thead><tbody>${stripeOrderRows(records.orders)}</tbody></table>`;
+    if (tab === 'subscriptions') return `<table class="soc-compact-table"><thead><tr><th>Updated</th><th>Customer</th><th>Subscription</th><th>Price</th><th>Status</th><th>Period ends</th><th>Cancel at end</th><th>Division</th></tr></thead><tbody>${stripeSubscriptionRows(records.subscriptions)}</tbody></table>`;
+    return `<table class="soc-compact-table"><thead><tr><th>Date</th><th>Customer</th><th>Stripe object</th><th>Type</th><th>Amount</th><th>Status</th><th>Division</th></tr></thead><tbody>${stripePaymentRows(records.payments)}</tbody></table>`;
+  }
+
+  function connectorCards(connectors = []) {
+    return connectors.map(connector => {
+      const configuration = connector.configuration || {};
+      const failed = Number(connector.counts?.failed_events || 0);
+      return `<section class="soc-panel"><header class="soc-panel-header"><div><h2>${escapeHtml(connector.name)}</h2><p>${escapeHtml(connector.webhookEndpoint)}</p></div><button class="button secondary small" data-soc-action="stripe-test" data-division="${escapeHtml(connector.slug)}">Test API</button></header><div class="soc-panel-body soc-config-list">
+        <div class="soc-config-item"><div><strong>${escapeHtml(configuration.secretKeyBinding)}</strong><span>${escapeHtml(label(configuration.mode || 'unknown'))} server-side API connection</span></div>${configLabel(configuration.apiKeyConfigured)}</div>
+        <div class="soc-config-item"><div><strong>${escapeHtml(configuration.webhookSecretBinding)}</strong><span>Snapshot webhook signature verification</span></div>${configLabel(configuration.webhookSecretConfigured)}</div>
+        <div class="soc-config-item"><div><strong>Webhook processing</strong><span>${count(failed)} failed events</span></div>${failed ? tag('action_required') : tag('operational')}</div>
+      </div></section>`;
+    }).join('');
   }
 
   async function renderStripeControl() {
     $('#currentRouteLabel').textContent = 'Stripe Control & Webhooks';
     document.title = 'Stripe Control & Webhooks · CustomerOps';
+    const divisionQuery = socState.stripeDivision === 'all' ? '' : `?division=${encodeURIComponent(socState.stripeDivision)}`;
     const [status, records] = await Promise.all([
-      safeApi('/api/integrations/stripe/status', { configuration: {}, counts: {}, requiredEvents: [], recentEvents: [] }),
-      safeApi('/api/integrations/stripe/records', { payments: [], orders: [], subscriptions: [] })
+      safeApi('/api/integrations/stripe/status', { connectors: [], configuration: {}, counts: {}, requiredEvents: [], recentEvents: [] }),
+      safeApi(`/api/integrations/stripe/records${divisionQuery}`, { payments: [], orders: [], subscriptions: [] })
     ]);
     socState.stripe = status;
     socState.stripeRecords = records;
     const tab = socState.stripeTab;
+    const selectedConnector = status.connectors?.find(connector => connector.slug === socState.stripeDivision);
+    const counts = selectedConnector?.counts || status.counts || {};
+
     $('#viewRoot').innerHTML = `<div class="soc-page">
-      <section class="soc-command-header"><div><p class="eyebrow">Payments intelligence · Stripe</p><h1>Stripe Control & Webhooks</h1><p>Read payments, checkout orders and subscriptions through a signed webhook intake. The portal stores normalised operational records and continues feeding payment risk events into Head Office security monitoring.</p></div><div class="soc-command-actions"><button class="button secondary" data-soc-action="stripe-test">Test Stripe API</button><button class="button secondary" data-route="payments">Open approvals</button></div></section>
+      <section class="soc-command-header"><div><p class="eyebrow">Payments intelligence · Stripe</p><h1>Stripe Control & Webhooks</h1><p>Planyx and Profile Centre are separate governed Stripe connections. Each division has its own API key, Snapshot webhook endpoint, signing secret, health state and operational records.</p></div><div class="soc-command-actions"><button class="button secondary" data-soc-action="stripe-test">Test both APIs</button><button class="button secondary" data-route="payments">Open approvals</button></div></section>
       <section class="soc-status-strip">
-        <div class="soc-status-item">${statusDot(status.configuration?.apiKeyConfigured)}<div><strong>Secret API key</strong><span>${status.configuration?.apiKeyConfigured ? `${label(status.configuration.mode)} mode configured` : 'Add STRIPE_SECRET_KEY'}</span></div></div>
-        <div class="soc-status-item">${statusDot(status.configuration?.webhookSecretConfigured)}<div><strong>Signing secret</strong><span>${status.configuration?.webhookSecretConfigured ? 'Signature verification active' : 'Add STRIPE_WEBHOOK_SECRET'}</span></div></div>
-        <div class="soc-status-item">${statusDot(Number(status.counts?.failed_events || 0) === 0, Number(status.counts?.failed_events || 0) > 0)}<div><strong>Webhook processing</strong><span>${count(status.counts?.failed_events)} failed events</span></div></div>
-        <div class="soc-status-item">${statusDot(true)}<div><strong>Webhook endpoint</strong><span>${escapeHtml(status.webhookEndpoint || '/api/webhooks/stripe')}</span></div></div>
+        <div class="soc-status-item">${statusDot(status.configuration?.apiKeyConfigured)}<div><strong>Division APIs</strong><span>${status.configuration?.apiKeyConfigured ? '2/2 API connections configured' : 'One or more API keys missing'}</span></div></div>
+        <div class="soc-status-item">${statusDot(status.configuration?.webhookSecretConfigured)}<div><strong>Snapshot signing</strong><span>${status.configuration?.webhookSecretConfigured ? '2/2 signing secrets configured' : 'One or more signing secrets missing'}</span></div></div>
+        <div class="soc-status-item">${statusDot(Number(status.counts?.failed_events || 0) === 0, Number(status.counts?.failed_events || 0) > 0)}<div><strong>Webhook processing</strong><span>${count(status.counts?.failed_events)} failed events across both divisions</span></div></div>
+        <div class="soc-status-item">${statusDot(true)}<div><strong>Payload policy</strong><span>Snapshot only · Thin payloads rejected</span></div></div>
       </section>
       <section class="soc-metric-grid">
-        <article class="soc-metric"><span>Payments</span><strong>${count(status.counts?.payments)}</strong><small>PaymentIntent, Charge and Invoice objects</small></article>
-        <article class="soc-metric"><span>Orders</span><strong>${count(status.counts?.orders)}</strong><small>Completed Checkout Sessions</small></article>
-        <article class="soc-metric"><span>Subscriptions</span><strong>${count(status.counts?.subscriptions)}</strong><small>Current subscription records</small></article>
-        <article class="soc-metric"><span>Failed events</span><strong>${count(status.counts?.failed_events)}</strong><small>Require operational investigation</small></article>
-        <article class="soc-metric"><span>Mode</span><strong style="font-size:16px">${escapeHtml(label(status.configuration?.mode || 'unknown'))}</strong><small>Never mix test and live secrets</small></article>
+        <article class="soc-metric"><span>Payments</span><strong>${count(counts.payments)}</strong><small>PaymentIntent, Charge and Invoice objects</small></article>
+        <article class="soc-metric"><span>Orders</span><strong>${count(counts.orders)}</strong><small>Completed Checkout Sessions</small></article>
+        <article class="soc-metric"><span>Subscriptions</span><strong>${count(counts.subscriptions)}</strong><small>Current subscription records</small></article>
+        <article class="soc-metric"><span>Failed events</span><strong>${count(counts.failed_events)}</strong><small>Require operational investigation</small></article>
+        <article class="soc-metric"><span>View</span><strong style="font-size:16px">${escapeHtml(socState.stripeDivision === 'all' ? 'Both divisions' : selectedConnector?.name || label(socState.stripeDivision))}</strong><small>Records remain separated at source</small></article>
         <article class="soc-metric"><span>UCN linking</span><strong style="font-size:16px">Metadata</strong><small>Pass metadata.ucn on Stripe objects</small></article>
       </section>
       <div class="soc-grid">
         <section class="soc-panel">
           <header class="soc-panel-header"><div><h2>Stripe operational records</h2><p>Searchable central records linked to the customer's UCN wherever available.</p></div></header>
+          <div class="soc-integration-tabs">
+            <button class="${socState.stripeDivision === 'all' ? 'active' : ''}" data-soc-action="stripe-division" data-division="all">Both divisions</button>
+            ${(status.connectors || []).map(connector => `<button class="${socState.stripeDivision === connector.slug ? 'active' : ''}" data-soc-action="stripe-division" data-division="${escapeHtml(connector.slug)}">${escapeHtml(connector.name)}</button>`).join('')}
+          </div>
           <div class="soc-integration-tabs"><button class="${tab === 'payments' ? 'active' : ''}" data-soc-action="stripe-tab" data-tab="payments">Payments</button><button class="${tab === 'orders' ? 'active' : ''}" data-soc-action="stripe-tab" data-tab="orders">Orders</button><button class="${tab === 'subscriptions' ? 'active' : ''}" data-soc-action="stripe-tab" data-tab="subscriptions">Subscriptions</button></div>
           <div class="soc-scroll" id="stripeRecordTable">${stripeTable(records, tab)}</div>
         </section>
         <div class="soc-stack">
-          <section class="soc-panel"><header class="soc-panel-header"><div><h2>Connection settings</h2><p>Configure these as encrypted Cloudflare environment secrets.</p></div></header><div class="soc-panel-body soc-config-list">
-            <div class="soc-config-item"><div><strong>STRIPE_SECRET_KEY</strong><span>Restricted server-side key. Never place it in public JavaScript.</span></div>${configLabel(status.configuration?.apiKeyConfigured)}</div>
-            <div class="soc-config-item"><div><strong>STRIPE_WEBHOOK_SECRET</strong><span>The whsec_ signing secret for this exact endpoint.</span></div>${configLabel(status.configuration?.webhookSecretConfigured)}</div>
-            <div class="soc-config-item"><div><strong>STRIPE_PUBLISHABLE_KEY</strong><span>Optional here; customer sites may use their own public checkout configuration.</span></div>${configLabel(status.configuration?.publishableKeyConfigured)}</div>
-          </div></section>
-          <section class="soc-panel"><header class="soc-panel-header"><div><h2>Required webhook events</h2><p>Select these in Stripe Workbench for the endpoint.</p></div></header><div class="soc-panel-body"><div class="soc-config-list">${(status.requiredEvents || []).map(eventName => `<div class="soc-config-item"><div><strong>${escapeHtml(eventName)}</strong></div><span class="soc-code">EVENT</span></div>`).join('')}</div></div></section>
+          ${connectorCards(status.connectors)}
+          <section class="soc-panel"><header class="soc-panel-header"><div><h2>Required Snapshot events</h2><p>Select only these events for each division destination.</p></div></header><div class="soc-panel-body"><div class="soc-config-list">${(status.requiredEvents || []).map(eventName => `<div class="soc-config-item"><div><strong>${escapeHtml(eventName)}</strong></div><span class="soc-code">EVENT</span></div>`).join('')}</div></div></section>
         </div>
       </div>
     </div>`;
@@ -282,6 +313,10 @@
     if (action === 'new-lockdown') return openLockdownModal();
     if (action === 'lift-lockdown') return openLiftModal(element);
     if (action === 'open-stripe') return navigate('stripe-control');
+    if (action === 'stripe-division') {
+      socState.stripeDivision = element.dataset.division || 'all';
+      return renderStripeControl();
+    }
     if (action === 'stripe-tab') {
       socState.stripeTab = element.dataset.tab || 'payments';
       document.querySelectorAll('[data-soc-action="stripe-tab"]').forEach(button => button.classList.toggle('active', button === element));
@@ -291,12 +326,19 @@
     }
     if (action === 'stripe-test') {
       element.disabled = true;
+      const division = element.dataset.division;
       try {
-        const result = await api('/api/integrations/stripe/test', { method: 'POST', body: '{}' });
-        toast('Stripe API connected', `${result.businessName || result.accountId} · charges ${result.chargesEnabled ? 'enabled' : 'not enabled'}`, 'success');
+        const result = await api('/api/integrations/stripe/test', {
+          method: 'POST',
+          body: JSON.stringify(division ? { division } : {})
+        });
+        toast('Stripe API connected', `${result.businessName || result.connector?.name || result.accountId} · charges ${result.chargesEnabled ? 'enabled' : 'not enabled'}`, 'success');
         return renderStripeControl();
-      } catch (error) { toast('Stripe connection failed', error.message, 'error'); }
-      finally { element.disabled = false; }
+      } catch (error) {
+        toast('Stripe connection failed', error.message, 'error');
+      } finally {
+        element.disabled = false;
+      }
     }
   }, true);
 
