@@ -15,13 +15,25 @@ export const onRequestPost = async context => {
   const mode = body.mode === "full" ? "full" : "delta";
   try {
     const result = await syncCustomerDirectory(context.env, mode, auth.session.sub);
-    const notifications = await dispatchPendingCustomerWelcomeNotifications(context.env, Math.max(10, Math.min(Number(body.notificationLimit) || 50, 100)));
+    const requestedNotificationLimit = Math.max(5, Math.min(Number(body.notificationLimit) || 25, 50));
+    const notificationLimit = result.partial ? Math.min(requestedNotificationLimit, 5) : requestedNotificationLimit;
+    const notifications = await dispatchPendingCustomerWelcomeNotifications(context.env, notificationLimit);
     const response = { ...result, notifications };
     await audit(context.env, auth.session, "customer_directory.synchronised", "customer_directory_connector", CUSTOMER_DIRECTORY_CONNECTOR_ID, {
-      label: mode === "full" ? "Full Microsoft customer import completed" : "Microsoft customer directory changes synchronised",
+      label: result.partial
+        ? "Microsoft customer directory batch synchronised"
+        : mode === "full" ? "Full Microsoft customer import completed" : "Microsoft customer directory changes synchronised",
       reference: "JA Group Services ID",
       requestId: context.data.requestId,
-      after: { mode: result.mode, runId: result.runId, stats: result.stats, totals: result.totals, notifications }
+      after: {
+        mode: result.mode,
+        runId: result.runId,
+        partial: Boolean(result.partial),
+        continuationPending: Boolean(result.continuationPending),
+        stats: result.stats,
+        totals: result.totals,
+        notifications
+      }
     });
     return json(response);
   } catch (cause) {
