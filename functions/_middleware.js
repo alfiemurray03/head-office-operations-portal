@@ -1,4 +1,16 @@
 import { json, securityHeaders } from "./_shared.js";
+import { portalWritePolicyResponse } from "./_runtime-policy.js";
+
+function governedStaffWrite(pathname, method) {
+  if (["GET", "HEAD", "OPTIONS"].includes(method)) return false;
+  if (!pathname.startsWith("/api/")) return false;
+  return ![
+    "/api/auth/",
+    "/api/webhooks/",
+    "/api/automation/",
+    "/api/platform/"
+  ].some(prefix => pathname.startsWith(prefix));
+}
 
 export const onRequest = async context => {
   const requestId = crypto.randomUUID();
@@ -6,6 +18,11 @@ export const onRequest = async context => {
   const pathname = new URL(context.request.url).pathname;
 
   try {
+    if (governedStaffWrite(pathname, context.request.method)) {
+      const policyResponse = await portalWritePolicyResponse(context.env, context.request);
+      if (policyResponse) return policyResponse;
+    }
+
     const response = await context.next();
 
     // The Microsoft endpoints issue and clear authentication cookies themselves.
