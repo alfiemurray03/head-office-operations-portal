@@ -4,6 +4,7 @@ let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
 let securityOperationsModulePromise = null;
 let stripeReconciliationModulePromise = null;
+let systemControlModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -108,6 +109,28 @@ function loadStripeReconciliationModule() {
   return stripeReconciliationModulePromise;
 }
 
+function loadSystemControlModule() {
+  if (systemControlModulePromise) return systemControlModulePromise;
+  systemControlModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-system-control]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/system-control.css?v=20260729-system-control-1';
+      style.dataset.systemControl = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-system-control]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/system-control.js?v=20260729-system-control-1';
+    script.async = false;
+    script.dataset.systemControl = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The System Test Centre and Settings workspace could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return systemControlModulePromise;
+}
+
 function ensureCustomerDirectoryNavigation() {
   if (document.querySelector('[data-route="customer-directory"]')) return;
   const connectedSystems = document.querySelector('[data-route="platforms"]');
@@ -117,6 +140,20 @@ function ensureCustomerDirectoryNavigation() {
   button.dataset.permission = 'platforms:read';
   button.textContent = 'Microsoft customer directory';
   connectedSystems?.parentElement?.insertBefore(button, connectedSystems);
+}
+
+function ensureSystemControlNavigation() {
+  if (document.querySelector('#mainNavigation [data-route="test-centre"]')) return;
+  const settings = document.querySelector('#mainNavigation [data-route="settings"]');
+  if (!settings?.parentElement) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nav-item';
+  button.dataset.route = 'test-centre';
+  button.dataset.permission = 'configuration:read';
+  button.textContent = 'System Test Centre';
+  settings.parentElement.insertBefore(button, settings);
+  settings.textContent = 'System Settings';
 }
 
 async function loadSession(authResult) {
@@ -173,14 +210,16 @@ async function boot() {
   showApp();
   setLoading('Opening automated Head Office services…');
   try {
-    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule()]);
+    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule(), loadSystemControlModule()]);
     ensureCustomerDirectoryNavigation();
+    ensureSystemControlNavigation();
     window.ensureDiditNavigation?.();
     state.reference = await loadReference();
     renderNavigation();
     await loadSecurityOperationsModule();
     await loadStripeReconciliationModule();
     window.ensureSecurityOperationsNavigation?.();
+    ensureSystemControlNavigation();
     renderNavigation();
     const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
     navigate(initialRoute, true);
