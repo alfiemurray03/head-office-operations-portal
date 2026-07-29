@@ -1,6 +1,7 @@
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 let customerDirectoryModulePromise = null;
 let customerAutomationModulePromise = null;
+let diditOperationsModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -44,6 +45,28 @@ function loadCustomerAutomationModule() {
     document.head.append(script);
   });
   return customerAutomationModulePromise;
+}
+
+function loadDiditOperationsModule() {
+  if (diditOperationsModulePromise) return diditOperationsModulePromise;
+  diditOperationsModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-didit-operations]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/didit-operations.css?v=20260729-didit-1';
+      style.dataset.diditOperations = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-didit-operations]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/didit-operations.js?v=20260729-didit-1';
+    script.async = false;
+    script.dataset.diditOperations = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The Didit Identity Verification Centre could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return diditOperationsModulePromise;
 }
 
 function ensureCustomerDirectoryNavigation() {
@@ -111,8 +134,9 @@ async function boot() {
   showApp();
   setLoading('Opening automated Head Office services…');
   try {
-    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule()]);
+    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule()]);
     ensureCustomerDirectoryNavigation();
+    window.ensureDiditNavigation?.();
     state.reference = await loadReference();
     renderNavigation();
     const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'control-room' : 'dashboard');
