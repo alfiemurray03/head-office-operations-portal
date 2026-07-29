@@ -12,7 +12,7 @@ async function runPortalJob(env, path, eventName) {
     headers: {
       Authorization: `Bearer ${secret}`,
       Accept: "application/json",
-      "User-Agent": "JA-Head-Office-Automation/2.0"
+      "User-Agent": "JA-Head-Office-Automation/3.0"
     }
   });
   const result = await response.json().catch(() => ({}));
@@ -23,8 +23,9 @@ async function runPortalJob(env, path, eventName) {
 
 async function runHeadOfficeAutomation(env) {
   const customerDirectory = await runPortalJob(env, "/api/automation/customer-directory/sync", "customer_directory_sync_completed");
+  const staffDirectory = await runPortalJob(env, "/api/automation/staff-directory/sync", "staff_directory_sync_completed");
   const stripe = await runPortalJob(env, "/api/automation/stripe/sync", "stripe_reconciliation_completed");
-  return { completedAt: new Date().toISOString(), customerDirectory, stripe };
+  return { completedAt: new Date().toISOString(), customerDirectory, staffDirectory, stripe };
 }
 
 export default {
@@ -37,9 +38,14 @@ export default {
     if (url.pathname === "/health") {
       return Response.json({
         status: "operational",
-        service: "Head Office customer and Stripe reconciliation automation",
+        service: "Head Office directory and Stripe reconciliation automation",
         schedule: "hourly",
-        jobs: ["JA Group Services ID customer directory", "Planyx Stripe", "Profile Centre Stripe"]
+        jobs: [
+          "JA Group Services ID customer directory",
+          "JA Group Services Microsoft staff tenant",
+          "Planyx Stripe",
+          "Profile Centre Stripe"
+        ]
       }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/run" && request.method === "POST") {
