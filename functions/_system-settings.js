@@ -2,6 +2,12 @@ const integer = (minimum, maximum) => value => Number.isInteger(Number(value)) &
 const boolean = value => typeof value === "boolean";
 const oneOf = values => value => values.includes(String(value || ""));
 const prefix = value => /^[A-Z0-9]{2,8}$/.test(String(value || "").toUpperCase());
+const timezone = value => {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: String(value || "") }).format(new Date());
+    return true;
+  } catch { return false; }
+};
 const readinessByDatabase = new WeakMap();
 
 export const SYSTEM_SETTING_DEFINITIONS = new Map([
@@ -24,9 +30,14 @@ export const SYSTEM_SETTING_DEFINITIONS = new Map([
   ["integrations.didit_enabled", { group: "integrations", defaultValue: true, validate: boolean, description: "Allows new Didit identity-verification requests." }],
   ["integrations.resend_enabled", { group: "integrations", defaultValue: true, validate: boolean, description: "Allows customer email delivery through Resend." }],
   ["integrations.connected_systems_enabled", { group: "integrations", defaultValue: true, validate: boolean, description: "Allows approved connected websites and services to exchange operational data with Head Office." }],
+  ["automation.scheduler_enabled", { group: "automation", defaultValue: true, validate: boolean, description: "Allows the governed Automation and Scheduling Centre to execute due schedules." }],
   ["automation.customer_directory_enabled", { group: "automation", defaultValue: true, validate: boolean, description: "Allows scheduled JA Group Services ID reconciliation." }],
   ["automation.staff_directory_enabled", { group: "automation", defaultValue: true, validate: boolean, description: "Allows scheduled staff tenant reconciliation." }],
   ["automation.stripe_reconciliation_enabled", { group: "automation", defaultValue: true, validate: boolean, description: "Allows scheduled Stripe reconciliation for enabled divisions." }],
+  ["automation.default_timezone", { group: "automation", defaultValue: "Europe/London", validate: timezone, description: "Default IANA time zone for newly created Head Office schedules." }],
+  ["automation.max_jobs_per_tick", { group: "automation", defaultValue: 3, validate: integer(1, 10), description: "Maximum due schedules processed during one scheduler cycle." }],
+  ["automation.default_retry_delay_minutes", { group: "automation", defaultValue: 15, validate: integer(1, 1440), description: "Default delay before a failed scheduled job is retried." }],
+  ["automation.run_retention_days", { group: "automation", defaultValue: 180, validate: integer(30, 730), description: "Number of days automation execution evidence is retained." }],
   ["tests.result_retention_days", { group: "tests", defaultValue: 90, validate: integer(7, 365), description: "Number of days service-test evidence is retained." }],
   ["tests.timeout_seconds", { group: "tests", defaultValue: 12, validate: integer(5, 30), description: "Maximum external provider wait time for an individual safe test." }]
 ]);
