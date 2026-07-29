@@ -1,6 +1,6 @@
 import { audit, cleanNullableText, cleanText, error, json, normaliseDate, readJson } from "../../_shared.js";
 import { findCase, findCustomer, recalculateCustomerSecurity, requirePermission } from "../../_operations.js";
-import { ensureMarkerReference } from "../../_security-control-plane.js";
+import { ensureMarkerReference, ensureSecurityControlPlane } from "../../_security-control-plane.js";
 
 const RISKS = new Set(["low", "moderate", "high", "critical"]);
 const VISIBILITIES = new Set(["head_office_only", "branch_instruction", "approved_branch_summary", "system_enforced"]);
@@ -11,6 +11,7 @@ export const onRequestPost = async context => {
   let body;
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
+  await ensureSecurityControlPlane(context.env);
   const customerReference = cleanText(body.customerNumber || body.customerId, 100);
   const caseReference = cleanNullableText(body.caseReference || body.caseId, 100);
   const markerType = cleanText(body.markerType, 80);
