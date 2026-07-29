@@ -50,8 +50,7 @@ CREATE TABLE IF NOT EXISTS platform_lockdowns (
   lifted_by TEXT,
   lifted_at TEXT,
   lift_reason TEXT,
-  review_at TEXT,
-  UNIQUE(platform_id, status)
+  review_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS platform_security_commands (
@@ -150,6 +149,7 @@ CREATE TABLE IF NOT EXISTS stripe_subscription_records (
 CREATE INDEX IF NOT EXISTS idx_marker_reference ON security_marker_references(marker_reference);
 CREATE INDEX IF NOT EXISTS idx_notification_status ON customer_notification_deliveries(status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_lockdown_platform ON platform_lockdowns(platform_id, status, initiated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lockdown_one_active ON platform_lockdowns(platform_id) WHERE status='active';
 CREATE INDEX IF NOT EXISTS idx_platform_security_commands ON platform_security_commands(platform_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_stripe_events_received ON stripe_webhook_events(received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_stripe_payments_customer ON stripe_payment_records(customer_id, occurred_at DESC);
