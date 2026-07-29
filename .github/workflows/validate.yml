@@ -78,6 +78,9 @@ jobs:
       - name: Validate Security Operations Centre
         run: node tests/security-operations-centre.test.mjs
 
+      - name: Validate Stripe reconciliation
+        run: node tests/stripe-reconciliation.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
@@ -106,6 +109,14 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_payment_records;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_order_records;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_subscription_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_customer_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_balance_transactions;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_refund_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_dispute_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_product_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_price_records;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_sync_checkpoints;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_division_sync_runs;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM customer_notification_deliveries;"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions WHERE marker_code LIKE 'SMC-%';")" = "7"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
