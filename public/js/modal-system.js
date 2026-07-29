@@ -3,9 +3,12 @@
    state must be reset every time content changes. */
 (() => {
   const PARITY_HREF = '/planyx-admin-parity.css?v=20260729-planyx-admin-parity-1';
+  const CUSTOMER_PICKER_STYLE_HREF = '/customer-picker.css?v=20260730-customer-picker-1';
+  const CUSTOMER_PICKER_SCRIPT_SRC = '/js/customer-picker.js?v=20260730-customer-picker-1';
   const originalOpenModal = openModal;
   const originalCloseModal = closeModal;
   let relinkQueued = false;
+  let customerPickerPromise = null;
 
   function ensureParityStyleLast() {
     let link = document.querySelector('link[data-planyx-admin-parity]');
@@ -19,6 +22,40 @@
     }
     if (link !== document.head.lastElementChild) document.head.append(link);
     return link;
+  }
+
+  function ensureCustomerPickerAssets() {
+    if (!document.querySelector('link[data-customer-picker-style]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = CUSTOMER_PICKER_STYLE_HREF;
+      style.dataset.customerPickerStyle = 'true';
+      document.head.append(style);
+    }
+    if (window.enhanceCustomerPickers) return Promise.resolve();
+    if (customerPickerPromise) return customerPickerPromise;
+    customerPickerPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-customer-picker-script]');
+      if (existing) {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', () => reject(new Error('The customer search control could not be loaded.')), { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = CUSTOMER_PICKER_SCRIPT_SRC;
+      script.async = false;
+      script.dataset.customerPickerScript = 'true';
+      script.addEventListener('load', resolve, { once: true });
+      script.addEventListener('error', () => reject(new Error('The customer search control could not be loaded.')), { once: true });
+      document.head.append(script);
+    });
+    return customerPickerPromise;
+  }
+
+  function enhanceCustomerReferences(root = document) {
+    ensureCustomerPickerAssets()
+      .then(() => window.enhanceCustomerPickers?.(root))
+      .catch(error => console.error(JSON.stringify({ event: 'customer_picker_load_failed', message: error.message })));
   }
 
   function ensureParityRuntimeStyle() {
@@ -143,9 +180,11 @@
     ensureParityRuntimeStyle();
     synchroniseTheme();
     enforceAutomaticDiditDelivery();
+    enhanceCustomerReferences(document.getElementById('modalContent') || document);
     resetModalPosition();
     requestAnimationFrame(() => {
       enforceAutomaticDiditDelivery();
+      enhanceCustomerReferences(document.getElementById('modalContent') || document);
       resetModalPosition();
       focusFirstUsefulControl();
       resetModalPosition();
@@ -163,6 +202,7 @@
   ensureParityRuntimeStyle();
   synchroniseTheme();
   enhanceFooter();
+  enhanceCustomerReferences(document);
 
   new MutationObserver(mutations => {
     const laterStylesheetAdded = mutations.some(mutation => [...mutation.addedNodes].some(node => (
