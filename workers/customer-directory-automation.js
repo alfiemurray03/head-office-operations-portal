@@ -1,33 +1,35 @@
-async function runCustomerDirectorySync(env) {
+function automationConfiguration(env) {
   const baseUrl = String(env.PORTAL_BASE_URL || "").replace(/\/+$/, "");
   const secret = String(env.AUTOMATION_SECRET || "").trim();
   if (!baseUrl || !secret) throw new Error("PORTAL_BASE_URL and AUTOMATION_SECRET must be configured.");
+  return { baseUrl, secret };
+}
 
-  const response = await fetch(`${baseUrl}/api/automation/customer-directory/sync`, {
+async function runPortalJob(env, path, eventName) {
+  const { baseUrl, secret } = automationConfiguration(env);
+  const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${secret}`,
       Accept: "application/json",
-      "User-Agent": "JA-Head-Office-Customer-Automation/1.0"
+      "User-Agent": "JA-Head-Office-Automation/2.0"
     }
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result.error?.message || `Head Office reconciliation returned HTTP ${response.status}.`);
-  }
-  console.log(JSON.stringify({
-    event: "customer_directory_sync_completed",
-    completedAt: result.completedAt,
-    runId: result.runId,
-    stats: result.stats,
-    totals: result.totals
-  }));
+  if (!response.ok) throw new Error(result.error?.message || `${eventName} returned HTTP ${response.status}.`);
+  console.log(JSON.stringify({ event: eventName, completedAt: result.completedAt, result }));
   return result;
+}
+
+async function runHeadOfficeAutomation(env) {
+  const customerDirectory = await runPortalJob(env, "/api/automation/customer-directory/sync", "customer_directory_sync_completed");
+  const stripe = await runPortalJob(env, "/api/automation/stripe/sync", "stripe_reconciliation_completed");
+  return { completedAt: new Date().toISOString(), customerDirectory, stripe };
 }
 
 export default {
   async scheduled(controller, env, context) {
-    context.waitUntil(runCustomerDirectorySync(env));
+    context.waitUntil(runHeadOfficeAutomation(env));
   },
 
   async fetch(request, env) {
@@ -35,8 +37,9 @@ export default {
     if (url.pathname === "/health") {
       return Response.json({
         status: "operational",
-        service: "Head Office customer directory automation",
-        schedule: "hourly"
+        service: "Head Office customer and Stripe reconciliation automation",
+        schedule: "hourly",
+        jobs: ["JA Group Services ID customer directory", "Planyx Stripe", "Profile Centre Stripe"]
       }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/run" && request.method === "POST") {
@@ -45,7 +48,7 @@ export default {
         return Response.json({ error: "Unauthorised" }, { status: 401 });
       }
       try {
-        return Response.json(await runCustomerDirectorySync(env));
+        return Response.json(await runHeadOfficeAutomation(env));
       } catch (error) {
         return Response.json({ error: error instanceof Error ? error.message : "Automation failed" }, { status: 502 });
       }
