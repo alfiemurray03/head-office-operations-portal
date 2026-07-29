@@ -36,11 +36,29 @@ async function renderPlatforms() {
   $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">Integration control centre</p><h1>Divisions & integrations</h1><p>Registered operational platforms and their scoped connector credentials.</p></div>${hasPermission('platforms:write') ? '<button class="button primary" data-action="register-platform">＋ Register platform</button>' : ''}</div><div class="notice"><span>🔑</span><div><strong>Credential security</strong><br>Connector keys are displayed once. Head Office stores only a one-way hash and the approved scopes.</div></div><section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Platform</th><th>Status</th><th>Active keys</th><th>Last API activity</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
+let staffDirectoryModulePromise;
 async function renderStaff() {
-  const data = await api('/api/administration');
-  const rows = data.staff.length ? data.staff.map(staff => `<tr><td><div class="primary-cell"><div class="mini-avatar">${initials(staff.display_name)}</div><div><strong>${escapeHtml(staff.display_name)}</strong><small>${escapeHtml(staff.email)}</small></div></div></td><td>${escapeHtml(label(staff.authentication_source))}</td><td>${escapeHtml((staff.role_codes || 'No role assigned').split(',').map(label).join(', '))}</td><td>${tag(staff.status)}</td><td>${formatDate(staff.created_at)}</td><td>${hasPermission('administration:write') ? `<button class="button secondary small" data-action="edit-roles" data-id="${staff.id}">Edit roles</button>` : ''}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No staff records', 'Microsoft-authenticated staff will appear here.')}</td></tr>`;
-  const roleCards = data.roles.map(role => `<article class="panel"><div class="panel-body"><p class="eyebrow">${escapeHtml(role.code)}</p><h3>${escapeHtml(role.name)}</h3><p class="help-text">${escapeHtml(role.description)}</p></div></article>`).join('');
-  $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">System administration</p><h1>Staff & access</h1><p>Microsoft-authenticated staff identities and Head Office role assignments.</p></div></div><section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Staff member</th><th>Authentication</th><th>Assigned roles</th><th>Status</th><th>Added</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section><h2 style="margin-top:22px">Role catalogue</h2><div class="split-grid">${roleCards}</div>`;
+  if (!window.renderStaffDirectory) {
+    if (!staffDirectoryModulePromise) {
+      staffDirectoryModulePromise = new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-staff-directory]');
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', () => reject(new Error('The Staff Directory module could not be loaded.')), { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = '/js/staff-directory.js?v=20260729-staff-directory-1';
+        script.async = false;
+        script.dataset.staffDirectory = 'true';
+        script.addEventListener('load', resolve, { once: true });
+        script.addEventListener('error', () => reject(new Error('The Staff Directory module could not be loaded.')), { once: true });
+        document.head.append(script);
+      });
+    }
+    await staffDirectoryModulePromise;
+  }
+  return window.renderStaffDirectory();
 }
 
 async function renderAudit() {
