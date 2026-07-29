@@ -1,4 +1,5 @@
 import { cleanText, validEmail } from "./_shared.js";
+import { systemServiceEnabled } from "./_runtime-policy.js";
 
 const WELCOME_TYPE = "identity.welcome_ucn";
 
@@ -78,7 +79,11 @@ async function sendWithResend(env, customer) {
 export async function dispatchPendingCustomerWelcomeNotifications(env, limit = 50) {
   await ensureCustomerNotificationSchema(env);
   const configured = resendCustomerNotificationsConfigured(env);
-  if (!configured) return { configured: false, attempted: 0, sent: 0, failed: 0, suppressed: 0 };
+  const resendEnabled = await systemServiceEnabled(env, "integrations.resend_enabled", true);
+  const welcomeEnabled = await systemServiceEnabled(env, "notifications.customer_welcome_enabled", true);
+  if (!configured || !resendEnabled || !welcomeEnabled) {
+    return { configured, enabled: resendEnabled && welcomeEnabled, attempted: 0, sent: 0, failed: 0, suppressed: 0 };
+  }
 
   const rows = await env.DB.prepare(`SELECT DISTINCT c.id,c.customer_number,c.display_name,c.verified_email,c.account_status
     FROM customers c
@@ -89,7 +94,7 @@ export async function dispatchPendingCustomerWelcomeNotifications(env, limit = 5
       AND (n.id IS NULL OR n.status='failed')
     ORDER BY c.created_at ASC LIMIT ?`).bind(WELCOME_TYPE, Math.max(1, Math.min(Number(limit) || 50, 100))).all();
 
-  const summary = { configured: true, attempted: 0, sent: 0, failed: 0, suppressed: 0 };
+  const summary = { configured: true, enabled: true, attempted: 0, sent: 0, failed: 0, suppressed: 0 };
   for (const customer of rows.results || []) {
     if (!validEmail(customer.verified_email)) {
       await recordAttempt(env, customer, "suppressed", null, "The customer record does not contain a valid email address.");
@@ -115,5 +120,7 @@ export async function customerNotificationStatus(env) {
     WHERE notification_type=? GROUP BY status`).bind(WELCOME_TYPE).all();
   const result = { pending: 0, sent: 0, failed: 0, suppressed: 0 };
   for (const row of counts.results || []) result[row.status] = Number(row.count || 0);
-  return { configured: resendCustomerNotificationsConfigured(env), notificationType: WELCOME_TYPE, counts: result };
+  const resendEnabled = await systemServiceEnabled(env, "integrations.resend_enabled", true);
+  const welcomeEnabled = await systemServiceEnabled(env, "notifications.customer_welcome_enabled", true);
+  return { configured: resendCustomerNotificationsConfigured(env), enabled: resendEnabled && welcomeEnabled, notificationType: WELCOME_TYPE, counts: result };
 }
