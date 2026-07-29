@@ -8,10 +8,12 @@ import {
   normaliseStaffDirectoryInput,
   staffDirectoryAuditReference
 } from "../_staff-directory.js";
+import { ensureStaffTenantDirectorySchema, staffTenantDirectoryStatus } from "../_staff-entra-sync.js";
 
 async function prepareStaffDirectory(context) {
   try {
     await ensureStaffDirectoryReady(context.env);
+    await ensureStaffTenantDirectorySchema(context.env);
     return null;
   } catch (cause) {
     console.error(JSON.stringify({
@@ -27,15 +29,22 @@ async function prepareStaffDirectory(context) {
   }
 }
 
+const DIRECTORY_COLUMNS = `d.object_id entra_object_id,d.display_name directory_display_name,d.mail directory_mail,
+  d.user_principal_name,d.user_type,d.account_enabled,d.directory_status,d.employee_id,
+  d.employee_type directory_employee_type,d.job_title directory_job_title,d.department directory_department,
+  d.company_name directory_company_name,d.last_synced_at directory_last_synced_at,d.profile_created_by_sync`;
+
 async function staffProfile(env, id) {
   return env.DB.prepare(`SELECT p.*,u.code organisation_unit_code,u.name organisation_unit_name,
     s.id portal_staff_id,s.external_identity_id,s.authentication_source,s.status portal_identity_status,
     COALESCE((SELECT group_concat(role_code, ',') FROM staff_role_assignments WHERE staff_id=s.id),'') role_codes,
     CASE WHEN s.id IS NOT NULL AND s.status='active' AND EXISTS
-      (SELECT 1 FROM staff_role_assignments ra WHERE ra.staff_id=s.id) THEN 1 ELSE 0 END portal_access_available
+      (SELECT 1 FROM staff_role_assignments ra WHERE ra.staff_id=s.id) THEN 1 ELSE 0 END portal_access_available,
+    ${DIRECTORY_COLUMNS}
     FROM staff_directory_profiles p
     LEFT JOIN staff_members s ON s.id=p.linked_staff_member_id
     LEFT JOIN organisation_units u ON u.id=p.organisation_unit_id
+    LEFT JOIN staff_directory_identities d ON d.staff_profile_id=p.id
     WHERE p.id=?`).bind(id).first();
 }
 
@@ -49,6 +58,8 @@ export const onRequestGet = async context => {
   if (auth.response) return auth.response;
   const unavailable = await prepareStaffDirectory(context);
   if (unavailable) return unavailable;
+
+  const directoryConnector = await staffTenantDirectoryStatus(context.env);
   const url = new URL(context.request.url);
   const q = cleanText(url.searchParams.get("q"), 160);
   const status = cleanText(url.searchParams.get("status"), 40).toLowerCase();
@@ -57,9 +68,10 @@ export const onRequestGet = async context => {
   const values = [];
   if (q) {
     conditions.push(`(lower(p.display_name) LIKE lower(?) OR lower(p.email) LIKE lower(?) OR lower(p.staff_number) LIKE lower(?)
-      OR lower(COALESCE(p.job_title,'')) LIKE lower(?) OR lower(COALESCE(p.department,'')) LIKE lower(?))`);
+      OR lower(COALESCE(p.job_title,'')) LIKE lower(?) OR lower(COALESCE(p.department,'')) LIKE lower(?)
+      OR lower(COALESCE(d.user_principal_name,'')) LIKE lower(?) OR lower(COALESCE(d.object_id,'')) LIKE lower(?))`);
     const like = `%${q}%`;
-    values.push(like, like, like, like, like);
+    values.push(like, like, like, like, like, like, like);
   }
   if (status) { conditions.push("p.status=?"); values.push(status); }
   if (division) { conditions.push("p.division_code=?"); values.push(division); }
@@ -73,18 +85,23 @@ export const onRequestGet = async context => {
       COALESCE((SELECT group_concat(role_code, ',') FROM staff_role_assignments WHERE staff_id=s.id),'') role_codes,
       CASE WHEN s.id IS NOT NULL AND s.status='active' AND EXISTS
         (SELECT 1 FROM staff_role_assignments ra WHERE ra.staff_id=s.id) THEN 1 ELSE 0 END portal_access_available,
-      (SELECT COUNT(*) FROM staff_manual_reviews mr WHERE mr.staff_profile_id=p.id AND mr.status IN ('open','in_review')) open_review_count
+      (SELECT COUNT(*) FROM staff_manual_reviews mr WHERE mr.staff_profile_id=p.id AND mr.status IN ('open','in_review')) open_review_count,
+      ${DIRECTORY_COLUMNS}
       FROM staff_directory_profiles p
       LEFT JOIN staff_members s ON s.id=p.linked_staff_member_id
       LEFT JOIN organisation_units u ON u.id=p.organisation_unit_id
+      LEFT JOIN staff_directory_identities d ON d.staff_profile_id=p.id
       ${where}
       ORDER BY CASE p.status WHEN 'active' THEN 1 WHEN 'suspended' THEN 2 WHEN 'left' THEN 3 ELSE 4 END,p.display_name LIMIT 500`).bind(...values),
     context.env.DB.prepare(`SELECT COUNT(*) total,
-      SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) active,
-      SUM(CASE WHEN linked_staff_member_id IS NOT NULL THEN 1 ELSE 0 END) portal_linked,
-      SUM(CASE WHEN employment_type='director' AND status='active' THEN 1 ELSE 0 END) directors,
-      SUM(CASE WHEN status IN ('left','archived') THEN 1 ELSE 0 END) former
-      FROM staff_directory_profiles`),
+      SUM(CASE WHEN p.status='active' THEN 1 ELSE 0 END) active,
+      SUM(CASE WHEN p.linked_staff_member_id IS NOT NULL THEN 1 ELSE 0 END) portal_linked,
+      SUM(CASE WHEN p.employment_type='director' AND p.status='active' THEN 1 ELSE 0 END) directors,
+      SUM(CASE WHEN p.status IN ('left','archived') THEN 1 ELSE 0 END) former,
+      SUM(CASE WHEN d.id IS NOT NULL THEN 1 ELSE 0 END) tenant_linked,
+      SUM(CASE WHEN d.directory_status='guest' THEN 1 ELSE 0 END) guest_accounts,
+      SUM(CASE WHEN d.directory_status IN ('disabled','deleted') THEN 1 ELSE 0 END) inactive_directory_accounts
+      FROM staff_directory_profiles p LEFT JOIN staff_directory_identities d ON d.staff_profile_id=p.id`),
     context.env.DB.prepare(`SELECT r.*,p.staff_number,p.display_name,p.email
       FROM staff_manual_reviews r JOIN staff_directory_profiles p ON p.id=r.staff_profile_id
       ORDER BY CASE r.status WHEN 'open' THEN 1 WHEN 'in_review' THEN 2 ELSE 3 END,r.opened_at DESC LIMIT 100`),
@@ -95,6 +112,7 @@ export const onRequestGet = async context => {
       FROM staff_members s LEFT JOIN staff_directory_profiles p ON p.linked_staff_member_id=s.id
       WHERE p.id IS NULL ORDER BY s.display_name`)
   ]);
+
   return json({
     staff: staff.results,
     metrics: metrics.results[0] || {},
@@ -102,12 +120,14 @@ export const onRequestGet = async context => {
     roles: roles.results,
     units: units.results,
     unlinkedPortalIdentities: unlinkedPortalIdentities.results,
+    directoryConnector,
     separationPolicy: {
       customerRecordIndependent: true,
       matchingCustomerEmailAllowed: true,
       automaticCustomerLinking: false,
       automaticChecks: false,
-      staffNumberSeparateFromUcn: true
+      staffNumberSeparateFromUcn: true,
+      directoryMembershipGrantsPortalAccess: false
     }
   });
 };
@@ -165,13 +185,17 @@ export const onRequestPut = async context => {
     if (!await validUnit(context.env, input.organisationUnitId)) return error("INVALID_ORGANISATION_UNIT", "Select an active organisation unit.", 400);
     const duplicate = await context.env.DB.prepare("SELECT id FROM staff_directory_profiles WHERE lower(email)=lower(?) AND id<>?").bind(input.email, staff.id).first();
     if (duplicate) return error("STAFF_DIRECTORY_EMAIL_EXISTS", "That email already belongs to another Staff Directory profile.", 409);
-    await context.env.DB.prepare(`UPDATE staff_directory_profiles SET display_name=?,email=?,job_title=?,employment_type=?,organisation_unit_id=?,division_code=?,
-      department=?,telephone=?,internal_extension=?,start_date=?,end_date=?,directory_notes=?,status=?,updated_at=? WHERE id=?`)
-      .bind(input.displayName, input.email, input.jobTitle, input.employmentType, input.organisationUnitId, input.divisionCode,
-        input.department, input.telephone, input.internalExtension, input.startDate, input.endDate, input.notes, input.status, now, staff.id).run();
+    await context.env.DB.batch([
+      context.env.DB.prepare(`UPDATE staff_directory_profiles SET display_name=?,email=?,job_title=?,employment_type=?,organisation_unit_id=?,division_code=?,
+        department=?,telephone=?,internal_extension=?,start_date=?,end_date=?,directory_notes=?,status=?,updated_at=? WHERE id=?`)
+        .bind(input.displayName, input.email, input.jobTitle, input.employmentType, input.organisationUnitId, input.divisionCode,
+          input.department, input.telephone, input.internalExtension, input.startDate, input.endDate, input.notes, input.status, now, staff.id),
+      context.env.DB.prepare("UPDATE staff_directory_identities SET profile_created_by_sync=0,updated_at=? WHERE staff_profile_id=?")
+        .bind(now, staff.id)
+    ]);
     await audit(context.env, auth.session, "staff.directory_profile_updated", "staff_directory_profile", staff.id, {
       label: "Staff Directory profile updated", reference: staffDirectoryAuditReference(staff), requestId: context.data.requestId,
-      before: staff, after: { ...input, customerRecordIndependent: true }
+      before: staff, after: { ...input, customerRecordIndependent: true, operationalProfileManuallyManaged: true }
     });
     return json({ updated: true, staff: await staffProfile(context.env, staff.id) });
   }
