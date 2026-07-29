@@ -18,6 +18,8 @@ assert.match(api, /matchingCustomerEmailAllowed: true/);
 assert.match(api, /automaticCustomerLinking: false/);
 assert.match(api, /automaticChecks: false/);
 assert.match(api, /staffNumberSeparateFromUcn: true/);
+assert.match(api, /prepareStaffDirectory/);
+assert.match(api, /ensureStaffDirectoryReady/);
 assert.doesNotMatch(api, /FROM customers|JOIN customers|UPDATE customers|INSERT INTO customers/i,
   'The Staff Directory API must never read, write, merge or validate against customer records.');
 assert.match(api, /action === "open_review"/);
@@ -25,6 +27,11 @@ assert.match(api, /automatic: false/);
 
 assert.match(helper, /STF-\$\{String/);
 assert.match(helper, /ensureStaffDirectoryProfiles/);
+assert.match(helper, /ensureStaffDirectoryReady/);
+assert.match(helper, /initialiseStaffDirectorySchema/);
+assert.match(helper, /CREATE TABLE IF NOT EXISTS staff_directory_profiles/);
+assert.match(helper, /CREATE TABLE IF NOT EXISTS staff_manual_reviews/);
+assert.match(helper, /CREATE TABLE IF NOT EXISTS staff_number_sequences/);
 assert.doesNotMatch(helper, /customers/i, 'Staff helper code must not depend on the customer register.');
 
 assert.match(ui, /Staff is staff\. Customer is customer\./);
@@ -33,4 +40,4 @@ assert.match(ui, /No automatic checks are created/i);
 assert.match(ui, /Manual staff assurance reviews/);
 assert.match(loader, /staff-directory\.js/);
 
-console.log('Staff Directory separation checks passed.');
+console.log('Staff Directory separation and runtime readiness checks passed.');
