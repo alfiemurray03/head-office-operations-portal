@@ -40,7 +40,7 @@ async function recordAttempt(env, customer, status, messageId, errorMessage) {
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO customer_notification_deliveries
     (id,customer_id,notification_type,provider,recipient_email,provider_message_id,status,attempt_count,last_error,created_at,updated_at,sent_at)
-    VALUES (?,?,?,'resend',?,?,?,?,1,?,?,?,?)
+    VALUES (?,?,?,'resend',?,?,?,1,?,?,?,?)
     ON CONFLICT(customer_id,notification_type) DO UPDATE SET
       recipient_email=excluded.recipient_email,provider_message_id=excluded.provider_message_id,
       status=excluded.status,attempt_count=customer_notification_deliveries.attempt_count+1,
