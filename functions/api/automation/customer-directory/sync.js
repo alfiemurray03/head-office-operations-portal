@@ -14,7 +14,13 @@ async function systemAudit(env, result, requestId) {
     VALUES (?,?,'system','customer-directory-automation','Customer directory automation','customer_directory.automatic_sync',
       'Automatic Microsoft customer reconciliation','customer_directory_connector',?,?,?, ?,?)`)
     .bind(crypto.randomUUID(), now, CUSTOMER_DIRECTORY_CONNECTOR_ID, "JA Group Services ID", requestId || null,
-      JSON.stringify({ mode: result.mode, stats: result.stats, totals: result.totals }),
+      JSON.stringify({
+        mode: result.mode,
+        partial: Boolean(result.partial),
+        continuationPending: Boolean(result.continuationPending),
+        stats: result.stats,
+        totals: result.totals
+      }),
       JSON.stringify({ runId: result.runId })).run();
 }
 
@@ -26,9 +32,8 @@ export const onRequestPost = async context => {
   }
 
   try {
-    // External ID external tenants do not support Microsoft Graph change notifications.
-    // A full reconciliation is idempotent and is therefore the safe unattended process.
-    const result = await syncCustomerDirectory(context.env, "full", "system:customer-directory-automation");
+    // Continue any stored initial/full cursor first. Once complete, use the saved Microsoft delta link.
+    const result = await syncCustomerDirectory(context.env, "delta", "system:customer-directory-automation");
     await systemAudit(context.env, result, context.data.requestId);
     return json({ ok: true, completedAt: new Date().toISOString(), ...result });
   } catch (cause) {
