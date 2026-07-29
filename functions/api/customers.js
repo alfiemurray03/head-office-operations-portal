@@ -17,14 +17,19 @@ export const onRequestGet = async context => {
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 200);
   const search = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
   const result = await context.env.DB.prepare(`SELECT c.id,c.customer_number,c.display_name,c.verified_email,
-      c.account_status,c.security_status,c.last_activity_at,c.created_at,COUNT(a.id) platform_count,
+      c.account_status,c.security_status,c.last_activity_at,c.created_at,
+      (SELECT cp.contact_value FROM customer_contact_points cp
+        WHERE cp.customer_id=c.id AND cp.contact_type='mobile'
+        ORDER BY cp.is_primary DESC,cp.updated_at DESC LIMIT 1) mobile,
+      COUNT(a.id) platform_count,
       (SELECT COUNT(*) FROM cases x WHERE x.customer_id=c.id AND x.status NOT IN ('closed','cancelled')) open_case_count
     FROM customers c LEFT JOIN customer_platform_accounts a ON a.customer_id=c.id
     WHERE (?='' OR c.display_name LIKE ? ESCAPE '\\' OR c.verified_email LIKE ? ESCAPE '\\'
-      OR c.customer_number LIKE ? ESCAPE '\\' OR COALESCE(c.external_identity_id,'') LIKE ? ESCAPE '\\')
+      OR c.customer_number LIKE ? ESCAPE '\\' OR COALESCE(c.external_identity_id,'') LIKE ? ESCAPE '\\'
+      OR EXISTS (SELECT 1 FROM customer_contact_points cp WHERE cp.customer_id=c.id AND cp.contact_value LIKE ? ESCAPE '\\'))
       AND (?='' OR c.account_status=?) AND (?='' OR c.security_status=?)
     GROUP BY c.id ORDER BY COALESCE(c.last_activity_at,c.created_at) DESC LIMIT ?`)
-    .bind(query, search, search, search, search, accountStatus, accountStatus, securityStatus, securityStatus, limit).all();
+    .bind(query, search, search, search, search, search, accountStatus, accountStatus, securityStatus, securityStatus, limit).all();
   return json({
     customers: result.results.map(customer => ({
       ...customer,
