@@ -16,12 +16,21 @@
 
     setText(document.querySelector('#mainNavigation [data-route="central-operations"]'), 'Customer operations centre');
     setText(document.querySelector('#mainNavigation [data-route="customer-protection"]'), 'Customer protection operations');
-    setText(document.querySelector('.tools-drawer-heading strong'), 'Head Office Operations Centre');
-    setText(document.querySelector('.tools-drawer-heading span'), 'Customer operations, security, incidents and assurance');
+    setText(document.querySelector('.tools-drawer-heading strong'), 'All Head Office functions');
+    setText(document.querySelector('.tools-drawer-heading span'), 'Complete authorised page index');
+
+    const menuButton = document.querySelector('#menuButton');
+    if (menuButton) {
+      menuButton.hidden = false;
+      menuButton.removeAttribute('hidden');
+      menuButton.setAttribute('aria-label', 'Open all admin tools');
+      menuButton.setAttribute('title', 'All admin tools');
+      setText(menuButton.querySelector('span'), 'All admin tools');
+    }
 
     const sidebar = document.querySelector('#sidebar');
-    if (sidebar?.getAttribute('aria-label') !== 'Head Office Operations Centre navigation') {
-      sidebar?.setAttribute('aria-label', 'Head Office Operations Centre navigation');
+    if (sidebar?.getAttribute('aria-label') !== 'All Head Office functions') {
+      sidebar?.setAttribute('aria-label', 'All Head Office functions');
     }
   }
 
