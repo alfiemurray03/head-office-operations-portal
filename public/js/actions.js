@@ -68,7 +68,15 @@ async function handleForm(form) {
       if (action === 'restriction-lift') {
         const result = await api(`/api/security/restrictions/${id}`, { method: 'PUT', body: JSON.stringify({ action: 'lift' }) });
         const identity = result.enforcement?.microsoft?.status === 'enforced' ? ' JA Group Services ID access was restored.' : '';
-        toast('Restriction lifted', `Connected websites were instructed to refresh access.${identity}`);
+        if (result.access?.accessRestored) {
+          toast('Restriction lifted — access restored', `Connected websites now return an allow decision.${identity}`);
+        } else {
+          const blocked = (result.access?.decisions || []).filter(item => item.decision !== 'allow');
+          const controls = result.access?.remainingRestrictions || [];
+          const services = blocked.map(item => `${item.platformName || item.platformCode}: ${label(item.decision)}`).join(' · ');
+          const remaining = controls.length === 1 ? '1 active restriction remains.' : `${controls.length} active restrictions remain.`;
+          toast('Restriction lifted — customer still blocked', `${remaining}${services ? ` ${services}` : ''}`, 'error');
+        }
       }
       if (action.startsWith('approval-')) await api(`/api/approvals/${id}`, { method: 'PUT', body: JSON.stringify({ decision: action.slice(9), reason: data.value }) });
       closeModal();
