@@ -3,6 +3,7 @@ let customerDirectoryModulePromise = null;
 let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
 let securityOperationsModulePromise = null;
+let stripeReconciliationModulePromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -85,6 +86,28 @@ function loadSecurityOperationsModule() {
   return securityOperationsModulePromise;
 }
 
+function loadStripeReconciliationModule() {
+  if (stripeReconciliationModulePromise) return stripeReconciliationModulePromise;
+  stripeReconciliationModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-stripe-reconciliation]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/stripe-reconciliation.css?v=20260729-stripe-data-1';
+      style.dataset.stripeReconciliation = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-stripe-reconciliation]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/stripe-reconciliation.js?v=20260729-stripe-data-1';
+    script.async = false;
+    script.dataset.stripeReconciliation = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The Stripe reconciliation workspace could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return stripeReconciliationModulePromise;
+}
+
 function ensureCustomerDirectoryNavigation() {
   if (document.querySelector('[data-route="customer-directory"]')) return;
   const connectedSystems = document.querySelector('[data-route="platforms"]');
@@ -156,6 +179,7 @@ async function boot() {
     state.reference = await loadReference();
     renderNavigation();
     await loadSecurityOperationsModule();
+    await loadStripeReconciliationModule();
     window.ensureSecurityOperationsNavigation?.();
     renderNavigation();
     const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
