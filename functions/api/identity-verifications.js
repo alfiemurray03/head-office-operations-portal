@@ -1,5 +1,6 @@
 import { cleanText, error, json, readJson } from "../_shared.js";
 import { requirePermission } from "../_operations.js";
+import { assertSystemServiceEnabled } from "../_runtime-policy.js";
 import {
   createIdentityVerification,
   diditConfiguration,
@@ -47,6 +48,8 @@ export const onRequestPost = async context => {
       return json({ candidates, configuration: diditConfiguration(context.env) });
     }
 
+    await assertSystemServiceEnabled(context.env, "integrations.didit_enabled", "Didit identity verification");
+
     if (action === "random_commit") {
       const customerIds = listValue(body.customerIds, 25);
       if (!customerIds.length) return error("RANDOM_SELECTION_EMPTY", "Select at least one customer before starting random verification requests.");
@@ -87,6 +90,6 @@ export const onRequestPost = async context => {
     });
     return json(result, 201);
   } catch (cause) {
-    return error(cause.code || "IDENTITY_VERIFICATION_START_FAILED", cause.message || "The identity-verification request could not be started.", cause.status || 500);
+    return error(cause.code || "IDENTITY_VERIFICATION_START_FAILED", cause.message || "The identity-verification request could not be started.", cause.status || 500, cause.details);
   }
 };
