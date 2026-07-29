@@ -5,6 +5,8 @@ export const STAFF_STATUSES = new Set(["active", "suspended", "left", "archived"
 export const STAFF_REVIEW_TYPES = new Set(["identity", "security", "safeguarding", "conduct", "right_to_work", "other"]);
 export const STAFF_REVIEW_STATUSES = new Set(["open", "in_review", "completed", "cancelled"]);
 
+let staffDirectoryReadyPromise = null;
+
 export function normaliseStaffEmail(value) {
   const email = cleanText(value, 254).toLowerCase();
   return validEmail(email) ? email : "";
@@ -36,6 +38,64 @@ export function normaliseStaffDirectoryInput(input = {}) {
   };
 }
 
+async function initialiseStaffDirectorySchema(env) {
+  if (!env?.DB) throw Object.assign(new Error("The Head Office database is not connected."), { code: "STAFF_DIRECTORY_DATABASE_MISSING", status: 503 });
+
+  await env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS staff_directory_profiles (
+      id TEXT PRIMARY KEY,
+      staff_number TEXT NOT NULL UNIQUE,
+      linked_staff_member_id TEXT UNIQUE REFERENCES staff_members(id),
+      display_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      job_title TEXT,
+      employment_type TEXT NOT NULL DEFAULT 'employee'
+        CHECK (employment_type IN ('director','employee','contractor','agency','volunteer','other')),
+      organisation_unit_id TEXT REFERENCES organisation_units(id),
+      division_code TEXT,
+      department TEXT,
+      telephone TEXT,
+      internal_extension TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      directory_notes TEXT,
+      status TEXT NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active','suspended','left','archived')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS staff_number_sequences (
+      sequence_key TEXT PRIMARY KEY,
+      next_value INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS staff_manual_reviews (
+      id TEXT PRIMARY KEY,
+      staff_profile_id TEXT NOT NULL REFERENCES staff_directory_profiles(id),
+      review_type TEXT NOT NULL
+        CHECK (review_type IN ('identity','security','safeguarding','conduct','right_to_work','other')),
+      status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open','in_review','completed','cancelled')),
+      reason TEXT NOT NULL,
+      outcome TEXT,
+      opened_by TEXT NOT NULL,
+      opened_at TEXT NOT NULL,
+      closed_by TEXT,
+      closed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_staff_directory_profiles_lookup ON staff_directory_profiles(status,division_code,department,display_name)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_staff_directory_profiles_email ON staff_directory_profiles(email)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_staff_manual_reviews_queue ON staff_manual_reviews(status,review_type,opened_at DESC)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_staff_manual_reviews_profile ON staff_manual_reviews(staff_profile_id,opened_at DESC)")
+  ]);
+
+  await env.DB.prepare(`INSERT OR IGNORE INTO staff_number_sequences(sequence_key,next_value,updated_at)
+    SELECT 'staff',COALESCE(MAX(CAST(substr(staff_number,5) AS INTEGER)),0)+1,?
+    FROM staff_directory_profiles`).bind(new Date().toISOString()).run();
+}
+
 export async function allocateStaffNumber(env) {
   const now = new Date().toISOString();
   const row = await env.DB.prepare(`INSERT INTO staff_number_sequences(sequence_key,next_value,updated_at)
@@ -59,6 +119,17 @@ export async function ensureStaffDirectoryProfiles(env) {
         staff.status === "active" ? "active" : "suspended", staff.created_at, staff.updated_at).run();
   }
   return missing.results.length;
+}
+
+export async function ensureStaffDirectoryReady(env) {
+  if (!staffDirectoryReadyPromise) {
+    staffDirectoryReadyPromise = initialiseStaffDirectorySchema(env).catch(cause => {
+      staffDirectoryReadyPromise = null;
+      throw cause;
+    });
+  }
+  await staffDirectoryReadyPromise;
+  return ensureStaffDirectoryProfiles(env);
 }
 
 export function staffDirectoryAuditReference(staff) {
