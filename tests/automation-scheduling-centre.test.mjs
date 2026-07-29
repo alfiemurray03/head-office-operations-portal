@@ -38,7 +38,8 @@ for (const code of [
 
 assert.doesNotMatch(scheduler, /lockdown.*job|job.*lockdown/i, 'Critical lockdown must never become a schedulable job.');
 assert.doesNotMatch(scheduler, /arbitrary.*url|eval\s*\(|new Function/i, 'The scheduler must not execute arbitrary URLs or code.');
-assert.match(api, /requirePermission\(context, "configuration:write"\)/, 'Schedule changes must require configuration write authority.');
+assert.match(api, /requirePermission\(context, permission\)/, 'The shared automation authorisation helper must enforce portal permissions.');
+assert.match(api, /authorised\(context, "configuration:write"\)/, 'Every schedule-changing handler must request configuration write authority.');
 assert.match(api, /automation\.schedule_created/, 'Schedule creation must be audited.');
 assert.match(tick, /AUTOMATION_SECRET/, 'Scheduler cycles must require the automation credential.');
 assert.match(worker, /\/api\/automation\/scheduler\/tick/, 'The Worker must execute the governed scheduler tick endpoint.');
