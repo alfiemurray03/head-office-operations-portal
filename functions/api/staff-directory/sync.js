@@ -1,5 +1,6 @@
 import { audit, error, json, readJson } from "../../_shared.js";
 import { requirePermission } from "../../_operations.js";
+import { assertSystemServiceEnabled } from "../../_runtime-policy.js";
 import { STAFF_DIRECTORY_CONNECTOR_ID, syncStaffTenantDirectory } from "../../_staff-entra-sync.js";
 
 export const onRequestPost = async context => {
@@ -12,6 +13,7 @@ export const onRequestPost = async context => {
 
   const mode = body.mode === "full" ? "full" : "delta";
   try {
+    await assertSystemServiceEnabled(context.env, "integrations.staff_directory_enabled", "Staff tenant directory synchronisation");
     const result = await syncStaffTenantDirectory(context.env, mode, auth.session.sub);
     await audit(context.env, auth.session, "staff.directory_tenant_sync", "staff_directory_connector", STAFF_DIRECTORY_CONNECTOR_ID, {
       label: result.partial ? "Microsoft staff tenant sync batch completed" : "Microsoft staff tenant sync completed",
