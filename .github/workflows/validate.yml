@@ -72,6 +72,9 @@ jobs:
       - name: Validate Didit webhook security
         run: node tests/didit-webhook.test.mjs
 
+      - name: Validate Didit operations centre
+        run: node tests/didit-operations.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
