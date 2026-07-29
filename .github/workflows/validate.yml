@@ -54,6 +54,9 @@ jobs:
       - name: Parse browser JavaScript
         run: find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
+      - name: Parse Cloudflare Functions
+        run: find functions -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
       - name: Validate customer record workspace
         run: node tests/customer-record-workspace.test.mjs
 
@@ -62,6 +65,9 @@ jobs:
 
       - name: Validate central customer platform
         run: node tests/central-customer-platform.test.mjs
+
+      - name: Validate Didit webhook security
+        run: node tests/didit-webhook.test.mjs
 
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
@@ -81,5 +87,7 @@ jobs:
           done
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM detection_rules;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platform_operational_profiles;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM identity_verification_sessions;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM identity_verification_webhook_events;"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
           sqlite3 /tmp/head-office-central.db "PRAGMA foreign_key_check;"
