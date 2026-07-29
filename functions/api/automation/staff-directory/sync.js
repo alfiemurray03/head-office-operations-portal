@@ -1,4 +1,5 @@
 import { error, json, safeEqual } from "../../../_shared.js";
+import { assertSystemServiceEnabled } from "../../../_runtime-policy.js";
 import { STAFF_DIRECTORY_CONNECTOR_ID, syncStaffTenantDirectory } from "../../../_staff-entra-sync.js";
 
 function bearerToken(request) {
@@ -33,6 +34,8 @@ export const onRequestPost = async context => {
   }
 
   try {
+    await assertSystemServiceEnabled(context.env, "automation.staff_directory_enabled", "Automatic staff tenant reconciliation");
+    await assertSystemServiceEnabled(context.env, "integrations.staff_directory_enabled", "Staff tenant directory synchronisation");
     const result = await syncStaffTenantDirectory(context.env, "delta", "system:staff-directory-automation");
     await systemAudit(context.env, result, context.data.requestId);
     return json({ ok: true, completedAt: new Date().toISOString(), ...result });
