@@ -72,6 +72,9 @@ jobs:
       - name: Validate Staff Directory separation
         run: node tests/staff-directory-separation.test.mjs
 
+      - name: Validate Staff Directory tenant sync
+        run: node tests/staff-directory-tenant-sync.test.mjs
+
       - name: Validate restriction access restoration
         run: node tests/restriction-access-restoration.test.mjs
 
@@ -127,6 +130,10 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_profiles;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_manual_reviews;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_number_sequences;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_connectors;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_identities;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_sync_checkpoints;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM staff_directory_sync_runs;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM customer_notification_deliveries;"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions WHERE marker_code LIKE 'SMC-%';")" = "7"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
