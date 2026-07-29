@@ -21,12 +21,37 @@
     return link;
   }
 
+  function ensureParityRuntimeStyle() {
+    if (document.querySelector('style[data-planyx-admin-runtime]')) return;
+    const style = document.createElement('style');
+    style.dataset.planyxAdminRuntime = 'true';
+    style.textContent = `
+      html[data-ops-theme="light"] body.ops-tailwind .theme-icon-light{display:none!important}
+      html[data-ops-theme="light"] body.ops-tailwind .theme-icon-dark{display:block!important}
+      html[data-ops-theme="dark"] body.ops-tailwind .theme-icon-light{display:block!important}
+      html[data-ops-theme="dark"] body.ops-tailwind .theme-icon-dark{display:none!important}
+      body.ops-tailwind .head-office-footer-brand{display:flex;align-items:center;gap:12px;min-width:250px}
+      body.ops-tailwind .head-office-footer-brand .brand-mark{width:38px!important;height:38px!important;border-radius:11px!important}
+      body.ops-tailwind .head-office-footer-brand>div:last-child{min-width:0}
+      body.ops-tailwind .head-office-footer-links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 18px}
+      body.ops-tailwind .head-office-footer-links button{padding:4px 0;border:0;background:transparent;color:var(--ja-muted);font-size:11px;font-weight:650;cursor:pointer}
+      body.ops-tailwind .head-office-footer-links button:hover{color:var(--ja-blue);text-decoration:underline}
+      body.ops-tailwind .head-office-footer-session{text-align:right}
+      body.ops-tailwind .head-office-footer-session strong{display:inline!important;font-size:inherit!important}
+      body.ops-tailwind .didit-auto-email-icon{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:999px;background:var(--ja-green);color:#fff;font-size:14px;font-weight:900}
+      @media(max-width:980px){body.ops-tailwind .head-office-footer-links{display:none}}
+      @media(max-width:820px){body.ops-tailwind .head-office-footer-session{text-align:left}}
+    `;
+    document.head.append(style);
+  }
+
   function queueParityRelink() {
     if (relinkQueued) return;
     relinkQueued = true;
     queueMicrotask(() => {
       relinkQueued = false;
       ensureParityStyleLast();
+      ensureParityRuntimeStyle();
     });
   }
 
@@ -115,6 +140,7 @@
   openModal = function(...args) {
     originalOpenModal(...args);
     ensureParityStyleLast();
+    ensureParityRuntimeStyle();
     synchroniseTheme();
     enforceAutomaticDiditDelivery();
     resetModalPosition();
@@ -134,6 +160,7 @@
   };
 
   ensureParityStyleLast();
+  ensureParityRuntimeStyle();
   synchroniseTheme();
   enhanceFooter();
 
