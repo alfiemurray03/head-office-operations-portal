@@ -6,6 +6,7 @@ let securityOperationsModulePromise = null;
 let stripeReconciliationModulePromise = null;
 let systemControlModulePromise = null;
 let automationCentreModulePromise = null;
+let automationSettingsExtensionPromise = null;
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -154,6 +155,21 @@ function loadAutomationCentreModule() {
   return automationCentreModulePromise;
 }
 
+function loadAutomationSettingsExtension() {
+  if (automationSettingsExtensionPromise) return automationSettingsExtensionPromise;
+  automationSettingsExtensionPromise = new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-automation-settings-extension]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/automation-settings-extension.js?v=20260730-automation-centre-1';
+    script.async = false;
+    script.dataset.automationSettingsExtension = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The scheduler controls could not be added to System Settings.')), { once: true });
+    document.head.append(script);
+  });
+  return automationSettingsExtensionPromise;
+}
+
 function ensureCustomerDirectoryNavigation() {
   if (document.querySelector('[data-route="customer-directory"]')) return;
   const connectedSystems = document.querySelector('[data-route="platforms"]');
@@ -244,7 +260,7 @@ async function boot() {
   setLoading('Opening automated Head Office services…');
   try {
     await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule(), loadSystemControlModule()]);
-    await loadAutomationCentreModule();
+    await Promise.all([loadAutomationCentreModule(), loadAutomationSettingsExtension()]);
     ensureCustomerDirectoryNavigation();
     ensureSystemControlNavigation();
     window.ensureDiditNavigation?.();
