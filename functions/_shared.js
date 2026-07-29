@@ -90,12 +90,18 @@ export async function getSession(request, env) {
 }
 
 export async function createSession(user, env) {
+  let sessionHours = 8;
+  try {
+    const { getSystemSetting } = await import("./_system-settings.js");
+    sessionHours = Number(await getSystemSetting(env, "security.session_hours", 8));
+  } catch {}
+  if (!Number.isFinite(sessionHours) || sessionHours < 1 || sessionHours > 24) sessionHours = 8;
   const raw = btoa(JSON.stringify({
     sub: user.id,
     username: user.username,
     displayName: user.displayName,
     roleName: user.roleName,
-    exp: Date.now() + 8 * 60 * 60 * 1000,
+    exp: Date.now() + sessionHours * 60 * 60 * 1000,
     version: 1
   })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
   return `${raw}.${await hmac(raw, env.SESSION_SECRET)}`;
@@ -225,6 +231,15 @@ export async function platformAudit(env, platform, action, entityType, entityId,
 }
 
 export async function requirePlatform(context, requiredScopes = []) {
+  try {
+    const { systemServiceEnabled } = await import("./_runtime-policy.js");
+    if (!(await systemServiceEnabled(context.env, "integrations.connected_systems_enabled", true))) {
+      return { response: error("CONNECTED_SYSTEMS_DISABLED", "Connected website and service exchange is disabled in Head Office System Settings.", 503) };
+    }
+  } catch (cause) {
+    console.error(JSON.stringify({ event: "connected_system_policy_check_failed", message: cause instanceof Error ? cause.message : "Unknown policy error" }));
+  }
+
   const header = context.request.headers.get("Authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token || token.length > 300) return { response: error("PLATFORM_AUTHENTICATION_REQUIRED", "A valid platform API key is required.", 401) };

@@ -57,7 +57,7 @@ assert.doesNotMatch(ui, /DIDIT_WEBHOOK_SECRET/, 'The browser must never referenc
 assert.match(css, /\.didit-page/, 'The Didit workspace must have a complete responsive visual system.');
 assert.match(css, /@media\(max-width:760px\)/, 'The Didit controls must remain usable on smaller screens.');
 assert.match(boot, /loadDiditOperationsModule/, 'The Didit module must load before the first portal route is rendered.');
-assert.match(boot, /Promise\.all\(\[loadCustomerDirectoryModule\(\), loadCustomerAutomationModule\(\), loadDiditOperationsModule\(\)\]\)/, 'Portal startup must wait for the Didit operations module.');
+assert.match(boot, /Promise\.all\(\[[\s\S]*loadDiditOperationsModule\(\)[\s\S]*loadSystemControlModule\(\)[\s\S]*\]\)/, 'Portal startup must wait for both Didit and System Control modules.');
 assert.match(webhook, /verified\.status === "Approved"/, 'Only an approved signed provider result may automatically lift a linked restriction.');
 assert.match(webhook, /verified\.status === "Declined"/, 'A declined signed provider result must create central risk activity.');
 

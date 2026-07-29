@@ -1,5 +1,6 @@
 import { assertSameOrigin, audit, error, json, readJson } from "../../_shared.js";
 import { requirePermission } from "../../_operations.js";
+import { assertSystemServiceEnabled } from "../../_runtime-policy.js";
 import { CUSTOMER_DIRECTORY_CONNECTOR_ID } from "../../_customer-entra.js";
 import { syncCustomerDirectory } from "../../_customer-entra-sync.js";
 import { dispatchPendingCustomerWelcomeNotifications } from "../../_customer-notifications.js";
@@ -14,6 +15,7 @@ export const onRequestPost = async context => {
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   const mode = body.mode === "full" ? "full" : "delta";
   try {
+    await assertSystemServiceEnabled(context.env, "integrations.customer_directory_enabled", "JA Group Services ID synchronisation");
     const result = await syncCustomerDirectory(context.env, mode, auth.session.sub);
     const requestedNotificationLimit = Math.max(5, Math.min(Number(body.notificationLimit) || 25, 50));
     const notificationLimit = result.partial ? Math.min(requestedNotificationLimit, 5) : requestedNotificationLimit;

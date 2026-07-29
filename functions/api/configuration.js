@@ -1,53 +1,70 @@
 import { audit, cleanText, error, json, readJson } from "../_shared.js";
 import { requirePermission } from "../_operations.js";
-
-const ALLOWED = new Map([
-  ["security.session_hours", value => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 24],
-  ["security.failed_login_threshold", value => Number.isInteger(Number(value)) && Number(value) >= 3 && Number(value) <= 20],
-  ["security.default_marker_review_days", value => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 365],
-  ["operations.case_reference_prefix", value => /^[A-Z0-9]{2,8}$/.test(String(value || "").toUpperCase())],
-  ["operations.default_case_due_hours", value => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 720],
-  ["payments.refund_approval_threshold_minor", value => Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 10_000_000],
-  ["notifications.critical_case_alerts", value => typeof value === "boolean"]
-]);
+import { ensureSystemSettingsReady, normaliseSystemSetting, parseSettingValue } from "../_system-settings.js";
 
 export const onRequestGet = async context => {
   const auth = await requirePermission(context, "configuration:read");
   if (auth.response) return auth.response;
+  await ensureSystemSettingsReady(context.env);
   const [settings, markerTypes, restrictionTypes, changes] = await context.env.DB.batch([
     context.env.DB.prepare("SELECT setting_key,setting_group,value_json,description,updated_by,updated_at FROM system_settings ORDER BY setting_group,setting_key"),
     context.env.DB.prepare("SELECT * FROM security_marker_types ORDER BY label"),
     context.env.DB.prepare("SELECT * FROM restriction_types ORDER BY label"),
-    context.env.DB.prepare("SELECT * FROM configuration_changes ORDER BY changed_at DESC LIMIT 50")
+    context.env.DB.prepare("SELECT * FROM configuration_changes ORDER BY changed_at DESC LIMIT 100")
   ]);
-  return json({ settings: settings.results, markerTypes: markerTypes.results, restrictionTypes: restrictionTypes.results, changes: changes.results });
+  return json({ settings: settings.results, markerTypes: markerTypes.results, restrictionTypes: restrictionTypes.results, changes: changes.results }, 200, { "Cache-Control": "no-store" });
 };
 
 export const onRequestPut = async context => {
   const auth = await requirePermission(context, "configuration:write");
   if (auth.response) return auth.response;
+  await ensureSystemSettingsReady(context.env);
   let body;
-  try { body = await readJson(context.request); }
+  try { body = await readJson(context.request, 128_000); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
-  const key = cleanText(body.key, 120);
-  const validator = ALLOWED.get(key);
-  if (!validator || !validator(body.value)) return error("INVALID_SETTING", "That setting or value cannot be changed here.");
-  const current = await context.env.DB.prepare("SELECT value_json FROM system_settings WHERE setting_key=?").bind(key).first();
-  if (!current) return error("SETTING_NOT_FOUND", "The setting does not exist.", 404);
-  const value = key === "operations.case_reference_prefix" ? String(body.value).toUpperCase() : body.value;
-  const valueJson = JSON.stringify(value);
+
+  const supplied = body.settings && typeof body.settings === "object" && !Array.isArray(body.settings)
+    ? Object.entries(body.settings)
+    : [[cleanText(body.key, 120), body.value]];
+  if (!supplied.length || supplied.length > 50) return error("INVALID_SETTINGS_BATCH", "Submit between one and fifty governed settings.");
+
+  const updates = [];
+  try {
+    for (const [rawKey, rawValue] of supplied) {
+      const key = cleanText(rawKey, 120);
+      updates.push([key, normaliseSystemSetting(key, rawValue)]);
+    }
+  } catch (cause) {
+    return error(cause.code || "INVALID_SETTING", cause.message || "That setting or value cannot be changed here.", cause.status || 400);
+  }
+
+  const before = {};
+  for (const [key] of updates) {
+    const current = await context.env.DB.prepare("SELECT value_json FROM system_settings WHERE setting_key=?").bind(key).first();
+    if (!current) return error("SETTING_NOT_FOUND", `The setting ${key} does not exist.`, 404);
+    before[key] = parseSettingValue(current.value_json, current.value_json);
+  }
+
   const now = new Date().toISOString();
-  await context.env.DB.batch([
-    context.env.DB.prepare("UPDATE system_settings SET value_json=?,updated_by=?,updated_at=? WHERE setting_key=?").bind(valueJson, auth.session.sub, now, key),
-    context.env.DB.prepare(`INSERT INTO configuration_changes(id,setting_key,before_json,after_json,changed_by,changed_at)
-      VALUES (?,?,?,?,?,?)`).bind(crypto.randomUUID(), key, current.value_json, valueJson, auth.session.sub, now)
-  ]);
-  await audit(context.env, auth.session, "configuration.updated", "system_setting", key, {
-    label: "System configuration updated",
-    reference: key,
+  const statements = [];
+  const after = {};
+  for (const [key, value] of updates) {
+    const valueJson = JSON.stringify(value);
+    after[key] = value;
+    statements.push(
+      context.env.DB.prepare("UPDATE system_settings SET value_json=?,updated_by=?,updated_at=? WHERE setting_key=?")
+        .bind(valueJson, auth.session.sub, now, key),
+      context.env.DB.prepare(`INSERT INTO configuration_changes(id,setting_key,before_json,after_json,changed_by,changed_at)
+        VALUES (?,?,?,?,?,?)`).bind(crypto.randomUUID(), key, JSON.stringify(before[key]), valueJson, auth.session.sub, now)
+    );
+  }
+  await context.env.DB.batch(statements);
+  await audit(context.env, auth.session, "configuration.updated", "system_setting", updates.length === 1 ? updates[0][0] : "system-settings", {
+    label: updates.length === 1 ? "System configuration updated" : "System configuration batch updated",
+    reference: updates.length === 1 ? updates[0][0] : `${updates.length} settings`,
     requestId: context.data.requestId,
-    before: JSON.parse(current.value_json),
-    after: value
+    before,
+    after
   });
-  return json({ updated: true, key, value });
+  return json({ updated: true, count: updates.length, settings: after });
 };
