@@ -4,6 +4,7 @@ import { ensureV7Schema } from "./_v7-schema.js";
 import { ensureV7Enhancements } from "./_v7-enhancements.js";
 import { ingestSecurityEvent } from "./_risk-engine.js";
 import { processStripeWebhookEvent, resolveStripeConnector, verifyStripeWebhook } from "./_stripe-control.js";
+import { processStripeReconciliationEvent } from "./_stripe-reconciliation.js";
 
 const MAX_BODY_BYTES = 256_000;
 
@@ -43,8 +44,15 @@ function mapStripeEvent(event) {
   const mappings = {
     "payment_intent.succeeded": ["payment.succeeded", "payment"],
     "payment_intent.payment_failed": ["payment.failed", "payment"],
+    "charge.succeeded": ["payment.succeeded", "payment"],
+    "charge.failed": ["payment.failed", "payment"],
     "charge.refunded": ["refund.completed", "refund"],
+    "refund.created": [object.status === "failed" ? "refund.failed" : "refund.requested", "refund"],
+    "refund.updated": [object.status === "succeeded" ? "refund.completed" : object.status === "failed" ? "refund.failed" : "refund.updated", "refund"],
+    "refund.failed": ["refund.failed", "refund"],
     "charge.dispute.created": ["chargeback.created", "dispute"],
+    "charge.dispute.updated": ["chargeback.updated", "dispute"],
+    "charge.dispute.closed": ["chargeback.closed", "dispute"],
     "invoice.payment_failed": ["payment.failed", "payment"],
     "invoice.paid": ["payment.succeeded", "payment"]
   };
@@ -58,14 +66,9 @@ function mapStripeEvent(event) {
     : typeof object.charge === "string" ? object.charge
     : object.payment_intent?.id || object.charge?.id || null;
   return {
-    eventType: mapped[0],
-    category: mapped[1],
-    object,
+    eventType: mapped[0], category: mapped[1], object,
     amountMinor: Number.isFinite(Number(amountMinor)) ? Math.max(0, Math.round(Number(amountMinor))) : null,
-    currency,
-    providerCustomerReference,
-    providerPaymentReference,
-    transactionReference,
+    currency, providerCustomerReference, providerPaymentReference, transactionReference,
     externalEventId: event.id,
     occurredAt: Number.isFinite(Number(event.created)) ? new Date(Number(event.created) * 1000).toISOString() : new Date().toISOString()
   };
@@ -76,8 +79,13 @@ async function storePaymentReference(env, connector, mapped, customer) {
   const status = ({
     "payment.succeeded": "captured",
     "payment.failed": "failed",
+    "refund.requested": "refund_requested",
+    "refund.updated": "refund_requested",
     "refund.completed": "refunded",
-    "chargeback.created": "disputed"
+    "refund.failed": "failed",
+    "chargeback.created": "disputed",
+    "chargeback.updated": "disputed",
+    "chargeback.closed": "disputed"
   })[mapped.eventType];
   if (!status) return;
   const provider = `Stripe:${connector.code}`;
@@ -126,9 +134,10 @@ export async function handleStripeWebhook(context, division) {
     await ensureV7Schema(context.env);
     await ensureV7Enhancements(context.env);
     const operations = await processStripeWebhookEvent(context.env, connector, event, rawBody);
+    const reconciliation = await processStripeReconciliationEvent(context.env, connector, event);
     const mapped = mapStripeEvent(event);
     if (!mapped) {
-      return json({ received: true, division: connector.slug, eventId: event.id, ignoredByRiskEngine: true, operations });
+      return json({ received: true, division: connector.slug, eventId: event.id, ignoredByRiskEngine: true, operations, reconciliation });
     }
 
     const customer = await resolveCustomer(context.env, connector, mapped.object, mapped.transactionReference);
@@ -148,32 +157,21 @@ export async function handleStripeWebhook(context, division) {
       currency: mapped.currency,
       paymentFingerprintHash: fingerprintHash,
       attributes: {
-        provider: "Stripe",
-        stripeDivision: connector.code,
-        stripeEventType: event.type,
-        providerPaymentReference: mapped.providerPaymentReference,
-        transactionReference: mapped.transactionReference,
-        providerCustomerReference: mapped.providerCustomerReference,
-        providerStatus: mapped.object?.status || null,
+        provider: "Stripe", stripeDivision: connector.code, stripeEventType: event.type,
+        providerPaymentReference: mapped.providerPaymentReference, transactionReference: mapped.transactionReference,
+        providerCustomerReference: mapped.providerCustomerReference, providerStatus: mapped.object?.status || null,
         outcomeReason: mapped.object?.last_payment_error?.code || mapped.object?.reason || null
       }
     }, { type: "platform", id: `stripe-${connector.slug}`, name: `Stripe · ${connector.name}` });
 
     return json({
-      received: true,
-      division: connector.slug,
-      eventId: event.id,
-      operations,
-      risk: result.event,
-      duplicate: result.duplicate
+      received: true, division: connector.slug, eventId: event.id, operations, reconciliation,
+      risk: result.event, duplicate: result.duplicate
     });
   } catch (cause) {
     console.error(JSON.stringify({
-      event: "stripe_webhook_processing_failed",
-      stripeDivision: connector.code,
-      stripeEventId: event.id,
-      stripeEventType: event.type,
-      message: cause instanceof Error ? cause.message : "Unknown error"
+      event: "stripe_webhook_processing_failed", stripeDivision: connector.code, stripeEventId: event.id,
+      stripeEventType: event.type, message: cause instanceof Error ? cause.message : "Unknown error"
     }));
     return error(cause.code || "STRIPE_EVENT_PROCESSING_FAILED", cause.message || "The Stripe event could not be processed.", cause.status || 500);
   }
