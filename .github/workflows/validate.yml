@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate Central Customer Platform release
+    name: Validate Security Operations Centre release
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -75,6 +75,9 @@ jobs:
       - name: Validate Didit operations centre
         run: node tests/didit-operations.test.mjs
 
+      - name: Validate Security Operations Centre
+        run: node tests/security-operations-centre.test.mjs
+
       - name: Parse scheduled Workers
         run: find workers -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
@@ -95,5 +98,10 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platform_operational_profiles;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM identity_verification_sessions;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM identity_verification_webhook_events;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platform_lockdowns;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM stripe_webhook_events;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM customer_notification_deliveries;"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions WHERE marker_code LIKE 'SMC-%';")" = "7"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
           sqlite3 /tmp/head-office-central.db "PRAGMA foreign_key_check;"
