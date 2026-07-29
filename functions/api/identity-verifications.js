@@ -64,7 +64,7 @@ export const onRequestPost = async context => {
             scope: cleanText(body.scope || "company_wide", 120),
             reason: cleanText(body.reason || "Selected through the controlled random customer identity-confirmation programme.", 2000),
             source: "random_selection",
-            sendNotificationEmails: Boolean(body.sendNotificationEmails)
+            sendNotificationEmails: true
           });
           results.push(result);
         } catch (cause) {
@@ -83,7 +83,7 @@ export const onRequestPost = async context => {
       scope: body.scope || body.platformId,
       reason: body.reason,
       source: cleanText(body.source || "manual", 60),
-      sendNotificationEmails: Boolean(body.sendNotificationEmails)
+      sendNotificationEmails: true
     });
     return json(result, 201);
   } catch (cause) {
