@@ -1,6 +1,7 @@
 import { audit, cleanNullableText, cleanText, error, json, normaliseDate, readJson } from "../../_shared.js";
 import { findCase, findCustomer, recalculateCustomerSecurity, requirePermission } from "../../_operations.js";
 import { applyRestrictionEnforcement } from "../../_central-access.js";
+import { findPlatform } from "../../_central-schema.js";
 
 export const onRequestPost = async context => {
   const auth = await requirePermission(context, "security:write");
@@ -12,7 +13,7 @@ export const onRequestPost = async context => {
   const caseReference = cleanNullableText(body.caseReference || body.caseId, 100);
   const markerId = cleanNullableText(body.markerId, 100);
   const restrictionType = cleanText(body.restrictionType, 80);
-  const scope = cleanText(body.scope || "company_wide", 100);
+  let scope = cleanText(body.scope || "company_wide", 100);
   const reason = cleanText(body.reason, 2000);
   const type = await context.env.DB.prepare("SELECT * FROM restriction_types WHERE code=? AND status='active'").bind(restrictionType).first();
   if (!type || reason.length < 5) return error("INVALID_RESTRICTION", "Select a valid restriction and enter a clear reason.");
@@ -25,14 +26,30 @@ export const onRequestPost = async context => {
     const marker = await context.env.DB.prepare("SELECT id FROM security_markers WHERE id=? AND customer_id=?").bind(markerId, customer.id).first();
     if (!marker) return error("MARKER_NOT_FOUND", "The selected marker does not belong to this customer.", 404);
   }
-  if (scope !== "company_wide" && !await context.env.DB.prepare("SELECT id FROM platforms WHERE id=? OR code=?").bind(scope, scope).first()) {
-    return error("INVALID_SCOPE", "The selected restriction scope is not a registered division.");
+  if (scope !== "company_wide") {
+    const platform = await findPlatform(context.env, scope);
+    if (!platform || platform.status === "disabled") return error("INVALID_SCOPE", "The selected restriction scope is not a registered connected service.");
+    scope = platform.id;
   }
+
+  const now = new Date().toISOString();
+  const existing = await context.env.DB.prepare(`SELECT r.id,r.restriction_type,r.scope,r.reason,r.applied_at,r.review_at,r.expires_at,
+      t.label,t.enforcement_action
+    FROM restrictions r LEFT JOIN restriction_types t ON t.code=r.restriction_type
+    WHERE r.customer_id=? AND r.restriction_type=? AND r.scope=? AND r.status='active'
+      AND (r.expires_at IS NULL OR r.expires_at>?)
+    ORDER BY r.applied_at DESC LIMIT 1`)
+    .bind(customer.id, restrictionType, scope, now).first();
+  if (existing) {
+    return error("DUPLICATE_ACTIVE_RESTRICTION", "An active restriction of this type already applies to the selected customer and service.", 409, {
+      existingRestriction: existing
+    });
+  }
+
   const reviewAt = body.reviewAt ? normaliseDate(body.reviewAt) : new Date(Date.now() + 14 * 86_400_000).toISOString();
   const expiresAt = body.expiresAt ? normaliseDate(body.expiresAt) : null;
   if (!reviewAt || (body.expiresAt && !expiresAt)) return error("INVALID_DATE", "Enter a valid review or expiry date.");
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
   await context.env.DB.prepare(`INSERT INTO restrictions
     (id,customer_id,case_id,marker_id,restriction_type,scope,reason,status,applied_by,applied_at,review_at,expires_at)
     VALUES (?,?,?,?,?,?,?,'active',?,?,?,?)`)
