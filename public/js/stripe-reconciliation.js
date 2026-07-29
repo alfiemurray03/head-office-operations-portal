@@ -195,11 +195,15 @@
     }
   }
 
-  function scheduleRender() {
+  function scheduleRender(force = false) {
     clearTimeout(renderTimer);
     renderTimer = setTimeout(() => {
-      if (routeIsStripe()) loadReconciliation();
-      else document.querySelector('#stripeReconciliationPanel')?.remove();
+      if (!routeIsStripe()) {
+        document.querySelector('#stripeReconciliationPanel')?.remove();
+        return;
+      }
+      if (!force && document.querySelector('#stripeReconciliationPanel')) return;
+      loadReconciliation();
     }, 220);
   }
 
@@ -237,9 +241,17 @@
     }
   }, true);
 
-  window.addEventListener('hashchange', scheduleRender);
+  window.addEventListener('hashchange', () => scheduleRender(true));
   const root = document.querySelector('#viewRoot');
-  if (root) new MutationObserver(scheduleRender).observe(root, { childList: true, subtree: true });
+  if (root) {
+    new MutationObserver(() => {
+      if (!routeIsStripe()) {
+        document.querySelector('#stripeReconciliationPanel')?.remove();
+        return;
+      }
+      if (!document.querySelector('#stripeReconciliationPanel')) scheduleRender();
+    }).observe(root, { childList: true, subtree: true });
+  }
   window.renderStripeReconciliation = loadReconciliation;
-  scheduleRender();
+  scheduleRender(true);
 })();
