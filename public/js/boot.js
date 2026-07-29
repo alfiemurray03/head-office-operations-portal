@@ -4,6 +4,29 @@ let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
 let securityOperationsModulePromise = null;
 let stripeReconciliationModulePromise = null;
+let adaptiveTablesModulePromise = null;
+
+function loadAdaptiveTablesModule() {
+  if (adaptiveTablesModulePromise) return adaptiveTablesModulePromise;
+  adaptiveTablesModulePromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-adaptive-tables]')) {
+      const style = document.createElement('link');
+      style.rel = 'stylesheet';
+      style.href = '/adaptive-tables.css?v=20260729-tables-1';
+      style.dataset.adaptiveTables = 'true';
+      document.head.append(style);
+    }
+    if (document.querySelector('script[data-adaptive-tables]')) return resolve();
+    const script = document.createElement('script');
+    script.src = '/js/adaptive-tables.js?v=20260729-tables-1';
+    script.async = false;
+    script.dataset.adaptiveTables = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('The responsive record-table system could not be loaded.')), { once: true });
+    document.head.append(script);
+  });
+  return adaptiveTablesModulePromise;
+}
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
@@ -173,7 +196,7 @@ async function boot() {
   showApp();
   setLoading('Opening automated Head Office services…');
   try {
-    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule()]);
+    await Promise.all([loadAdaptiveTablesModule(), loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule()]);
     ensureCustomerDirectoryNavigation();
     window.ensureDiditNavigation?.();
     state.reference = await loadReference();
