@@ -24,7 +24,9 @@ export const onRequestPost = async context => {
     return error("AUTOMATION_AUTHENTICATION_REQUIRED", "The automation credential is missing or invalid.", 401);
   }
   try {
-    const result = await syncStripeAccounts(context.env, { mode: "recent" });
+    // Full mode resumes saved historical cursors until each resource is complete.
+    // Once a resource is complete, the same mode refreshes its newest records.
+    const result = await syncStripeAccounts(context.env, { mode: "full" });
     await systemAudit(context.env, result, context.data.requestId);
     return json({ ok: true, ...result });
   } catch (cause) {
