@@ -4,10 +4,28 @@ import {
   STAFF_REVIEW_STATUSES,
   STAFF_REVIEW_TYPES,
   allocateStaffNumber,
-  ensureStaffDirectoryProfiles,
+  ensureStaffDirectoryReady,
   normaliseStaffDirectoryInput,
   staffDirectoryAuditReference
 } from "../_staff-directory.js";
+
+async function prepareStaffDirectory(context) {
+  try {
+    await ensureStaffDirectoryReady(context.env);
+    return null;
+  } catch (cause) {
+    console.error(JSON.stringify({
+      event: "staff_directory_initialisation_failed",
+      requestId: context.data?.requestId || null,
+      message: cause instanceof Error ? cause.message : "Unknown Staff Directory initialisation error"
+    }));
+    return error(
+      cause?.code || "STAFF_DIRECTORY_UNAVAILABLE",
+      cause instanceof Error ? cause.message : "The Staff Directory database could not be initialised.",
+      Number(cause?.status) || 503
+    );
+  }
+}
 
 async function staffProfile(env, id) {
   return env.DB.prepare(`SELECT p.*,u.code organisation_unit_code,u.name organisation_unit_name,
@@ -29,7 +47,8 @@ async function validUnit(env, id) {
 export const onRequestGet = async context => {
   const auth = await requirePermission(context, "administration:read");
   if (auth.response) return auth.response;
-  await ensureStaffDirectoryProfiles(context.env);
+  const unavailable = await prepareStaffDirectory(context);
+  if (unavailable) return unavailable;
   const url = new URL(context.request.url);
   const q = cleanText(url.searchParams.get("q"), 160);
   const status = cleanText(url.searchParams.get("status"), 40).toLowerCase();
@@ -96,6 +115,8 @@ export const onRequestGet = async context => {
 export const onRequestPost = async context => {
   const auth = await requirePermission(context, "administration:write");
   if (auth.response) return auth.response;
+  const unavailable = await prepareStaffDirectory(context);
+  if (unavailable) return unavailable;
   let body;
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
@@ -126,6 +147,8 @@ export const onRequestPost = async context => {
 export const onRequestPut = async context => {
   const auth = await requirePermission(context, "administration:write");
   if (auth.response) return auth.response;
+  const unavailable = await prepareStaffDirectory(context);
+  if (unavailable) return unavailable;
   let body;
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
