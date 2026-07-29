@@ -44,6 +44,8 @@ assert.match(tick, /AUTOMATION_SECRET/, 'Scheduler cycles must require the autom
 assert.match(worker, /\/api\/automation\/scheduler\/tick/, 'The Worker must execute the governed scheduler tick endpoint.');
 assert.match(workerConfig, /"\* \* \* \* \*"/, 'The Worker must offer one-minute scheduler resolution.');
 assert.match(boot, /loadAutomationCentreModule/, 'The Automation and Scheduling Centre must load during authorised startup.');
+assert.match(boot, /loadAutomationSettingsExtension/, 'Scheduler controls must be loaded into the existing System Settings workspace.');
+assert.match(boot, /automation-settings-extension\.js/, 'The settings extension asset must be requested after System Control loads.');
 assert.match(boot, /automation-centre/, 'The complete page index must expose the Automation and Scheduling Centre.');
 assert.match(ui, /Automation &amp; Scheduling Centre/, 'The full scheduling workspace must be rendered.');
 assert.match(ui, /Create schedule/, 'Authorised staff must be able to create schedules.');
