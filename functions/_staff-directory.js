@@ -45,22 +45,20 @@ export async function allocateStaffNumber(env) {
   return `STF-${String(Number(row?.allocated || 1)).padStart(6, "0")}`;
 }
 
-export async function ensureStaffNumber(env, staffId) {
-  const existing = await env.DB.prepare("SELECT staff_number FROM staff_members WHERE id=?").bind(staffId).first();
-  if (!existing) return null;
-  if (existing.staff_number) return existing.staff_number;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+export async function ensureStaffDirectoryProfiles(env) {
+  const missing = await env.DB.prepare(`SELECT s.id,s.display_name,s.email,s.status,s.created_at,s.updated_at
+    FROM staff_members s
+    LEFT JOIN staff_directory_profiles p ON p.linked_staff_member_id=s.id
+    WHERE p.id IS NULL ORDER BY s.created_at,s.id LIMIT 500`).all();
+  for (const staff of missing.results) {
     const staffNumber = await allocateStaffNumber(env);
-    try {
-      await env.DB.prepare("UPDATE staff_members SET staff_number=?,updated_at=? WHERE id=? AND staff_number IS NULL")
-        .bind(staffNumber, new Date().toISOString(), staffId).run();
-      const saved = await env.DB.prepare("SELECT staff_number FROM staff_members WHERE id=?").bind(staffId).first();
-      if (saved?.staff_number) return saved.staff_number;
-    } catch (cause) {
-      if (!String(cause).includes("staff_number")) throw cause;
-    }
+    await env.DB.prepare(`INSERT OR IGNORE INTO staff_directory_profiles
+      (id,staff_number,linked_staff_member_id,display_name,email,employment_type,status,created_at,updated_at)
+      VALUES (?,?,?,?,?,'employee',?,?,?)`)
+      .bind(crypto.randomUUID(), staffNumber, staff.id, staff.display_name, staff.email,
+        staff.status === "active" ? "active" : "suspended", staff.created_at, staff.updated_at).run();
   }
-  throw Object.assign(new Error("A unique staff number could not be allocated."), { code: "STAFF_NUMBER_ALLOCATION_FAILED", status: 503 });
+  return missing.results.length;
 }
 
 export function staffDirectoryAuditReference(staff) {
