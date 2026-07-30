@@ -1,4 +1,4 @@
-import { audit, cleanText, sha256 } from "./_shared.js";
+import { audit, cleanText, platformAudit, sha256 } from "./_shared.js";
 import { ensureDiditWebhookSchema } from "./_didit-webhook.js";
 import { findCustomer, recalculateCustomerSecurity } from "./_operations.js";
 import { applyRestrictionEnforcement, liftRestrictionEnforcement } from "./_central-access.js";
@@ -146,6 +146,14 @@ async function liftLinkedRestriction(env, row) {
   return { lifted: true, restrictionId: restriction.id, enforcement };
 }
 
+function actorIdentifier(actor) {
+  return cleanText(actor?.sub || actor?.id, 180) || "system";
+}
+
+function actorDisplayName(actor) {
+  return cleanText(actor?.displayName || actor?.name, 200) || "Head Office";
+}
+
 function sessionMetadata(input, actor, provider) {
   return {
     purpose: input.purpose,
@@ -156,8 +164,8 @@ function sessionMetadata(input, actor, provider) {
     requiredAge: input.requiredAge || null,
     accountPopulation: "customers_only",
     staffAccountsExcluded: true,
-    initiatedBy: actor.sub,
-    initiatedByName: actor.displayName,
+    initiatedBy: actorIdentifier(actor),
+    initiatedByName: actorDisplayName(actor),
     notificationRequested: Boolean(input.sendNotificationEmails),
     providerSessionNumber: provider.session_number || null,
     workflowVersion: provider.workflow_version || null,
@@ -172,6 +180,20 @@ async function writeTimeline(env, customerId, title, summary, sourceReference, m
     .bind(crypto.randomUUID(), customerId, title, summary, new Date().toISOString(), sourceReference || null, jsonValue(metadata, {})).run();
 }
 
+async function writeCreationAudit(env, actor, sessionId, customer, after, metadata, label) {
+  const details = {
+    label,
+    reference: customer.customer_number,
+    customerId: customer.id,
+    after,
+    metadata
+  };
+  if (actor?.actorType === "platform") {
+    return platformAudit(env, actor, "identity.verification.create", "identity_verification", sessionId, details);
+  }
+  return audit(env, actor, "identity.verification.create", "identity_verification", sessionId, details);
+}
+
 export async function createIdentityVerification(env, actor, input) {
   await ensureDiditWebhookSchema(env);
   await ensureAgeAssuranceSchema(env);
@@ -181,6 +203,12 @@ export async function createIdentityVerification(env, actor, input) {
   const source = cleanText(input.source || "manual", 60);
   if (!PURPOSES.has(purpose)) throw Object.assign(new Error("Select a valid verification purpose."), { code: "INVALID_VERIFICATION_PURPOSE", status: 400 });
   if (!ACCESS_MODES.has(accessMode)) throw Object.assign(new Error("Select a valid access-handling option."), { code: "INVALID_ACCESS_MODE", status: 400 });
+  if (purpose === "age_verification" && accessMode !== "request_only") {
+    throw Object.assign(new Error("Age assurance is enforced only through the governed platform deployment, not a generic identity restriction."), {
+      code: "AGE_ASSURANCE_CENTRAL_POLICY_REQUIRED",
+      status: 400
+    });
+  }
   if (reason.length < 5) throw Object.assign(new Error("Enter a clear reason for requesting identity verification."), { code: "VERIFICATION_REASON_REQUIRED", status: 400 });
   const workflowId = workflowForPurpose(env, purpose);
   if (!workflowId) {
@@ -245,17 +273,14 @@ export async function createIdentityVerification(env, actor, input) {
       purpose, requiredAge, jsonValue(metadata, {})).run();
   const stored = await env.DB.prepare("SELECT id FROM identity_verification_sessions WHERE provider_session_id=? LIMIT 1").bind(providerSessionId).first();
   const sessionId = stored?.id || localId;
-  await writeTimeline(env, customer.id, purpose === "age_verification" ? "Age assurance requested" : "Identity verification requested", `${actor.displayName} started a Didit ${purpose.replaceAll("_", " ")} request.`, providerSessionId, {
+  await writeTimeline(env, customer.id, purpose === "age_verification" ? "Age assurance requested" : "Identity verification requested", `${actorDisplayName(actor)} started a Didit ${purpose.replaceAll("_", " ")} request.`, providerSessionId, {
     purpose, requiredAge, accessMode, scope, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null,
     accountPopulation: "customers_only", staffAccountsExcluded: true
   });
-  await audit(env, actor, "identity.verification.create", "identity_verification", sessionId, {
-    label: purpose === "age_verification" ? "Didit customer age assurance started" : "Didit identity verification started",
-    reference: customer.customer_number,
-    customerId: customer.id,
-    after: { providerSessionId, purpose, requiredAge, accessMode, scope, status, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null },
-    metadata: { provider: "didit", source, accountPopulation: "customers_only", staffAccountsExcluded: true }
-  });
+  await writeCreationAudit(env, actor, sessionId, customer,
+    { providerSessionId, purpose, requiredAge, accessMode, scope, status, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null },
+    { provider: "didit", source, accountPopulation: "customers_only", staffAccountsExcluded: true },
+    purpose === "age_verification" ? "Didit customer age assurance started" : "Didit identity verification started");
   return {
     session: { id: sessionId, providerSessionId, status, purpose, requiredAge, accessMode, scope, customerNumber: customer.customer_number, customerName: customer.display_name },
     verificationUrl,
