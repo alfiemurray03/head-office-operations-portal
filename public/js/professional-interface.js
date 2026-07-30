@@ -38,6 +38,13 @@
     if (document.head.lastElementChild !== link) document.head.append(link);
   }
 
+  function setShellIdentity() {
+    const heading = document.querySelector('.tools-drawer-heading strong');
+    const description = document.querySelector('.tools-drawer-heading span');
+    if (heading) heading.textContent = 'Head Office Operations';
+    if (description) description.textContent = 'Security and customer operations';
+  }
+
   function sectionHeadingId(section, index) {
     const heading = section.querySelector(':scope > .panel-header h2, :scope > .enterprise-panel-header h2, h2');
     if (!heading) return null;
@@ -72,6 +79,7 @@
     const type = ROUTE_TYPES[route] || 'workspace';
     document.body.dataset.route = route;
     document.body.dataset.pageType = type;
+    setShellIdentity();
     const root = document.getElementById('viewRoot');
     if (!root) return;
     root.dataset.route = route;
@@ -89,6 +97,12 @@
     if (viewRoot) {
       new MutationObserver(() => queueMicrotask(applyPageModel))
         .observe(viewRoot, { childList: true, subtree: true });
+    }
+
+    const sidebarHeading = document.querySelector('.tools-drawer-heading');
+    if (sidebarHeading) {
+      new MutationObserver(() => queueMicrotask(setShellIdentity))
+        .observe(sidebarHeading, { childList: true, subtree: true, characterData: true });
     }
 
     new MutationObserver(mutations => {
