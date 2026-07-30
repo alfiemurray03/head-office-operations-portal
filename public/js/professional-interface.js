@@ -55,8 +55,12 @@
   function setShellIdentity() {
     const heading = document.querySelector('.tools-drawer-heading strong');
     const description = document.querySelector('.tools-drawer-heading span');
-    if (heading) heading.textContent = 'Head Office Operations';
-    if (description) description.textContent = 'Security and customer operations';
+    if (heading && heading.textContent !== 'Head Office Operations') {
+      heading.textContent = 'Head Office Operations';
+    }
+    if (description && description.textContent !== 'Security and customer operations') {
+      description.textContent = 'Security and customer operations';
+    }
   }
 
   function sectionHeadingId(section, index) {
@@ -112,12 +116,6 @@
     if (viewRoot) {
       new MutationObserver(() => queueMicrotask(applyPageModel))
         .observe(viewRoot, { childList: true, subtree: true });
-    }
-
-    const sidebarHeading = document.querySelector('.tools-drawer-heading');
-    if (sidebarHeading) {
-      new MutationObserver(() => queueMicrotask(setShellIdentity))
-        .observe(sidebarHeading, { childList: true, subtree: true, characterData: true });
     }
 
     new MutationObserver(mutations => {
