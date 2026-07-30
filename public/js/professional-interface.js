@@ -1,5 +1,6 @@
 (() => {
   const STYLE_ID = 'professionalInterfaceStyles';
+  const AUTH_VISIBILITY_STYLE_ID = 'headOfficeAuthVisibilityGuard';
   const ROUTE_TYPES = Object.freeze({
     'control-room': 'overview',
     dashboard: 'overview',
@@ -23,6 +24,19 @@
     settings: 'administration',
     'redress-centre': 'queue'
   });
+
+  function ensureAuthVisibilityGuard() {
+    if (document.getElementById(AUTH_VISIBILITY_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = AUTH_VISIBILITY_STYLE_ID;
+    style.textContent = `
+      html body.ops-tailwind #appShell.app-shell[hidden],
+      html body.ops-tailwind #loginScreen.login-screen[hidden] {
+        display: none !important;
+      }
+    `;
+    document.head.append(style);
+  }
 
   function routeFromLocation() {
     const route = String(window.location.hash || '#/control-room')
@@ -88,6 +102,7 @@
   }
 
   function start() {
+    ensureAuthVisibilityGuard();
     keepGovernedStylesLast();
     applyPageModel();
 
@@ -114,6 +129,7 @@
     }).observe(document.head, { childList: true });
   }
 
+  ensureAuthVisibilityGuard();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })();
