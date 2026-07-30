@@ -149,6 +149,10 @@ assert.match(professionalCss, /modal-shell[\s\S]*border-left:\s*1px solid/, 'Con
 assert.match(professionalJs, /ROUTE_TYPES/, 'Every route must be assigned a governed page archetype.');
 assert.match(professionalJs, /queue-surface/, 'Operational queue surfaces must be classified consistently.');
 assert.match(professionalJs, /keepGovernedStylesLast/, 'The governed interface must remain authoritative over dynamically loaded legacy styles.');
+assert.match(professionalJs, /#appShell\.app-shell\[hidden\]/,
+  'The professional desktop shell must never override the unauthenticated hidden application state.');
+assert.match(professionalJs, /#loginScreen\.login-screen\[hidden\]/,
+  'The authenticated state must still be able to hide the Microsoft login screen.');
 assert.match(interfaceStandard, /Cards are not the default wrapper/, 'The design standard must explicitly prohibit card-first page construction.');
 assert.match(interfaceStandard, /Tables are operational work surfaces/, 'The design standard must define the approved queue pattern.');
 assert.match(interfaceStandard, /one primary action/, 'The design standard must govern action hierarchy.');
