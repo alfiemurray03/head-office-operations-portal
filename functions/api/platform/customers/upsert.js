@@ -155,7 +155,7 @@ export const onRequestPost = async context => {
         accountStatus:customer.account_status,securityStatus:customer.security_status},
       created,matchedBy:found.match,
       enforcement:{action:access.decision,decision:access.decision,revokeSessions:access.revokeSessions,
-        reason:access.reason,restrictions:access.restrictions}
+        reason:access.reason,restrictions:access.restrictions,ageAssurance:access.ageAssurance}
     },created?201:200);
   } catch (cause) {
     return error(cause.code||"CUSTOMER_UPSERT_FAILED",cause.message||"The customer could not be synchronised with Head Office.",cause.status||500,cause.details);
