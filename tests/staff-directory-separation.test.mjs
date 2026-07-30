@@ -55,7 +55,7 @@ assert.doesNotMatch(authorityApi, /FROM customers|JOIN customers|UPDATE customer
   'Granting portal authority from Staff Directory must never touch the customer register.');
 assert.match(authorityUi, /Grant Head Office portal access/);
 assert.match(authorityUi, /Head Office roles and security permissions/);
-assert.match(authorityUi, /does not create, link or change a customer account or UCN/);
+assert.match(authorityUi, /never creates, links or changes a customer account or UCN/);
 assert.match(extensionLoader, /staff-portal-access\.js/);
 
 console.log('Staff Directory separation and runtime readiness checks passed.');
