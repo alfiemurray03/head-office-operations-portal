@@ -26,6 +26,10 @@
     return `<label class="field"><span>${escapeHtml(title)}</span><input type="number" data-setting-key="${escapeHtml(key)}" value="${Number(value)}" min="${minimum}" max="${maximum}" ${disabled(editable)}><small>${escapeHtml(copy)}</small></label>`;
   }
 
+  function selectSetting(key, title, copy, value, options, editable) {
+    return `<label class="field"><span>${escapeHtml(title)}</span><select data-setting-key="${escapeHtml(key)}" ${disabled(editable)}>${options.map(option => `<option value="${escapeHtml(option.value)}" ${value === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select><small>${escapeHtml(copy)}</small></label>`;
+  }
+
   function policyItem(icon, title, copy) {
     return `<div class="system-policy-item"><span class="system-policy-icon" aria-hidden="true">${escapeHtml(icon)}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(copy)}</small></div></div>`;
   }
@@ -45,6 +49,12 @@
     const editable = hasPermission('configuration:write');
     const mode = values['system.portal_mode'] || 'normal';
     const changes = (data.changes || []).slice(0, 20);
+    const ageMasterEnabled = values['age_assurance.enforcement_master_enabled'] === true;
+    const deploymentOptions = [
+      { value: 'disabled', label: 'Disabled — no age requirement' },
+      { value: 'paused', label: 'Paused — keep requirement, stop new sessions' },
+      { value: 'enabled', label: 'Enabled — enforce customer threshold' }
+    ];
 
     $('#viewRoot').innerHTML = `<div class="system-control-page">
       <div class="page-heading"><div><p class="eyebrow">Head Office system authority</p><h1>System Settings</h1><p>Control the complete Head Office portal, its integrations, scheduled reconciliation, notifications and operational defaults from one governed workspace.</p></div><div class="heading-actions"><button class="button secondary" data-route="test-centre">Open System Test Centre</button></div></div>
@@ -82,6 +92,24 @@
           </div></section>
         </div>
 
+        <section class="system-setting-section" style="margin-top:16px"><header><div><h2>Customer Age Assurance Deployments</h2><p>Deploy Didit age assurance centrally to connected customer services. These controls never apply to staff accounts or Microsoft staff sign-in.</p></div>${tag(ageMasterEnabled ? 'enabled' : 'not enforcing')}</header><div class="system-setting-body">
+          <div class="notice"><span>🔒</span><div><strong>Enforcement is off by default</strong><br>The master switch and a platform deployment must both be enabled before any customer access decision changes. Staff Directory profiles, staff numbers and staff Microsoft accounts are permanently excluded.</div></div>
+          ${toggleSetting('age_assurance.enforcement_master_enabled', 'Start group age-assurance enforcement', 'Master customer-only switch. Leave this off while configuring and testing the deployments.', ageMasterEnabled, editable)}
+          <div class="system-control-grid">
+            <div class="system-setting-section"><header><div><h3>Planyx</h3><p>Customer platform threshold: 16+</p></div></header><div class="system-setting-body">
+              ${selectSetting('age_assurance.planyx_status', 'Deployment state', 'Enable, pause or disable the Planyx customer deployment independently.', values['age_assurance.planyx_status'] || 'disabled', deploymentOptions, editable)}
+              ${numberSetting('age_assurance.planyx_minimum_age', 'Minimum customer age', 'Configured as 16+ for Planyx.', Number(values['age_assurance.planyx_minimum_age'] || 16), 13, 25, editable)}
+              ${toggleSetting('age_assurance.planyx_threshold_validated', '16+ workflow threshold validated', 'Mark only after the Didit Age Gate workflow has been tested and confirmed to enforce the 16+ threshold correctly.', values['age_assurance.planyx_threshold_validated'] === true, editable)}
+            </div></div>
+            <div class="system-setting-section"><header><div><h3>Profile Centre</h3><p>Customer platform threshold: 18+</p></div></header><div class="system-setting-body">
+              ${selectSetting('age_assurance.profile_centre_status', 'Deployment state', 'Enable, pause or disable the Profile Centre customer deployment independently.', values['age_assurance.profile_centre_status'] || 'disabled', deploymentOptions, editable)}
+              ${numberSetting('age_assurance.profile_centre_minimum_age', 'Minimum customer age', 'Configured as 18+ for Profile Centre.', Number(values['age_assurance.profile_centre_minimum_age'] || 18), 13, 25, editable)}
+              ${toggleSetting('age_assurance.profile_centre_threshold_validated', '18+ workflow threshold validated', 'Mark only after the Didit Age Gate workflow has been tested and confirmed to enforce the 18+ threshold correctly.', values['age_assurance.profile_centre_threshold_validated'] === true, editable)}
+            </div></div>
+          </div>
+          <div class="system-field-grid">${numberSetting('age_assurance.result_validity_days', 'Age-assurance validity', 'Days an approved customer threshold result remains reusable across eligible services.', Number(values['age_assurance.result_validity_days'] || 365), 30, 1095, editable)}</div>
+        </div></section>
+
         <section class="system-setting-section" style="margin-top:16px"><header><div><h2>Operational limits and defaults</h2><p>Validated values used by case, security, approval and diagnostic processes.</p></div></header><div class="system-setting-body"><div class="system-field-grid">
           ${numberSetting('operations.default_case_due_hours', 'Default normal-case due time', 'Hours before a normal-priority case becomes due.', Number(values['operations.default_case_due_hours'] || 72), 1, 720, editable)}
           ${numberSetting('security.default_marker_review_days', 'Default marker review interval', 'Days until a security marker normally requires review.', Number(values['security.default_marker_review_days'] || 14), 1, 365, editable)}
@@ -100,6 +128,7 @@
         <section class="system-setting-section"><header><div><h2>Fixed safety policies</h2><p>These controls cannot be disabled from a settings screen.</p></div></header><div class="system-setting-body system-policy-list">
           ${policyItem('!', 'Critical security lockdown is manual only', 'The system may surface a Critical Security Breach notification, but an authorised Head Office user must initiate or lift a lockdown.')}
           ${policyItem('↔', 'Staff and customer records never merge', 'A matching email is allowed in both directories. Staff numbers and UCNs remain separate identities.')}
+          ${policyItem('👤', 'Staff accounts are excluded from age assurance', 'Age assurance reads only the Unique Customer Register. It never checks, blocks or changes Staff Directory profiles or Microsoft staff sign-in.')}
           ${policyItem('⌂', 'Website maintenance remains local', 'Normal maintenance and launch gates remain controlled by each connected website. Head Office security lockdown is separate.')}
           ${policyItem('✉', 'Didit invitations go to the customer', 'Every new verification request instructs Didit to send the secure invitation directly to the customer automatically.')}
         </div></section>
@@ -208,7 +237,9 @@
         });
         await api('/api/configuration', { method: 'PUT', body: JSON.stringify({ settings }) });
         if (status) status.textContent = 'System configuration saved and recorded in the audit history.';
-        toast('System Settings saved', 'The governed service controls are now active.');
+        toast('System Settings saved', settings['age_assurance.enforcement_master_enabled'] === true
+          ? 'The governed controls were saved. Active age-assurance deployments now affect customer access decisions only.'
+          : 'The governed controls were saved. Customer age-assurance enforcement remains off.');
         state.reference = await api('/api/reference');
         return renderSettings();
       } catch (error) {
