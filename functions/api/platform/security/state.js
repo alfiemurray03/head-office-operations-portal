@@ -2,6 +2,8 @@ import { cleanText, error, json, requirePlatform } from "../../../_shared.js";
 import { resolvePlatformCustomer } from "../../../_central-access.js";
 import { ensureSecurityControlPlane, platformSecurityState } from "../../../_security-control-plane.js";
 
+export const SECURITY_STATE_CONTRACT_VERSION = "ja-head-office-security-state-v1";
+
 export const onRequestGet = async context => {
   const auth = await requirePlatform(context, ["security:read"]);
   if (auth.response) return auth.response;
@@ -23,6 +25,10 @@ export const onRequestGet = async context => {
       .bind(deliveredAt, command.id).run();
   }
   return json({
+    contractVersion: SECURITY_STATE_CONTRACT_VERSION,
+    authority: "JA_GROUP_SERVICES_HEAD_OFFICE",
+    dataClassification: "branch_security_instruction",
+    confidentialReasoningWithheld: true,
     ...state,
     commands: (commands.results || []).map(command => ({
       id: command.id,

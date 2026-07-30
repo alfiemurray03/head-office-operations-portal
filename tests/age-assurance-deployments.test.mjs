@@ -13,6 +13,7 @@ const [
   configApi,
   sessionApi,
   customerUpsert,
+  securityStateApi,
   ui,
   settingsExtension
 ] = await Promise.all([
@@ -26,6 +27,7 @@ const [
   read('functions/api/platform/age-assurance/config.js'),
   read('functions/api/platform/age-assurance/session.js'),
   read('functions/api/platform/customers/upsert.js'),
+  read('functions/api/platform/security/state.js'),
   read('public/js/system-control.js'),
   read('public/js/automation-settings-extension.js')
 ]);
@@ -50,13 +52,17 @@ assert.match(settings, /"age_assurance\.profile_centre_minimum_age"[\s\S]*defaul
 assert.match(settings, /"age_assurance\.profile_centre_workflow_id"[\s\S]*defaultValue: ""/, 'Runtime recovery must not invent a Profile Centre workflow mapping.');
 assert.match(settings, /oneOf\(\["disabled", "paused", "enabled"\]\)/, 'Each website must support disabled, paused and enabled deployment states.');
 
+assert.match(assurance, /AGE_ASSURANCE_CONTRACT_VERSION = "ja-head-office-age-assurance-v1"/, 'Every branch must receive a versioned age-assurance contract.');
+assert.match(assurance, /aliases: Object\.freeze\(\[[\s\S]*"PLANYX"[\s\S]*"PX"/, 'Planyx platform aliases must bind to the governed 16+ deployment.');
+assert.match(assurance, /platformCandidates\(platform\)/, 'Age assurance must evaluate the authenticated platform code, ID, name and public URL.');
+assert.match(assurance, /deploymentKey: definition\.code/, 'The response must disclose the resolved governed deployment key.');
 assert.match(assurance, /accountPopulation: "customers_only"/, 'The service must identify its population as customers only.');
 assert.match(assurance, /staffAccountsExcluded: true/, 'The policy must permanently exclude staff accounts.');
 assert.match(assurance, /!deployment\.masterEnabled \|\| deployment\.status === "disabled"/, 'No access requirement may apply before Head Office starts enforcement.');
 assert.match(assurance, /workflowKey: "age_assurance\.planyx_workflow_id"/, 'Planyx must use its own 16+ workflow mapping.');
 assert.match(assurance, /workflowKey: "age_assurance\.profile_centre_workflow_id"/, 'Profile Centre must use its own 18+ workflow mapping.');
 assert.match(assurance, /workflowConfigured: Boolean\(workflowId\)/, 'Deployment readiness must require a mapped workflow.');
-assert.match(assurance, /providerReady = Boolean\(cleanText\(env\.DIDIT_API_KEY, 500\) && workflowId\)/, 'Provider readiness must use the mapped threshold workflow.');
+assert.match(assurance, /providerReady = Boolean\(String\(env\.DIDIT_API_KEY \|\| ""\)\.trim\(\) && workflowId\)/, 'Provider readiness must use the mapped threshold workflow.');
 assert.doesNotMatch(assurance, /DIDIT_AGE_WORKFLOW_ID/, 'Deployment readiness must not reuse a single global age workflow for both thresholds.');
 assert.match(assurance, /verification_purpose='age_verification'/, 'Only signed age-assurance sessions may satisfy an age threshold.');
 assert.match(assurance, /required_age>=\?/, 'An approved 16+ result must never satisfy an 18+ service unless its retained threshold is high enough.');
@@ -67,6 +73,9 @@ assert.match(access, /ageAssuranceForAccess/, 'The authoritative connected-site 
 assert.match(access, /ageAssurance\.decision === "deny"/, 'A live customer deployment must be able to deny access safely.');
 assert.match(access, /ageAssurance\.decision === "step_up"/, 'A live customer deployment must be able to request verification.');
 assert.match(access, /resolvePlatformCustomer/, 'Platform checks must resolve a customer or UCN, not a staff identity.');
+assert.match(access, /branchRestrictionSummary/, 'Connected sites must receive only a branch-safe restriction summary.');
+assert.match(access, /confidentialReasonWithheld: true/, 'Confidential restriction reasoning must be withheld from connected sites.');
+assert.doesNotMatch(access.match(/function branchRestrictionSummary[\s\S]*?\n}/)?.[0] || '', /reason:/, 'The branch restriction summary must not return the confidential reason.');
 assert.doesNotMatch(access, /staff_directory_profiles|staff_members/, 'The central age decision path must not touch staff records.');
 
 assert.match(didit, /purpose === "age_verification" && accessMode !== "request_only"/, 'Age assurance must not create a generic identity restriction.');
@@ -91,6 +100,8 @@ assert.match(sessionApi, /accessMode: "request_only"/, 'The provider session its
 assert.match(sessionApi, /staffAccountsExcluded: true/, 'The branch response must confirm staff accounts are excluded.');
 assert.doesNotMatch(`${configApi}\n${sessionApi}`, /staff_directory_profiles|staff_members|staff_directory_identities/, 'Branch age APIs must never query the staff tenant or Staff Directory.');
 assert.match(customerUpsert, /ageAssurance:access\.ageAssurance/, 'Customer sign-in synchronisation must receive the same age policy detail as a normal access check.');
+assert.match(securityStateApi, /ja-head-office-security-state-v1/, 'The reusable Planyx/Profile Centre security-state contract must be versioned.');
+assert.match(securityStateApi, /confidentialReasoningWithheld: true/, 'The platform security response must state that confidential reasoning is withheld.');
 
 assert.match(ui, /Customer Age Assurance Deployments/, 'System Settings must expose the central deployment workspace.');
 assert.match(ui, /Start group age-assurance enforcement/, 'Head Office must have a separate master start control.');

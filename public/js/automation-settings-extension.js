@@ -58,4 +58,12 @@
     if (operationalLimits) form.insertBefore(section, operationalLimits);
     else form.querySelector('.form-actions')?.before(section);
   };
+
+  if (!document.querySelector('script[data-staff-portal-authority]')) {
+    const script = document.createElement('script');
+    script.src = '/js/staff-portal-access.js?v=20260730-staff-authority-1';
+    script.async = false;
+    script.dataset.staffPortalAuthority = 'true';
+    document.head.append(script);
+  }
 })();
