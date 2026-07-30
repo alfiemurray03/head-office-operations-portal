@@ -29,10 +29,17 @@ export const onRequestGet = async ({ request, env }) => {
     const state = location ? new URL(location).searchParams.get("state") : "";
     const transactionToken = transactionTokenFromResponse(response);
 
-    // Keep the normal secure browser cookie, but also retain the transaction in
-    // D1. The callback can therefore complete even when a browser drops or
-    // partitions the temporary OIDC cookie during the Microsoft round trip.
-    await storeMicrosoftTransaction(env, state, transactionToken);
+    // The secure browser cookie is sufficient to start sign-in. D1 persistence
+    // is extra resilience only and must never prevent the Microsoft redirect.
+    try {
+      await storeMicrosoftTransaction(env, state, transactionToken);
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "microsoft_transaction_store_unavailable",
+        message: error instanceof Error ? error.message : "Unknown transaction-store error"
+      }));
+    }
+
     return useHostOnlyTransactionCookie(response);
   } catch (error) {
     const message = encodeURIComponent(error instanceof Error ? error.message : "Microsoft staff sign-in is unavailable.");
