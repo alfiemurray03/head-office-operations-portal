@@ -2,6 +2,7 @@ import { cleanText, hmac, safeEqual, sha256 } from "./_shared.js";
 import { ensureCentralPlatformSchema, jsonValue } from "./_central-schema.js";
 import { liftRestrictionEnforcement } from "./_central-access.js";
 import { recalculateCustomerSecurity } from "./_operations.js";
+import { ensureAgeAssuranceSchema } from "./_age-assurance.js";
 
 const MAX_BODY_BYTES = 1_048_576;
 const MAX_CLOCK_SKEW_SECONDS = 300;
@@ -209,46 +210,51 @@ async function resolveCustomer(env, payload, session) {
 }
 
 async function findRestriction(env, customerId, preferredId) {
-  if (preferredId) {
-    const preferred = await env.DB.prepare(`SELECT * FROM restrictions
-      WHERE id=? AND customer_id=? AND status='active' AND restriction_type='REQUIRE_ENHANCED_VERIFICATION' LIMIT 1`)
-      .bind(preferredId, customerId).first();
-    if (preferred) return preferred;
-  }
+  if (!preferredId) return null;
   return env.DB.prepare(`SELECT * FROM restrictions
-    WHERE customer_id=? AND status='active' AND restriction_type='REQUIRE_ENHANCED_VERIFICATION'
-      AND (expires_at IS NULL OR expires_at>?) ORDER BY applied_at DESC LIMIT 1`)
-    .bind(customerId, new Date().toISOString()).first();
+    WHERE id=? AND customer_id=? AND status='active' AND restriction_type='REQUIRE_ENHANCED_VERIFICATION' LIMIT 1`)
+    .bind(preferredId, customerId).first();
 }
 
-async function writeTimeline(env, customerId, sessionId, status, webhookType, eventId) {
-  const title = status === "Approved" ? "Identity verification approved"
-    : status === "Declined" ? "Identity verification declined"
-      : status === "In Review" ? "Identity verification sent for review"
-        : `Identity verification ${status.toLowerCase()}`;
+function sessionPurpose(payload, existingSession) {
+  return cleanText(String(existingSession?.verification_purpose || payload.metadata?.purpose || "identity_security"), 60) || "identity_security";
+}
+
+function sessionRequiredAge(payload, existingSession) {
+  const value = Number(existingSession?.required_age ?? payload.metadata?.required_age);
+  return Number.isInteger(value) && value >= 13 && value <= 25 ? value : null;
+}
+
+async function writeTimeline(env, customerId, sessionId, status, webhookType, eventId, purpose, requiredAge) {
+  const subject = purpose === "age_verification" ? "Age assurance" : "Identity verification";
+  const title = status === "Approved" ? `${subject} approved`
+    : status === "Declined" ? `${subject} declined`
+      : status === "In Review" ? `${subject} sent for review`
+        : `${subject} ${status.toLowerCase()}`;
   await env.DB.prepare(`INSERT INTO customer_timeline_events
     (id,customer_id,platform_id,event_type,event_category,title,summary,occurred_at,source_reference,metadata_json)
     VALUES (?,?,NULL,'identity.verification.status','security',?,?,?,?,?)`)
     .bind(
       crypto.randomUUID(), customerId, title,
-      `Didit verification session ${sessionId} changed to ${status}.`,
+      `Didit ${purpose.replaceAll("_", " ")} session ${sessionId} changed to ${status}.`,
       new Date().toISOString(), sessionId,
-      jsonValue({ provider: "didit", webhookType, eventId, status }, {})
+      jsonValue({ provider: "didit", webhookType, eventId, status, purpose, requiredAge, accountPopulation: "customers_only", staffAccountsExcluded: true }, {})
     ).run();
 }
 
-async function writeAudit(env, customerId, sessionId, status, eventId, restrictionId) {
+async function writeAudit(env, customerId, sessionId, status, eventId, restrictionId, purpose, requiredAge) {
   await env.DB.prepare(`INSERT INTO audit_events
     (id,occurred_at,actor_type,actor_id,actor_name,action,action_label,entity_type,entity_id,
      entity_reference,customer_id,request_id,before_json,after_json,metadata_json)
-    VALUES (?,?,'system','didit','Didit Identity Verification','identity.verification.status',?,
+    VALUES (?,?,'system','didit',?,'identity.verification.status',?,
       'identity_verification',?,?,?,NULL,NULL,?,?)`)
     .bind(
       crypto.randomUUID(), new Date().toISOString(),
-      `Didit verification ${status.toLowerCase()}`,
+      purpose === "age_verification" ? "Didit Age Assurance" : "Didit Identity Verification",
+      `Didit ${purpose === "age_verification" ? "age assurance" : "verification"} ${status.toLowerCase()}`,
       sessionId, sessionId, customerId,
-      jsonValue({ status, restrictionId: restrictionId || null }, {}),
-      jsonValue({ provider: "didit", eventId }, {})
+      jsonValue({ status, restrictionId: restrictionId || null, requiredAge }, {}),
+      jsonValue({ provider: "didit", eventId, purpose, accountPopulation: "customers_only", staffAccountsExcluded: true }, {})
     ).run();
 }
 
@@ -289,10 +295,22 @@ async function liftRestriction(env, customerId, restriction, sessionId, eventId)
   return { lifted: true, restrictionId: restriction.id, enforcement };
 }
 
+function existingMetadata(row) {
+  try { return JSON.parse(row?.metadata_json || "{}"); }
+  catch { return {}; }
+}
+
 async function upsertSession(env, verified, customer, restriction, existingSession) {
   const now = new Date().toISOString();
   const createdAt = epochToIso(verified.payload.created_at || verified.payload.timestamp, now);
+  const purpose = sessionPurpose(verified.payload, existingSession);
+  const requiredAge = sessionRequiredAge(verified.payload, existingSession);
   const metadata = jsonValue({
+    ...existingMetadata(existingSession),
+    purpose,
+    requiredAge,
+    accountPopulation: "customers_only",
+    staffAccountsExcluded: true,
     workflowVersion: Number.isFinite(Number(verified.payload.workflow_version)) ? Number(verified.payload.workflow_version) : null,
     sessionKind: cleanText(String(verified.payload.session_kind || "user"), 40) || "user",
     latestWebhookEventId: verified.eventId,
@@ -300,40 +318,43 @@ async function upsertSession(env, verified, customer, restriction, existingSessi
     decisionPresent: Boolean(verified.payload.decision)
   }, {});
   const completedAt = TERMINAL_STATUSES.has(verified.status) ? now : null;
+  const platformId = cleanText(String(existingSession?.platform_id || verified.payload.metadata?.platform_id || ""), 180) || null;
 
   if (existingSession) {
     await env.DB.prepare(`UPDATE identity_verification_sessions SET
-      customer_id=?,restriction_id=COALESCE(restriction_id,?),workflow_id=COALESCE(?,workflow_id),
-      environment=?,status=?,decision=?,updated_at=?,
+      customer_id=?,platform_id=COALESCE(platform_id,?),restriction_id=COALESCE(restriction_id,?),workflow_id=COALESCE(?,workflow_id),
+      environment=?,status=?,decision=?,updated_at=?,verification_purpose=COALESCE(?,verification_purpose),
+      required_age=COALESCE(?,required_age),
       completed_at=CASE WHEN ? IS NOT NULL THEN COALESCE(completed_at,?) ELSE completed_at END,
       metadata_json=? WHERE id=?`)
       .bind(
-        customer.id, restriction?.id || null,
+        customer.id, platformId, restriction?.id || null,
         cleanText(String(verified.payload.workflow_id || ""), 180) || null,
         cleanText(String(verified.payload.environment || existingSession.environment || "live"), 40) || "live",
-        verified.status, verified.status, now, completedAt, completedAt, metadata, existingSession.id
+        verified.status, verified.status, now, purpose, requiredAge, completedAt, completedAt, metadata, existingSession.id
       ).run();
-    return existingSession.id;
+    return { id: existingSession.id, purpose, requiredAge };
   }
 
   const id = crypto.randomUUID();
   await env.DB.prepare(`INSERT INTO identity_verification_sessions
     (id,customer_id,platform_id,restriction_id,provider,provider_session_id,workflow_id,environment,status,decision,
-     vendor_data,created_at,updated_at,completed_at,metadata_json)
-    VALUES (?,?,NULL,?,'didit',?,?,?,?,?,?,?,?,?,?)`)
+     vendor_data,created_at,updated_at,completed_at,verification_purpose,required_age,metadata_json)
+    VALUES (?,?,?,?,'didit',?,?,?,?,?,?,?,?,?,?,?,?)`)
     .bind(
-      id, customer.id, restriction?.id || null, verified.sessionId,
+      id, customer.id, platformId, restriction?.id || null, verified.sessionId,
       cleanText(String(verified.payload.workflow_id || ""), 180) || null,
       cleanText(String(verified.payload.environment || "live"), 40) || "live",
       verified.status, verified.status,
       cleanText(String(verified.payload.vendor_data || customer.customer_number || customer.id), 220),
-      createdAt, now, completedAt, metadata
+      createdAt, now, completedAt, purpose, requiredAge, metadata
     ).run();
-  return id;
+  return { id, purpose, requiredAge };
 }
 
 export async function processDiditWebhook(env, verified) {
   await ensureDiditWebhookSchema(env);
+  await ensureAgeAssuranceSchema(env);
   const event = await env.DB.prepare("SELECT processing_status FROM identity_verification_webhook_events WHERE event_id=? LIMIT 1")
     .bind(verified.eventId).first();
   if (!event) throw new Error("The accepted Didit webhook event could not be found.");
@@ -351,15 +372,18 @@ export async function processDiditWebhook(env, verified) {
     return { unmatched: true };
   }
 
-  const restriction = await findRestriction(env, customer.id, existingSession?.restriction_id || null);
-  await upsertSession(env, verified, customer, restriction, existingSession);
+  const purpose = sessionPurpose(verified.payload, existingSession);
+  const requiredAge = sessionRequiredAge(verified.payload, existingSession);
+  const preferredRestrictionId = cleanText(String(existingSession?.restriction_id || verified.payload.metadata?.restriction_id || ""), 180) || null;
+  const restriction = purpose === "age_verification" ? null : await findRestriction(env, customer.id, preferredRestrictionId);
+  const storedSession = await upsertSession(env, verified, customer, restriction, existingSession);
 
   let restrictionOutcome = null;
-  if (verified.status === "Approved") restrictionOutcome = await liftRestriction(env, customer.id, restriction, verified.sessionId, verified.eventId);
-  if (verified.status === "Declined") await recordDeclinedSignal(env, customer.id, verified.eventId, verified.sessionId);
+  if (verified.status === "Approved" && purpose !== "age_verification") restrictionOutcome = await liftRestriction(env, customer.id, restriction, verified.sessionId, verified.eventId);
+  if (verified.status === "Declined" && purpose !== "age_verification") await recordDeclinedSignal(env, customer.id, verified.eventId, verified.sessionId);
 
-  await writeTimeline(env, customer.id, verified.sessionId, verified.status, verified.webhookType, verified.eventId);
-  await writeAudit(env, customer.id, verified.sessionId, verified.status, verified.eventId, restriction?.id || null);
+  await writeTimeline(env, customer.id, verified.sessionId, verified.status, verified.webhookType, verified.eventId, purpose, requiredAge);
+  await writeAudit(env, customer.id, verified.sessionId, verified.status, verified.eventId, restriction?.id || null, purpose, requiredAge);
   await env.DB.prepare(`UPDATE identity_verification_webhook_events
     SET processing_status='processed',processed_at=?,error_message=NULL WHERE event_id=?`)
     .bind(new Date().toISOString(), verified.eventId).run();
@@ -368,6 +392,10 @@ export async function processDiditWebhook(env, verified) {
     processed: true,
     customerId: customer.id,
     customerNumber: customer.customer_number,
+    sessionId: storedSession.id,
+    purpose,
+    requiredAge,
+    staffAccountsExcluded: true,
     restrictionOutcome
   };
 }

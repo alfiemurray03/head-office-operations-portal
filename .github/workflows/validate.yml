@@ -84,6 +84,9 @@ jobs:
       - name: Validate Didit operations centre
         run: node tests/didit-operations.test.mjs
 
+      - name: Validate central age assurance deployments
+        run: node tests/age-assurance-deployments.test.mjs
+
       - name: Validate Security Operations Centre
         run: node tests/security-operations-centre.test.mjs
 
@@ -144,6 +147,13 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM service_test_runs;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_schedules;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_runs;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM system_settings WHERE setting_group='age_assurance';"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM pragma_table_info('identity_verification_sessions') WHERE name IN ('verification_purpose','required_age');")" = "2"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.enforcement_master_enabled';")" = "0"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.planyx_status';")" = "disabled"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.planyx_minimum_age';")" = "16"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.profile_centre_status';")" = "disabled"
+          test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.profile_centre_minimum_age';")" = "18"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM security_marker_definitions WHERE marker_code LIKE 'SMC-%';")" = "7"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM platforms WHERE id='platform-profile-centre' OR code='PROFILE_CENTRE';")" = "0"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_schedules WHERE job_code LIKE '%lockdown%';")" = "0"
