@@ -7,6 +7,15 @@ function authorised(platform) {
   return platform.scopes.includes("security:read") || platform.scopes.includes("customers:write");
 }
 
+function environmentWithMappedAgeWorkflow(env, workflowId) {
+  return new Proxy(env, {
+    get(target, property, receiver) {
+      if (property === "DIDIT_AGE_WORKFLOW_ID") return workflowId;
+      return Reflect.get(target, property, receiver);
+    }
+  });
+}
+
 export const onRequestPost = async context => {
   const auth = await requirePlatform(context, []);
   if (auth.response) return auth.response;
@@ -46,7 +55,11 @@ export const onRequestPost = async context => {
   }
 
   try {
-    const result = await createIdentityVerification(context.env, {
+    // A 16+ and an 18+ decision must never be created through an unqualified
+    // shared workflow. Supply the workflow explicitly mapped and validated for
+    // this connected website's threshold without mutating the request env.
+    const verificationEnv = environmentWithMappedAgeWorkflow(context.env, deployment.workflowId);
+    const result = await createIdentityVerification(verificationEnv, {
       ...auth.platform,
       actorType: "platform",
       sub: auth.platform.id,
