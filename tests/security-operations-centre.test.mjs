@@ -89,6 +89,12 @@ assert.match(securityApi, /crm_display_label/, 'The staff security register must
 assert.match(securityApi, /branch_instruction/, 'The staff security register must expose the approved connected-site instruction.');
 assert.match(controlPlane, /confidentialReasonWithheld:\s*true/,
   'Connected sites must receive controlled marker instructions rather than confidential Head Office reasoning.');
+assert.match(controlPlane, /crmLabel,\s*\n\s*branchInstruction,\s*\n\s*siteEnforcement/,
+  'Connected sites must receive canonical marker fields understood by Planyx and future Profile Centre.');
+assert.match(controlPlane, /result\.customer = \{[\s\S]*customerNumber:[\s\S]*accountStatus:[\s\S]*securityStatus:/,
+  'The branch contract must include a limited customer security summary.');
+assert.match(controlPlane, /branchInstruction: lockdownInstruction/,
+  'Platform lockdown state must expose the canonical branch instruction field.');
 
 assert.match(notifications, /RESEND_API_KEY/, 'Resend must be configured with a protected server-side API key.');
 assert.match(notifications, /RESEND_FROM_EMAIL/, 'The approved Resend sender must be configurable.');

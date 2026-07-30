@@ -68,18 +68,24 @@ export async function listCustomerSecurityMarkers(env, customerId) {
   const markers = [];
   for (const row of result.results || []) {
     const markerReference = row.marker_reference || await ensureMarkerReference(env, row.id, row.marker_type);
+    const crmLabel = row.crm_display_label || row.marker_type;
+    const branchInstruction = row.branch_instruction || "Contact Head Office for the current customer-security instruction.";
+    const siteEnforcement = row.site_enforcement || "display_only";
     markers.push({
       id: row.id,
       markerReference,
       markerCode: row.marker_code || row.marker_type,
       markerType: row.marker_type,
       category: row.category || "security",
-      label: row.crm_display_label || row.marker_type,
+      crmLabel,
+      branchInstruction,
+      siteEnforcement,
+      label: crmLabel,
+      instruction: branchInstruction,
+      enforcement: siteEnforcement,
       riskLevel: row.risk_level,
       status: row.status,
       visibility: row.visibility,
-      instruction: row.branch_instruction || "Contact Head Office for the current customer-security instruction.",
-      enforcement: row.site_enforcement || "display_only",
       reviewAt: row.review_at,
       expiresAt: row.expires_at,
       confidentialReasonWithheld: true
@@ -166,6 +172,7 @@ export async function liftManualPlatformLockdown(env, lockdown, input, actorId) 
 export async function platformSecurityState(env, platform, customer = null) {
   await ensureSecurityControlPlane(env);
   const lockdown = await activePlatformLockdown(env, platform.id);
+  const lockdownInstruction = "Deny normal customer access and display the site's security-lockdown experience.";
   const result = {
     platform: { id: platform.id, code: platform.code, name: platform.name },
     lockdown: lockdown ? {
@@ -173,9 +180,11 @@ export async function platformSecurityState(env, platform, customer = null) {
       lockdownId: lockdown.id,
       incidentReference: lockdown.incident_reference,
       severity: lockdown.severity,
+      status: lockdown.status,
       initiatedAt: lockdown.initiated_at,
       reviewAt: lockdown.review_at,
-      instruction: "Deny normal customer access and display the site's security-lockdown experience."
+      branchInstruction: lockdownInstruction,
+      instruction: lockdownInstruction
     } : { active: false },
     governance: {
       lockdownMayOnlyBeInitiatedByHeadOffice: true,
@@ -186,6 +195,11 @@ export async function platformSecurityState(env, platform, customer = null) {
   };
   if (customer) {
     result.customerNumber = customer.customer_number;
+    result.customer = {
+      customerNumber: customer.customer_number,
+      accountStatus: customer.account_status,
+      securityStatus: customer.security_status
+    };
     result.markers = await listCustomerSecurityMarkers(env, customer.id);
     result.access = await calculateAccessDecision(env, customer, platform, true);
   }
