@@ -1,6 +1,7 @@
 import { cleanText } from "./_shared.js";
 import { ensureCustomerDirectorySchema, manageCustomerDirectoryAccount } from "./_customer-entra.js";
 import { ensureCentralPlatformSchema, findPlatform, jsonValue } from "./_central-schema.js";
+import { ageAssuranceForAccess } from "./_age-assurance.js";
 
 export async function resolvePlatformCustomer(env, platform, input = {}) {
   await ensureCentralPlatformSchema(env);
@@ -40,7 +41,10 @@ export async function activeRestrictionsForPlatform(env, customerId, platform) {
 }
 
 export async function calculateAccessDecision(env, customer, platform, record = true) {
-  const restrictions = await activeRestrictionsForPlatform(env,customer.id,platform);
+  const [restrictions, ageAssurance] = await Promise.all([
+    activeRestrictionsForPlatform(env,customer.id,platform),
+    ageAssuranceForAccess(env,customer,platform)
+  ]);
   const actions = new Set(restrictions.map(item => item.enforcement_action || item.restriction_type));
   let decision = "allow";
   let revokeSessions = false;
@@ -57,8 +61,12 @@ export async function calculateAccessDecision(env, customer, platform, record = 
     decision = "review"; revokeSessions = true; reason = "Existing sessions must be revoked and the customer must sign in again.";
   } else if (customer.security_status === "critical") {
     decision = "review"; reason = "The customer is subject to a critical Head Office security review.";
+  } else if (ageAssurance.decision === "deny") {
+    decision = "deny"; reason = ageAssurance.reason;
+  } else if (ageAssurance.decision === "step_up") {
+    decision = "step_up"; reason = ageAssurance.reason;
   }
-  const result = { decision,revokeSessions,reason,restrictions };
+  const result = { decision,revokeSessions,reason,restrictions,ageAssurance };
   if (record) await env.DB.prepare(`INSERT INTO customer_access_decisions
     (id,customer_id,platform_id,decision,revoke_sessions,reason,restrictions_json,created_at)
     VALUES (?,?,?,?,?,?,?,?)`).bind(crypto.randomUUID(),customer.id,platform.id,decision,revokeSessions?1:0,
