@@ -1,4 +1,4 @@
-/* Extends the governed System Settings page with scheduler controls. */
+/* Extends the governed System Settings page with scheduler and age-workflow controls. */
 (() => {
   if (typeof renderSettings !== 'function') return;
   const previousRenderSettings = renderSettings;
@@ -12,13 +12,35 @@
     return `<div class="system-toggle-row"><div class="system-toggle-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(copy)}</small></div><label class="system-switch"><input type="checkbox" data-setting-key="${escapeHtml(key)}" ${value ? 'checked' : ''} ${editable ? '' : 'disabled'}><span aria-hidden="true"></span></label></div>`;
   }
 
+  function workflowField(key, value, threshold, editable) {
+    return `<label class="field" data-age-workflow-field><span>Didit ${threshold}+ workflow ID</span><input data-setting-key="${escapeHtml(key)}" value="${escapeHtml(value || '')}" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false" ${editable ? '' : 'disabled'}><small>Use only a workflow tested specifically for the ${threshold}+ threshold. A shared unqualified workflow cannot authorise both 16+ and 18+.</small></label>`;
+  }
+
+  function addAgeWorkflowFields(values, editable) {
+    const panels = [...document.querySelectorAll('.system-setting-section')];
+    const planyx = panels.find(section => section.querySelector('h3')?.textContent?.trim() === 'Planyx')?.querySelector('.system-setting-body');
+    const profile = panels.find(section => section.querySelector('h3')?.textContent?.trim() === 'Profile Centre')?.querySelector('.system-setting-body');
+    if (planyx && !planyx.querySelector('[data-age-workflow-field]')) {
+      planyx.querySelector('.system-toggle-row')?.insertAdjacentHTML('beforebegin', workflowField(
+        'age_assurance.planyx_workflow_id', values['age_assurance.planyx_workflow_id'], 16, editable
+      ));
+    }
+    if (profile && !profile.querySelector('[data-age-workflow-field]')) {
+      profile.querySelector('.system-toggle-row')?.insertAdjacentHTML('beforebegin', workflowField(
+        'age_assurance.profile_centre_workflow_id', values['age_assurance.profile_centre_workflow_id'], 18, editable
+      ));
+    }
+  }
+
   renderSettings = async function renderSettingsWithAutomation() {
     await previousRenderSettings();
     const form = document.querySelector('form[data-form="system-settings"]');
-    if (!form || form.querySelector('[data-automation-settings-section]')) return;
+    if (!form) return;
     const data = await api('/api/configuration');
     const values = parseRows(data.settings);
     const editable = hasPermission('configuration:write');
+    addAgeWorkflowFields(values, editable);
+    if (form.querySelector('[data-automation-settings-section]')) return;
     const section = document.createElement('section');
     section.className = 'system-setting-section';
     section.dataset.automationSettingsSection = 'true';
