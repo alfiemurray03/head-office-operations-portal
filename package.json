@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "wrangler pages functions build --outdir .pages-check",
+    "check": "node tests/startup-resilience.test.mjs && wrangler pages functions build --outdir .pages-check",
     "dev": "wrangler pages dev public",
     "deploy": "wrangler pages deploy public",
     "types": "wrangler types --path functions/types.d.ts"

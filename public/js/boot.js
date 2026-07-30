@@ -1,4 +1,5 @@
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const MODULE_LOAD_TIMEOUT_MS = 8_000;
 let customerDirectoryModulePromise = null;
 let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
@@ -7,165 +8,137 @@ let stripeReconciliationModulePromise = null;
 let systemControlModulePromise = null;
 let automationCentreModulePromise = null;
 let automationSettingsExtensionPromise = null;
+let bootPromise = null;
+let bootGeneration = 0;
+
+function ensureModuleStylesheet(selector, href, datasetProperty) {
+  if (document.querySelector(selector)) return;
+  const style = document.createElement('link');
+  style.rel = 'stylesheet';
+  style.href = href;
+  style.dataset[datasetProperty] = 'true';
+  document.head.append(style);
+}
+
+function loadScriptOnce({ selector, src, datasetProperty, errorMessage }) {
+  const existing = document.querySelector(selector);
+  if (existing) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`${errorMessage} The request timed out.`));
+    }, MODULE_LOAD_TIMEOUT_MS);
+
+    const finish = callback => event => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback(event);
+    };
+
+    script.src = src;
+    script.async = false;
+    script.dataset[datasetProperty] = 'true';
+    script.addEventListener('load', finish(resolve), { once: true });
+    script.addEventListener('error', finish(() => reject(new Error(errorMessage))), { once: true });
+    document.head.append(script);
+  });
+}
 
 function loadCustomerDirectoryModule() {
   if (customerDirectoryModulePromise) return customerDirectoryModulePromise;
-  customerDirectoryModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-customer-directory]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/customer-directory.css?v=20260728-directory-1';
-      style.dataset.customerDirectory = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-customer-directory]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/customer-directory.js?v=20260728-directory-1';
-    script.async = false;
-    script.dataset.customerDirectory = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The Microsoft customer-directory module could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-customer-directory]', '/customer-directory.css?v=20260728-directory-1', 'customerDirectory');
+  customerDirectoryModulePromise = loadScriptOnce({
+    selector: 'script[data-customer-directory]',
+    src: '/js/customer-directory.js?v=20260728-directory-1',
+    datasetProperty: 'customerDirectory',
+    errorMessage: 'The Microsoft customer-directory module could not be loaded.'
   });
   return customerDirectoryModulePromise;
 }
 
 function loadCustomerAutomationModule() {
   if (customerAutomationModulePromise) return customerAutomationModulePromise;
-  customerAutomationModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-customer-automation]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/customer-automation.css?v=20260728-automation-1';
-      style.dataset.customerAutomation = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-customer-automation]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/customer-automation.js?v=20260728-automation-1';
-    script.async = false;
-    script.dataset.customerAutomation = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The automated customer-operations module could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-customer-automation]', '/customer-automation.css?v=20260728-automation-1', 'customerAutomation');
+  customerAutomationModulePromise = loadScriptOnce({
+    selector: 'script[data-customer-automation]',
+    src: '/js/customer-automation.js?v=20260728-automation-1',
+    datasetProperty: 'customerAutomation',
+    errorMessage: 'The automated customer-operations module could not be loaded.'
   });
   return customerAutomationModulePromise;
 }
 
 function loadDiditOperationsModule() {
   if (diditOperationsModulePromise) return diditOperationsModulePromise;
-  diditOperationsModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-didit-operations]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/didit-operations.css?v=20260729-didit-1';
-      style.dataset.diditOperations = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-didit-operations]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/didit-operations.js?v=20260729-didit-1';
-    script.async = false;
-    script.dataset.diditOperations = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The Didit Identity Verification Centre could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-didit-operations]', '/didit-operations.css?v=20260729-didit-1', 'diditOperations');
+  diditOperationsModulePromise = loadScriptOnce({
+    selector: 'script[data-didit-operations]',
+    src: '/js/didit-operations.js?v=20260729-didit-1',
+    datasetProperty: 'diditOperations',
+    errorMessage: 'The Didit Identity Verification Centre could not be loaded.'
   });
   return diditOperationsModulePromise;
 }
 
 function loadSecurityOperationsModule() {
   if (securityOperationsModulePromise) return securityOperationsModulePromise;
-  securityOperationsModulePromise = new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-security-operations-centre]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/security-operations-centre.js?v=20260729-soc-1';
-    script.async = false;
-    script.dataset.securityOperationsCentre = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The Head Office Security Operations Centre could not be loaded.')), { once: true });
-    document.head.append(script);
+  securityOperationsModulePromise = loadScriptOnce({
+    selector: 'script[data-security-operations-centre]',
+    src: '/js/security-operations-centre.js?v=20260729-soc-1',
+    datasetProperty: 'securityOperationsCentre',
+    errorMessage: 'The Head Office Security Operations Centre could not be loaded.'
   });
   return securityOperationsModulePromise;
 }
 
 function loadStripeReconciliationModule() {
   if (stripeReconciliationModulePromise) return stripeReconciliationModulePromise;
-  stripeReconciliationModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-stripe-reconciliation]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/stripe-reconciliation.css?v=20260729-stripe-data-1';
-      style.dataset.stripeReconciliation = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-stripe-reconciliation]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/stripe-reconciliation.js?v=20260729-stripe-data-1';
-    script.async = false;
-    script.dataset.stripeReconciliation = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The Stripe reconciliation workspace could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-stripe-reconciliation]', '/stripe-reconciliation.css?v=20260729-stripe-data-1', 'stripeReconciliation');
+  stripeReconciliationModulePromise = loadScriptOnce({
+    selector: 'script[data-stripe-reconciliation]',
+    src: '/js/stripe-reconciliation.js?v=20260729-stripe-data-1',
+    datasetProperty: 'stripeReconciliation',
+    errorMessage: 'The Stripe reconciliation workspace could not be loaded.'
   });
   return stripeReconciliationModulePromise;
 }
 
 function loadSystemControlModule() {
   if (systemControlModulePromise) return systemControlModulePromise;
-  systemControlModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-system-control]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/system-control.css?v=20260729-system-control-1';
-      style.dataset.systemControl = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-system-control]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/system-control.js?v=20260729-system-control-1';
-    script.async = false;
-    script.dataset.systemControl = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The System Test Centre and Settings workspace could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-system-control]', '/system-control.css?v=20260729-system-control-1', 'systemControl');
+  systemControlModulePromise = loadScriptOnce({
+    selector: 'script[data-system-control]',
+    src: '/js/system-control.js?v=20260729-system-control-1',
+    datasetProperty: 'systemControl',
+    errorMessage: 'The System Test Centre and Settings workspace could not be loaded.'
   });
   return systemControlModulePromise;
 }
 
 function loadAutomationCentreModule() {
   if (automationCentreModulePromise) return automationCentreModulePromise;
-  automationCentreModulePromise = new Promise((resolve, reject) => {
-    if (!document.querySelector('link[data-automation-centre]')) {
-      const style = document.createElement('link');
-      style.rel = 'stylesheet';
-      style.href = '/automation-centre.css?v=20260730-automation-centre-1';
-      style.dataset.automationCentre = 'true';
-      document.head.append(style);
-    }
-    if (document.querySelector('script[data-automation-centre]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/automation-centre.js?v=20260730-automation-centre-1';
-    script.async = false;
-    script.dataset.automationCentre = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The Automation and Scheduling Centre could not be loaded.')), { once: true });
-    document.head.append(script);
+  ensureModuleStylesheet('link[data-automation-centre]', '/automation-centre.css?v=20260730-automation-centre-1', 'automationCentre');
+  automationCentreModulePromise = loadScriptOnce({
+    selector: 'script[data-automation-centre]',
+    src: '/js/automation-centre.js?v=20260730-automation-centre-1',
+    datasetProperty: 'automationCentre',
+    errorMessage: 'The Automation and Scheduling Centre could not be loaded.'
   });
   return automationCentreModulePromise;
 }
 
 function loadAutomationSettingsExtension() {
   if (automationSettingsExtensionPromise) return automationSettingsExtensionPromise;
-  automationSettingsExtensionPromise = new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-automation-settings-extension]')) return resolve();
-    const script = document.createElement('script');
-    script.src = '/js/automation-settings-extension.js?v=20260730-automation-centre-1';
-    script.async = false;
-    script.dataset.automationSettingsExtension = 'true';
-    script.addEventListener('load', resolve, { once: true });
-    script.addEventListener('error', () => reject(new Error('The scheduler controls could not be added to System Settings.')), { once: true });
-    document.head.append(script);
+  automationSettingsExtensionPromise = loadScriptOnce({
+    selector: 'script[data-automation-settings-extension]',
+    src: '/js/automation-settings-extension.js?v=20260730-automation-centre-1',
+    datasetProperty: 'automationSettingsExtension',
+    errorMessage: 'The scheduler controls could not be added to System Settings.'
   });
   return automationSettingsExtensionPromise;
 }
@@ -207,8 +180,8 @@ function ensureSystemControlNavigation() {
 
 async function loadSession(authResult) {
   let result = null;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    result = await api('/api/auth/session');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    result = await api('/api/auth/session', { timeoutMs: 8_000 });
     if (result.authenticated || authResult !== 'success') return result;
     await pause(300 * (attempt + 1));
   }
@@ -217,23 +190,78 @@ async function loadSession(authResult) {
 
 async function loadReference() {
   let lastError;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try { return await api('/api/reference'); }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try { return await api('/api/reference', { timeoutMs: 8_000 }); }
     catch (error) {
       lastError = error;
       if (error.status === 401 || error.status === 403) throw error;
-      await pause(400 * (attempt + 1));
+      if (attempt === 0) await pause(500);
     }
   }
   throw lastError;
 }
 
-function showStartupFailure(error) {
-  $('#viewRoot').innerHTML = `<div class="panel"><div class="empty-state"><strong>You are signed in, but Head Office services did not finish starting</strong><span>${escapeHtml(error.message || 'The service is temporarily unavailable.')}</span><div style="margin-top:16px"><button class="button primary" id="retryStartupButton">Retry opening Head Office</button></div></div></div>`;
-  $('#retryStartupButton')?.addEventListener('click', () => boot());
+function resultSucceeded(results, name) {
+  return results.some(result => result.status === 'fulfilled' && result.value === name);
 }
 
-async function boot() {
+async function initialiseOptionalModules(requestedRoute, generation) {
+  const namedLoad = async (name, loader) => {
+    await loader();
+    return name;
+  };
+
+  const primaryResults = await Promise.allSettled([
+    namedLoad('customer-directory', loadCustomerDirectoryModule),
+    namedLoad('customer-automation', loadCustomerAutomationModule),
+    namedLoad('didit-operations', loadDiditOperationsModule),
+    namedLoad('system-control', loadSystemControlModule),
+    namedLoad('automation-centre', loadAutomationCentreModule)
+  ]);
+
+  ensureCustomerDirectoryNavigation();
+  ensureSystemControlNavigation();
+  window.ensureDiditNavigation?.();
+  renderNavigation();
+
+  const extensionResults = await Promise.allSettled([
+    namedLoad('automation-settings', loadAutomationSettingsExtension),
+    namedLoad('security-operations', loadSecurityOperationsModule),
+    namedLoad('stripe-reconciliation', loadStripeReconciliationModule)
+  ]);
+
+  window.ensureSecurityOperationsNavigation?.();
+  ensureSystemControlNavigation();
+  renderNavigation();
+
+  const results = [...primaryResults, ...extensionResults];
+  const failures = results.filter(result => result.status === 'rejected');
+  if (failures.length) {
+    toast(
+      'Some specialist tools are temporarily unavailable',
+      `${failures.length} optional module${failures.length === 1 ? '' : 's'} did not load. Core customer and security records remain available.`,
+      'error'
+    );
+  }
+
+  if (generation !== bootGeneration || !state.session?.authenticated) return;
+
+  const routeRequirements = {
+    'customer-directory': 'customer-directory',
+    'automation-centre': 'automation-centre',
+    'test-centre': 'system-control',
+    'didit-operations': 'didit-operations',
+    'security-operations': 'security-operations',
+    'stripe-reconciliation': 'stripe-reconciliation'
+  };
+  const requiredModule = routeRequirements[requestedRoute];
+  if (!requiredModule || resultSucceeded(results, requiredModule)) navigate(requestedRoute, true);
+}
+
+async function runBoot() {
+  const generation = ++bootGeneration;
+  showLogin('Checking your authorised Head Office staff session…');
+
   const fragment = new URLSearchParams(location.hash.startsWith('#auth_session=') ? location.hash.slice(1) : '');
   const query = new URLSearchParams(location.search);
   const handoff = fragment.get('auth_session') || query.get('auth_session');
@@ -253,34 +281,41 @@ async function boot() {
         : '');
     }
   } catch (error) {
-    return showLogin(error.message);
+    return showLogin(error.message || 'The staff session could not be checked. Please try again.');
   }
 
-  showApp();
-  setLoading('Opening automated Head Office services…');
+  $('#configurationNote').textContent = 'Microsoft sign-in confirmed. Loading your authorised permissions…';
   try {
-    await Promise.all([loadCustomerDirectoryModule(), loadCustomerAutomationModule(), loadDiditOperationsModule(), loadSystemControlModule()]);
-    await Promise.all([loadAutomationCentreModule(), loadAutomationSettingsExtension()]);
-    ensureCustomerDirectoryNavigation();
-    ensureSystemControlNavigation();
-    window.ensureDiditNavigation?.();
     state.reference = await loadReference();
-    renderNavigation();
-    await loadSecurityOperationsModule();
-    await loadStripeReconciliationModule();
-    window.ensureSecurityOperationsNavigation?.();
-    ensureSystemControlNavigation();
-    renderNavigation();
-    const initialRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
-    navigate(initialRoute, true);
   } catch (error) {
-    showStartupFailure(error);
+    return showLogin(`Microsoft sign-in succeeded, but Head Office permissions could not be loaded. ${error.message || 'Please try again.'}`);
   }
+
+  if (generation !== bootGeneration) return;
+
+  const requestedRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
+  showApp();
+  renderNavigation();
+
+  // Open a core workspace immediately. Specialist modules initialise separately and
+  // can no longer freeze the entire portal on an endless loading screen.
+  navigate('dashboard', true);
+  initialiseOptionalModules(requestedRoute, generation).catch(error => {
+    console.error('Optional Head Office modules did not finish initialising.', error);
+    toast('Specialist tools unavailable', error.message || 'The core portal remains available.', 'error');
+  });
+}
+
+function boot() {
+  if (bootPromise) return bootPromise;
+  bootPromise = runBoot().finally(() => { bootPromise = null; });
+  return bootPromise;
 }
 
 $('#menuButton').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 $('#signOutButton').addEventListener('click', async () => {
-  const result = await api('/api/auth/logout', { method: 'POST', body: '{}' }).catch(() => ({}));
+  const result = await api('/api/auth/logout', { method: 'POST', body: '{}', timeoutMs: 8_000 }).catch(() => ({}));
+  bootGeneration += 1;
   clearSession();
   if (result.redirect) location.assign(result.redirect); else location.reload();
 });
@@ -293,6 +328,8 @@ document.addEventListener('keydown', event => {
 });
 document.addEventListener('click', event => handleClick(event.target).catch(error => toast('Action could not be completed', error.message, 'error')));
 document.addEventListener('submit', event => { event.preventDefault(); handleForm(event.target); });
-window.addEventListener('hashchange', () => renderRoute(routeFromHash()));
+window.addEventListener('hashchange', () => {
+  if (!$('#appShell').hidden) renderRoute(routeFromHash());
+});
 setInterval(() => { $('#systemClock').textContent = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date()); }, 1000);
 boot();

@@ -1,5 +1,6 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const DEFAULT_API_TIMEOUT_MS = 12_000;
 const state = {
   sessionToken: "",
   session: null,
@@ -33,15 +34,51 @@ function clearSession() {
 
 async function api(path, options = {}) {
   const token = storedSession();
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {})
+  const {
+    timeoutMs = DEFAULT_API_TIMEOUT_MS,
+    signal: externalSignal,
+    headers: suppliedHeaders,
+    ...fetchOptions
+  } = options;
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, Math.max(1_000, Number(timeoutMs) || DEFAULT_API_TIMEOUT_MS));
+
+  const forwardAbort = () => controller.abort(externalSignal?.reason);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort(externalSignal.reason);
+    else externalSignal.addEventListener("abort", forwardAbort, { once: true });
+  }
+
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "same-origin",
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(suppliedHeaders || {})
+      }
+    });
+  } catch (error) {
+    if (timedOut) {
+      const problem = new Error("Head Office did not respond within 12 seconds. Please retry.");
+      problem.code = "REQUEST_TIMEOUT";
+      problem.status = 0;
+      throw problem;
     }
-  });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    externalSignal?.removeEventListener?.("abort", forwardAbort);
+  }
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401) showLogin("Your staff session has ended. Sign in again.");

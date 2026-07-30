@@ -6,12 +6,48 @@ import { ensureV7Schema } from "../_v7-schema.js";
 import { ensureV7Enhancements } from "../_v7-enhancements.js";
 import { ensureCentralPlatformSchema } from "../_central-schema.js";
 
+const REQUIRED_REFERENCE_TABLES = [
+  "platforms",
+  "platform_operational_profiles",
+  "staff_members",
+  "staff_role_assignments",
+  "organisation_units",
+  "role_definitions",
+  "security_marker_types",
+  "restriction_types",
+  "system_settings"
+];
+
+let referenceSchemaPromise = null;
+
+async function referenceSchemaExists(env) {
+  if (!env.DB) throw new Error("The Head Office database is not connected.");
+  const names = REQUIRED_REFERENCE_TABLES.map(name => `'${name}'`).join(",");
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS table_count
+    FROM sqlite_master WHERE type='table' AND name IN (${names})`).first();
+  return Number(row?.table_count || 0) === REQUIRED_REFERENCE_TABLES.length;
+}
+
+async function ensureReferenceSchema(env) {
+  if (referenceSchemaPromise) return referenceSchemaPromise;
+  referenceSchemaPromise = (async () => {
+    // Production already has these tables. A single catalogue check avoids running
+    // hundreds of CREATE/ALTER/INSERT statements during every staff login.
+    if (await referenceSchemaExists(env)) return;
+    await ensureProductionSchema(env);
+    await ensureProductionCatalogues(env);
+    await ensureV7Schema(env);
+    await ensureV7Enhancements(env);
+    await ensureCentralPlatformSchema(env);
+  })().catch(error => {
+    referenceSchemaPromise = null;
+    throw error;
+  });
+  return referenceSchemaPromise;
+}
+
 export const onRequestGet = async context => {
-  await ensureProductionSchema(context.env);
-  await ensureProductionCatalogues(context.env);
-  await ensureV7Schema(context.env);
-  await ensureV7Enhancements(context.env);
-  await ensureCentralPlatformSchema(context.env);
+  await ensureReferenceSchema(context.env);
   const auth = await requirePermission(context, "dashboard:read");
   if (auth.response) return auth.response;
   const [platforms, staff, units, roles, markerTypes, restrictionTypes, settings] = await context.env.DB.batch([
@@ -27,7 +63,7 @@ export const onRequestGet = async context => {
     context.env.DB.prepare("SELECT setting_key,value_json FROM system_settings")
   ]);
   return json({
-    systemVersion: "8.0.0-central",
+    systemVersion: "8.0.1-startup",
     permissions: auth.authorisation.permissions,
     roles: auth.authorisation.roles,
     platforms: platforms.results,
