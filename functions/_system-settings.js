@@ -2,6 +2,7 @@ const integer = (minimum, maximum) => value => Number.isInteger(Number(value)) &
 const boolean = value => typeof value === "boolean";
 const oneOf = values => value => values.includes(String(value || ""));
 const prefix = value => /^[A-Z0-9]{2,8}$/.test(String(value || "").toUpperCase());
+const workflowId = value => String(value || "") === "" || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 const timezone = value => {
   try {
     new Intl.DateTimeFormat("en-GB", { timeZone: String(value || "") }).format(new Date());
@@ -33,9 +34,11 @@ export const SYSTEM_SETTING_DEFINITIONS = new Map([
   ["age_assurance.enforcement_master_enabled", { group: "age_assurance", defaultValue: false, validate: boolean, description: "Master switch for customer-only age-assurance enforcement across connected services." }],
   ["age_assurance.planyx_status", { group: "age_assurance", defaultValue: "disabled", validate: oneOf(["disabled", "paused", "enabled"]), description: "Planyx customer age-assurance deployment state." }],
   ["age_assurance.planyx_minimum_age", { group: "age_assurance", defaultValue: 16, validate: integer(13, 25), description: "Minimum customer age for Planyx." }],
+  ["age_assurance.planyx_workflow_id", { group: "age_assurance", defaultValue: "", validate: workflowId, description: "Didit workflow validated specifically for the Planyx 16+ threshold." }],
   ["age_assurance.planyx_threshold_validated", { group: "age_assurance", defaultValue: false, validate: boolean, description: "Confirms that the configured Didit age workflow has been tested for the Planyx threshold." }],
   ["age_assurance.profile_centre_status", { group: "age_assurance", defaultValue: "disabled", validate: oneOf(["disabled", "paused", "enabled"]), description: "Profile Centre customer age-assurance deployment state." }],
   ["age_assurance.profile_centre_minimum_age", { group: "age_assurance", defaultValue: 18, validate: integer(13, 25), description: "Minimum customer age for Profile Centre." }],
+  ["age_assurance.profile_centre_workflow_id", { group: "age_assurance", defaultValue: "", validate: workflowId, description: "Didit workflow validated specifically for the Profile Centre 18+ threshold." }],
   ["age_assurance.profile_centre_threshold_validated", { group: "age_assurance", defaultValue: false, validate: boolean, description: "Confirms that the configured Didit age workflow has been tested for the Profile Centre threshold." }],
   ["age_assurance.result_validity_days", { group: "age_assurance", defaultValue: 365, validate: integer(30, 1095), description: "Default validity period for approved customer age-assurance evidence." }],
   ["automation.scheduler_enabled", { group: "automation", defaultValue: true, validate: boolean, description: "Allows the governed Automation and Scheduling Centre to execute due schedules." }],
