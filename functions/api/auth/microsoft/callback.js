@@ -16,11 +16,18 @@ function cookieParts(request) {
 async function requestWithCanonicalTransactionCookie(request, env) {
   const cookies = cookieParts(request);
   const state = new URL(request.url).searchParams.get("state") || "";
+  let transactionValue = "";
 
-  // The state-bound D1 transaction is authoritative. It cannot collide with an
-  // older cookie and it survives privacy settings that partition browser state
-  // during the Microsoft account-selection round trip.
-  let transactionValue = await consumeMicrosoftTransaction(env, state);
+  // D1 recovery is optional. A database problem must not prevent the normal
+  // secure host-only transaction cookie from completing the Microsoft login.
+  try {
+    transactionValue = await consumeMicrosoftTransaction(env, state);
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "microsoft_transaction_recovery_unavailable",
+      message: error instanceof Error ? error.message : "Unknown transaction-recovery error"
+    }));
+  }
 
   if (!transactionValue) {
     const legacyTransaction = cookies.find(value => value.startsWith(`${LEGACY_TRANSACTION_COOKIE}=`));
@@ -52,6 +59,22 @@ function useHostOnlySessionCookie(response) {
       ? `${HOST_SESSION_COOKIE}=${value.slice(LEGACY_SESSION_COOKIE.length + 1)}`
       : value;
     headers.append("Set-Cookie", rewritten);
+  }
+
+  // Edge has previously returned from Microsoft without exposing the fragment
+  // hand-off to the portal boot code. Mirror the signed session into the query
+  // string as a one-time transport; boot.js immediately removes it from the URL.
+  const location = headers.get("Location");
+  if (location) {
+    const redirect = new URL(location);
+    const fragment = new URLSearchParams(redirect.hash.startsWith("#") ? redirect.hash.slice(1) : redirect.hash);
+    const session = fragment.get("auth_session");
+    if (session) {
+      redirect.searchParams.set("auth_session", session);
+      redirect.searchParams.set("auth_result", "success");
+      redirect.hash = "#/security-operations";
+      headers.set("Location", redirect.toString());
+    }
   }
 
   return new Response(response.body, {
