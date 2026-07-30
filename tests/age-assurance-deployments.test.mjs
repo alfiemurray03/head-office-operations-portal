@@ -11,6 +11,7 @@ const [
   webhook,
   configApi,
   sessionApi,
+  customerUpsert,
   ui
 ] = await Promise.all([
   read('migrations/0018_central_age_assurance.sql'),
@@ -21,6 +22,7 @@ const [
   read('functions/_didit-webhook.js'),
   read('functions/api/platform/age-assurance/config.js'),
   read('functions/api/platform/age-assurance/session.js'),
+  read('functions/api/platform/customers/upsert.js'),
   read('public/js/system-control.js')
 ]);
 
@@ -72,6 +74,7 @@ assert.match(sessionApi, /purpose: "age_verification"/, 'Branch sessions must us
 assert.match(sessionApi, /accessMode: "request_only"/, 'The provider session itself must not create a generic login restriction.');
 assert.match(sessionApi, /staffAccountsExcluded: true/, 'The branch response must confirm staff accounts are excluded.');
 assert.doesNotMatch(`${configApi}\n${sessionApi}`, /staff_directory_profiles|staff_members|staff_directory_identities/, 'Branch age APIs must never query the staff tenant or Staff Directory.');
+assert.match(customerUpsert, /ageAssurance:access\.ageAssurance/, 'Customer sign-in synchronisation must receive the same age policy detail as a normal access check.');
 
 assert.match(ui, /Customer Age Assurance Deployments/, 'System Settings must expose the central deployment workspace.');
 assert.match(ui, /Start group age-assurance enforcement/, 'Head Office must have a separate master start control.');
