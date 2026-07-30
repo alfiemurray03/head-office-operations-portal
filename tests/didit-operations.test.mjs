@@ -66,8 +66,12 @@ assert.doesNotMatch(ui, /DIDIT_API_KEY/, 'The browser must never reference the D
 assert.doesNotMatch(ui, /DIDIT_WEBHOOK_SECRET/, 'The browser must never reference the Didit webhook secret.');
 assert.match(css, /\.didit-page/, 'The Didit workspace must have a complete responsive visual system.');
 assert.match(css, /@media\(max-width:760px\)/, 'The Didit controls must remain usable on smaller screens.');
-assert.match(boot, /loadDiditOperationsModule/, 'The Didit module must load before the first portal route is rendered.');
-assert.match(boot, /Promise\.all\(\[[\s\S]*loadDiditOperationsModule\(\)[\s\S]*loadSystemControlModule\(\)[\s\S]*\]\)/, 'Portal startup must wait for both Didit and System Control modules.');
+assert.match(boot, /loadDiditOperationsModule/, 'The governed startup must retain the Didit module loader.');
+assert.match(boot, /namedLoad\('didit-operations', loadDiditOperationsModule\)/,
+  'Didit must remain part of the governed specialist-module startup set.');
+assert.match(boot, /Promise\.allSettled/, 'A temporary Didit asset failure must not freeze the entire Head Office portal.');
+assert.match(boot, /routeRequirements[\s\S]*'didit-operations': 'didit-operations'/,
+  'The Didit route must not open until its specialist module has loaded successfully.');
 assert.match(webhook, /verified\.status === "Approved"/, 'Only an approved signed provider result may automatically lift a linked restriction.');
 assert.match(webhook, /verified\.status === "Declined"/, 'A declined signed provider result must create central risk activity.');
 
