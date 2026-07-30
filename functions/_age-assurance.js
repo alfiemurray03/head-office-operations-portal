@@ -7,6 +7,7 @@ const DEPLOYMENTS = Object.freeze({
     name: "Planyx",
     statusKey: "age_assurance.planyx_status",
     minimumAgeKey: "age_assurance.planyx_minimum_age",
+    workflowKey: "age_assurance.planyx_workflow_id",
     validatedKey: "age_assurance.planyx_threshold_validated"
   }),
   PROFILE_CENTRE: Object.freeze({
@@ -14,6 +15,7 @@ const DEPLOYMENTS = Object.freeze({
     name: "Profile Centre",
     statusKey: "age_assurance.profile_centre_status",
     minimumAgeKey: "age_assurance.profile_centre_minimum_age",
+    workflowKey: "age_assurance.profile_centre_workflow_id",
     validatedKey: "age_assurance.profile_centre_threshold_validated"
   })
 });
@@ -82,24 +84,28 @@ export async function ageAssuranceDeployment(env, platform) {
       staffAccountsExcluded: true,
       status: "disabled",
       minimumAge: null,
+      workflowId: null,
+      workflowConfigured: false,
       thresholdValidated: false,
       masterEnabled: false,
       enforcementActive: false
     };
   }
 
-  const [statusValue, minimumAgeValue, validatedValue, masterValue, validityDaysValue] = await Promise.all([
+  const [statusValue, minimumAgeValue, workflowValue, validatedValue, masterValue, validityDaysValue] = await Promise.all([
     getSystemSetting(env, definition.statusKey, "disabled"),
     getSystemSetting(env, definition.minimumAgeKey, definition.code === "PLANYX" ? 16 : 18),
+    getSystemSetting(env, definition.workflowKey, ""),
     getSystemSetting(env, definition.validatedKey, false),
     getSystemSetting(env, "age_assurance.enforcement_master_enabled", false),
     getSystemSetting(env, "age_assurance.result_validity_days", 365)
   ]);
   const status = DEPLOYMENT_STATUSES.has(String(statusValue)) ? String(statusValue) : "disabled";
   const minimumAge = Math.max(13, Math.min(25, Number(minimumAgeValue) || (definition.code === "PLANYX" ? 16 : 18)));
+  const workflowId = cleanText(workflowValue, 180) || null;
   const masterEnabled = masterValue === true;
   const thresholdValidated = validatedValue === true;
-  const providerReady = Boolean(cleanText(env.DIDIT_API_KEY, 500) && cleanText(env.DIDIT_AGE_WORKFLOW_ID, 180));
+  const providerReady = Boolean(cleanText(env.DIDIT_API_KEY, 500) && workflowId);
 
   return {
     configured: true,
@@ -109,6 +115,8 @@ export async function ageAssuranceDeployment(env, platform) {
     staffAccountsExcluded: true,
     status,
     minimumAge,
+    workflowId,
+    workflowConfigured: Boolean(workflowId),
     thresholdValidated,
     masterEnabled,
     providerReady,
@@ -172,12 +180,12 @@ export async function ageAssuranceForAccess(env, customer, platform) {
 
   if (!deployment.configured || !deployment.masterEnabled || deployment.status === "disabled") return base;
 
-  if (!deployment.thresholdValidated) {
+  if (!deployment.workflowConfigured || !deployment.thresholdValidated) {
     return {
       ...base,
       required: true,
       decision: "deny",
-      reason: "The age-assurance deployment has not passed its threshold-validation control."
+      reason: "The age-assurance deployment has not passed its threshold-specific workflow and validation controls."
     };
   }
 
@@ -239,8 +247,8 @@ export async function requireAgeAssuranceSessionDeployment(env, platform) {
       status: 503
     });
   }
-  if (!deployment.thresholdValidated || !deployment.providerReady) {
-    throw Object.assign(new Error("The age-assurance deployment has not passed its workflow and threshold readiness check."), {
+  if (!deployment.workflowConfigured || !deployment.thresholdValidated || !deployment.providerReady) {
+    throw Object.assign(new Error("The age-assurance deployment has not passed its threshold-specific workflow and readiness checks."), {
       code: "AGE_ASSURANCE_NOT_READY",
       status: 503
     });
