@@ -3,6 +3,7 @@ import { ensureDiditWebhookSchema } from "./_didit-webhook.js";
 import { findCustomer, recalculateCustomerSecurity } from "./_operations.js";
 import { applyRestrictionEnforcement, liftRestrictionEnforcement } from "./_central-access.js";
 import { findPlatform, jsonValue } from "./_central-schema.js";
+import { ageAssuranceDeployment, ensureAgeAssuranceSchema } from "./_age-assurance.js";
 
 const DIDIT_BASE_URL = "https://verification.didit.me";
 const ACTIVE_STATUSES = new Set(["Not Started", "Awaiting User", "In Progress", "In Review", "Resubmitted"]);
@@ -86,6 +87,20 @@ async function platformForScope(env, reference) {
   return findPlatform(env, value);
 }
 
+async function requiredAgeForPurpose(env, input, purpose, platform) {
+  if (purpose !== "age_verification") return null;
+  const supplied = Number(input.requiredAge);
+  if (Number.isInteger(supplied) && supplied >= 13 && supplied <= 25) return supplied;
+  if (platform) {
+    const deployment = await ageAssuranceDeployment(env, platform);
+    if (deployment.configured && Number.isInteger(deployment.minimumAge)) return deployment.minimumAge;
+  }
+  throw Object.assign(new Error("Select the customer age threshold required for this verification."), {
+    code: "AGE_THRESHOLD_REQUIRED",
+    status: 400
+  });
+}
+
 async function activeVerificationRestriction(env, customerId, scope) {
   return env.DB.prepare(`SELECT r.*,t.enforcement_action,t.label restriction_label
     FROM restrictions r LEFT JOIN restriction_types t ON t.code=r.restriction_type
@@ -138,6 +153,9 @@ function sessionMetadata(input, actor, provider) {
     accessMode: input.accessMode,
     scope: input.scope,
     source: input.source || "manual",
+    requiredAge: input.requiredAge || null,
+    accountPopulation: "customers_only",
+    staffAccountsExcluded: true,
     initiatedBy: actor.sub,
     initiatedByName: actor.displayName,
     notificationRequested: Boolean(input.sendNotificationEmails),
@@ -156,6 +174,7 @@ async function writeTimeline(env, customerId, title, summary, sourceReference, m
 
 export async function createIdentityVerification(env, actor, input) {
   await ensureDiditWebhookSchema(env);
+  await ensureAgeAssuranceSchema(env);
   const purpose = cleanText(input.purpose || "identity_security", 60);
   const accessMode = cleanText(input.accessMode || "request_only", 40);
   const reason = cleanText(input.reason, 2000);
@@ -174,6 +193,7 @@ export async function createIdentityVerification(env, actor, input) {
   const platform = await platformForScope(env, requestedScope);
   if (requestedScope !== "company_wide" && !platform) throw Object.assign(new Error("Select a valid connected website or company-wide scope."), { code: "INVALID_VERIFICATION_SCOPE", status: 400 });
   const scope = platform?.id || "company_wide";
+  const requiredAge = await requiredAgeForPurpose(env, input, purpose, platform);
 
   let restrictionOutcome = { restriction: null, created: false, enforcement: null };
   if (accessMode === "require_before_access") {
@@ -193,6 +213,8 @@ export async function createIdentityVerification(env, actor, input) {
         restriction_id: restrictionOutcome.restriction?.id || null,
         platform_id: platform?.id || null,
         purpose,
+        required_age: requiredAge,
+        account_population: "customers_only",
         source
       },
       contact_details: {
@@ -208,30 +230,34 @@ export async function createIdentityVerification(env, actor, input) {
   const now = new Date().toISOString();
   const status = normaliseStatus(providerPayload.status || "Not Started");
   const localId = crypto.randomUUID();
-  const metadata = sessionMetadata({ purpose, accessMode, reason, scope, source, sendNotificationEmails: input.sendNotificationEmails }, actor, providerPayload);
+  const metadata = sessionMetadata({ purpose, accessMode, reason, scope, source, requiredAge, sendNotificationEmails: input.sendNotificationEmails }, actor, providerPayload);
   await env.DB.prepare(`INSERT INTO identity_verification_sessions
     (id,customer_id,platform_id,restriction_id,provider,provider_session_id,workflow_id,environment,status,decision,
-     verification_url_hash,vendor_data,return_url,consent_recorded_at,consent_version,created_at,updated_at,completed_at,expires_at,metadata_json)
-    VALUES (?,?,?,?,'didit',?,?,'live',?,NULL,?,?,NULL,NULL,NULL,?,?,NULL,NULL,?)
+     verification_url_hash,vendor_data,return_url,consent_recorded_at,consent_version,created_at,updated_at,completed_at,expires_at,
+     verification_purpose,required_age,metadata_json)
+    VALUES (?,?,?,?,'didit',?,?,'live',?,NULL,?,?,NULL,NULL,NULL,?,?,NULL,NULL,?,?,?)
     ON CONFLICT(provider_session_id) DO UPDATE SET customer_id=excluded.customer_id,platform_id=excluded.platform_id,
       restriction_id=COALESCE(identity_verification_sessions.restriction_id,excluded.restriction_id),workflow_id=excluded.workflow_id,
-      status=excluded.status,verification_url_hash=excluded.verification_url_hash,updated_at=excluded.updated_at,metadata_json=excluded.metadata_json`)
+      status=excluded.status,verification_url_hash=excluded.verification_url_hash,updated_at=excluded.updated_at,
+      verification_purpose=excluded.verification_purpose,required_age=excluded.required_age,metadata_json=excluded.metadata_json`)
     .bind(localId, customer.id, platform?.id || null, restrictionOutcome.restriction?.id || null,
-      providerSessionId, workflowId, status, await sha256(verificationUrl), `ucn:${customer.customer_number}`, now, now, jsonValue(metadata, {})).run();
+      providerSessionId, workflowId, status, await sha256(verificationUrl), `ucn:${customer.customer_number}`, now, now,
+      purpose, requiredAge, jsonValue(metadata, {})).run();
   const stored = await env.DB.prepare("SELECT id FROM identity_verification_sessions WHERE provider_session_id=? LIMIT 1").bind(providerSessionId).first();
   const sessionId = stored?.id || localId;
-  await writeTimeline(env, customer.id, "Identity verification requested", `${actor.displayName} started a Didit ${purpose.replaceAll("_", " ")} request.`, providerSessionId, {
-    purpose, accessMode, scope, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null
+  await writeTimeline(env, customer.id, purpose === "age_verification" ? "Age assurance requested" : "Identity verification requested", `${actor.displayName} started a Didit ${purpose.replaceAll("_", " ")} request.`, providerSessionId, {
+    purpose, requiredAge, accessMode, scope, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null,
+    accountPopulation: "customers_only", staffAccountsExcluded: true
   });
   await audit(env, actor, "identity.verification.create", "identity_verification", sessionId, {
-    label: "Didit identity verification started",
+    label: purpose === "age_verification" ? "Didit customer age assurance started" : "Didit identity verification started",
     reference: customer.customer_number,
     customerId: customer.id,
-    after: { providerSessionId, purpose, accessMode, scope, status, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null },
-    metadata: { provider: "didit", source }
+    after: { providerSessionId, purpose, requiredAge, accessMode, scope, status, platformId: platform?.id || null, restrictionId: restrictionOutcome.restriction?.id || null },
+    metadata: { provider: "didit", source, accountPopulation: "customers_only", staffAccountsExcluded: true }
   });
   return {
-    session: { id: sessionId, providerSessionId, status, purpose, accessMode, scope, customerNumber: customer.customer_number, customerName: customer.display_name },
+    session: { id: sessionId, providerSessionId, status, purpose, requiredAge, accessMode, scope, customerNumber: customer.customer_number, customerName: customer.display_name },
     verificationUrl,
     restriction: restrictionOutcome.restriction,
     enforcement: restrictionOutcome.enforcement
@@ -277,7 +303,7 @@ export async function resumeIdentityVerification(env, actor, id) {
       vendor_data: row.vendor_data,
       callback_method: "both",
       language: "en",
-      metadata: { customer_id: row.customer_id, customer_number: row.customer_number, restriction_id: row.restriction_id || null, purpose: metadata.purpose || "identity_security", source: "resume" },
+      metadata: { customer_id: row.customer_id, customer_number: row.customer_number, restriction_id: row.restriction_id || null, purpose: metadata.purpose || "identity_security", required_age: row.required_age || metadata.requiredAge || null, account_population: "customers_only", source: "resume" },
       contact_details: { email: row.verified_email, send_notification_emails: false, email_lang: "en" }
     })
   });
@@ -334,6 +360,7 @@ export async function randomVerificationCandidates(env, count = 5) {
 
 export async function listIdentityVerifications(env, filters = {}) {
   await ensureDiditWebhookSchema(env);
+  await ensureAgeAssuranceSchema(env);
   const q = cleanText(filters.q, 160);
   const status = cleanText(filters.status, 80);
   const customerId = cleanText(filters.customerId || filters.customerNumber, 120);
@@ -343,7 +370,7 @@ export async function listIdentityVerifications(env, filters = {}) {
   if (q) { where.push("(c.customer_number LIKE ? OR c.display_name LIKE ? OR c.verified_email LIKE ? OR s.provider_session_id LIKE ?)"); const term = `%${q}%`; binds.push(term, term, term, term); }
   if (status) { where.push("s.status=?"); binds.push(status); }
   if (customerId) { where.push("(c.id=? OR c.customer_number=?)"); binds.push(customerId, customerId); }
-  if (purpose) { where.push("json_extract(s.metadata_json,'$.purpose')=?"); binds.push(purpose); }
+  if (purpose) { where.push("(s.verification_purpose=? OR json_extract(s.metadata_json,'$.purpose')=?)"); binds.push(purpose, purpose); }
   const rows = await env.DB.prepare(`SELECT s.*,c.customer_number,c.display_name customer_name,c.verified_email customer_email,
       p.code platform_code,p.name platform_name,r.status restriction_status,r.scope restriction_scope
     FROM identity_verification_sessions s JOIN customers c ON c.id=s.customer_id
