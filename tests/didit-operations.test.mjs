@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [service, collectionApi, recordApi, ui, css, boot, webhook] = await Promise.all([
+const [service, lifecycle, collectionApi, recordApi, ui, css, boot, webhook] = await Promise.all([
   read('functions/_didit-operations.js'),
+  read('functions/_didit-lifecycle-policy.js'),
   read('functions/api/identity-verifications.js'),
   read('functions/api/identity-verifications/[id].js'),
   read('public/js/didit-operations.js'),
@@ -28,9 +29,15 @@ assert.match(service, /randomVerificationCandidates/, 'CustomerOps must support 
 assert.match(service, /Math\.min\(25/, 'Random verification batches must be capped to prevent accidental mass requests.');
 assert.match(service, /NOT EXISTS[\s\S]*identity_verification_sessions/, 'Random selection must exclude customers with an active verification.');
 assert.match(service, /createIdentityVerification/, 'The server must own Didit session initiation.');
-assert.match(service, /refreshIdentityVerification/, 'Staff must be able to refresh the live Didit status.');
-assert.match(service, /resumeIdentityVerification/, 'Staff must be able to obtain a fresh hosted verification link.');
-assert.match(service, /cancelIdentityVerification/, 'Staff must be able to cancel an operational request.');
+
+assert.match(lifecycle, /refreshIdentityVerificationSafely/, 'Provider status refresh must use the governed lifecycle policy.');
+assert.match(lifecycle, /sourceOfTruth: "signed_webhook_for_access_changes"/, 'A manual provider refresh must not become the access-control source of truth.');
+assert.doesNotMatch(lifecycle, /liftRestrictionEnforcement/, 'Lifecycle actions must not lift a Head Office restriction directly.');
+assert.match(lifecycle, /resumeIdentityVerificationSafely[\s\S]*createIdentityVerification/, 'Resume must create and retain a real replacement Didit session.');
+assert.match(lifecycle, /sendNotificationEmails: true/, 'Replacement verification sessions must automatically notify the verified customer email.');
+assert.match(lifecycle, /replacementProviderSessionId/, 'The superseded request must retain the replacement provider-session reference.');
+assert.match(lifecycle, /cancelIdentityVerificationSafely/, 'Cancellation must be governed separately from access restoration.');
+assert.match(lifecycle, /Cancelling a verification request does not remove its Head Office access requirement/, 'Cancellation must retain a linked access requirement for separate authorised review.');
 
 assert.match(collectionApi, /requirePermission\(context, "security:read"\)/, 'Only security-authorised staff may view verification records.');
 assert.match(collectionApi, /requirePermission\(context, "security:write"\)/, 'Only security-authorised staff may create verification requests.');
@@ -39,6 +46,9 @@ assert.match(collectionApi, /customerIds, 25/, 'The API must enforce the 25-cust
 assert.match(recordApi, /action === "refresh"/, 'The lifecycle API must support refresh.');
 assert.match(recordApi, /action === "resume"/, 'The lifecycle API must support resume.');
 assert.match(recordApi, /action === "cancel"/, 'The lifecycle API must support cancellation.');
+assert.match(recordApi, /refreshIdentityVerificationSafely/, 'The live lifecycle API must use the safe refresh implementation.');
+assert.match(recordApi, /resumeIdentityVerificationSafely/, 'The live lifecycle API must use the safe replacement-session implementation.');
+assert.match(recordApi, /cancelIdentityVerificationSafely/, 'The live lifecycle API must use the safe cancellation implementation.');
 
 assert.match(ui, /Identity Verification Centre/, 'CustomerOps must expose a complete Didit operations workspace.');
 assert.match(ui, /Start identity verification/, 'Staff must have a plainly labelled manual initiation control.');
