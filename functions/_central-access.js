@@ -40,6 +40,20 @@ export async function activeRestrictionsForPlatform(env, customerId, platform) {
   return result.results || [];
 }
 
+function branchRestrictionSummary(restriction) {
+  return {
+    id: restriction.id,
+    restrictionType: restriction.restriction_type,
+    label: restriction.label || restriction.restriction_type,
+    scope: restriction.scope,
+    enforcementAction: restriction.enforcement_action || restriction.restriction_type,
+    reviewAt: restriction.review_at || null,
+    expiresAt: restriction.expires_at || null,
+    instruction: "Apply the Head Office access decision and contact Head Office for confidential case reasoning.",
+    confidentialReasonWithheld: true
+  };
+}
+
 export async function calculateAccessDecision(env, customer, platform, record = true) {
   const [restrictions, ageAssurance] = await Promise.all([
     activeRestrictionsForPlatform(env,customer.id,platform),
@@ -66,7 +80,14 @@ export async function calculateAccessDecision(env, customer, platform, record = 
   } else if (ageAssurance.decision === "step_up") {
     decision = "step_up"; reason = ageAssurance.reason;
   }
-  const result = { decision,revokeSessions,reason,restrictions,ageAssurance };
+  const result = {
+    decision,
+    revokeSessions,
+    reason,
+    restrictions: restrictions.map(branchRestrictionSummary),
+    confidentialRestrictionReasonsWithheld: true,
+    ageAssurance
+  };
   if (record) await env.DB.prepare(`INSERT INTO customer_access_decisions
     (id,customer_id,platform_id,decision,revoke_sessions,reason,restrictions_json,created_at)
     VALUES (?,?,?,?,?,?,?,?)`).bind(crypto.randomUUID(),customer.id,platform.id,decision,revokeSessions?1:0,
