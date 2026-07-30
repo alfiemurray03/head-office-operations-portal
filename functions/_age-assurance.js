@@ -1,10 +1,16 @@
 import { cleanText } from "./_shared.js";
 import { ensureSystemSettingsReady, getSystemSetting } from "./_system-settings.js";
 
+export const AGE_ASSURANCE_CONTRACT_VERSION = "ja-head-office-age-assurance-v1";
+
 const DEPLOYMENTS = Object.freeze({
   PLANYX: Object.freeze({
     code: "PLANYX",
     name: "Planyx",
+    aliases: Object.freeze([
+      "PLANYX", "PX", "PLX", "PLATFORM_PLANYX", "PLANYX_CUSTOMER", "PLANYX_PRODUCTION",
+      "JA_PLAN_STUDIO", "JA PLAN STUDIO", "JAPLANSTUDIO"
+    ]),
     statusKey: "age_assurance.planyx_status",
     minimumAgeKey: "age_assurance.planyx_minimum_age",
     workflowKey: "age_assurance.planyx_workflow_id",
@@ -13,6 +19,11 @@ const DEPLOYMENTS = Object.freeze({
   PROFILE_CENTRE: Object.freeze({
     code: "PROFILE_CENTRE",
     name: "Profile Centre",
+    aliases: Object.freeze([
+      "PROFILE_CENTRE", "PROFILE CENTRE", "PROFILE_CENTER", "PROFILE CENTER", "PROFILECENTRE", "PROFILECENTER",
+      "PLATFORM_PROFILE_CENTRE", "PROFILE_CENTRE_CUSTOMER", "PROFILE_CENTRE_PRODUCTION",
+      "JA_PROFILE_STUDIO", "JA PROFILE STUDIO", "JAPROFILESTUDIO"
+    ]),
     statusKey: "age_assurance.profile_centre_status",
     minimumAgeKey: "age_assurance.profile_centre_minimum_age",
     workflowKey: "age_assurance.profile_centre_workflow_id",
@@ -67,19 +78,66 @@ export async function ensureAgeAssuranceSchema(env) {
   catch (error) { schemaReady.delete(env.DB); throw error; }
 }
 
+function canonicalPlatformValue(value) {
+  return cleanText(String(value || ""), 220).toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function platformCandidates(platform) {
+  if (typeof platform === "string") return [{ source: "reference", raw: platform, canonical: canonicalPlatformValue(platform) }];
+  return [
+    ["code", platform?.code],
+    ["id", platform?.id],
+    ["name", platform?.name],
+    ["public_url", platform?.publicUrl || platform?.public_url]
+  ].filter(([, value]) => value).map(([source, raw]) => ({ source, raw, canonical: canonicalPlatformValue(raw) }));
+}
+
 function deploymentDefinition(platform) {
-  const code = cleanText(platform?.code || platform, 80).toUpperCase();
-  return DEPLOYMENTS[code] || null;
+  const candidates = platformCandidates(platform);
+  for (const definition of Object.values(DEPLOYMENTS)) {
+    const aliases = new Set(definition.aliases.map(canonicalPlatformValue));
+    const match = candidates.find(candidate => aliases.has(candidate.canonical));
+    if (match) return { definition, bindingSource: match.source, bindingValue: cleanText(String(match.raw), 220) };
+  }
+
+  const hostnameCandidate = candidates.find(candidate => candidate.source === "public_url");
+  if (hostnameCandidate) {
+    try {
+      const hostname = new URL(String(hostnameCandidate.raw)).hostname.toLowerCase();
+      if (hostname === "planyx.jagroupservices.co.uk" || hostname.startsWith("planyx.")) {
+        return { definition: DEPLOYMENTS.PLANYX, bindingSource: "public_url", bindingValue: hostname };
+      }
+      if (hostname.includes("profilecentre") || hostname.includes("profilecenter")) {
+        return { definition: DEPLOYMENTS.PROFILE_CENTRE, bindingSource: "public_url", bindingValue: hostname };
+      }
+    } catch {}
+  }
+  return { definition: null, bindingSource: null, bindingValue: null };
+}
+
+function requestedPlatform(platform) {
+  return {
+    id: cleanText(platform?.id, 120) || null,
+    code: cleanText(platform?.code || (typeof platform === "string" ? platform : ""), 80).toUpperCase() || null,
+    name: cleanText(platform?.name, 120) || null
+  };
 }
 
 export async function ageAssuranceDeployment(env, platform) {
   await ensureAgeAssuranceSchema(env);
-  const definition = deploymentDefinition(platform);
+  const binding = deploymentDefinition(platform);
+  const definition = binding.definition;
   if (!definition) {
+    const requested = requestedPlatform(platform);
     return {
+      contractVersion: AGE_ASSURANCE_CONTRACT_VERSION,
       configured: false,
-      platformCode: cleanText(platform?.code || platform, 80).toUpperCase() || null,
-      platformName: cleanText(platform?.name, 120) || null,
+      deploymentKey: null,
+      bindingSource: null,
+      bindingValue: null,
+      requestedPlatform: requested,
+      platformCode: requested.code,
+      platformName: requested.name,
       accountPopulation: "customers_only",
       staffAccountsExcluded: true,
       status: "disabled",
@@ -88,7 +146,9 @@ export async function ageAssuranceDeployment(env, platform) {
       workflowConfigured: false,
       thresholdValidated: false,
       masterEnabled: false,
-      enforcementActive: false
+      enforcementActive: false,
+      newSessionsAllowed: false,
+      configurationError: "The connected platform identity is not bound to a governed Head Office age-assurance deployment."
     };
   }
 
@@ -100,15 +160,21 @@ export async function ageAssuranceDeployment(env, platform) {
     getSystemSetting(env, "age_assurance.enforcement_master_enabled", false),
     getSystemSetting(env, "age_assurance.result_validity_days", 365)
   ]);
-  const status = DEPLOYMENT_STATUSES.has(String(statusValue)) ? String(statusValue) : "disabled";
+  const normalisedStatus = String(statusValue || "").trim().toLowerCase();
+  const status = DEPLOYMENT_STATUSES.has(normalisedStatus) ? normalisedStatus : "disabled";
   const minimumAge = Math.max(13, Math.min(25, Number(minimumAgeValue) || (definition.code === "PLANYX" ? 16 : 18)));
-  const workflowId = cleanText(workflowValue, 180) || null;
+  const workflowId = cleanText(String(workflowValue || ""), 180) || null;
   const masterEnabled = masterValue === true;
   const thresholdValidated = validatedValue === true;
-  const providerReady = Boolean(cleanText(env.DIDIT_API_KEY, 500) && workflowId);
+  const providerReady = Boolean(String(env.DIDIT_API_KEY || "").trim() && workflowId);
 
   return {
+    contractVersion: AGE_ASSURANCE_CONTRACT_VERSION,
     configured: true,
+    deploymentKey: definition.code,
+    bindingSource: binding.bindingSource,
+    bindingValue: binding.bindingValue,
+    requestedPlatform: requestedPlatform(platform),
     platformCode: definition.code,
     platformName: definition.name,
     accountPopulation: "customers_only",
@@ -132,6 +198,7 @@ export async function listAgeAssuranceDeployments(env) {
     ageAssuranceDeployment(env, "PROFILE_CENTRE")
   ]);
   return {
+    contractVersion: AGE_ASSURANCE_CONTRACT_VERSION,
     staffAccountsExcluded: true,
     accountPopulation: "customers_only",
     enforcementStarted: [planyx, profileCentre].some(item => item.enforcementActive),
