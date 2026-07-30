@@ -15,19 +15,19 @@ function cookieParts(request) {
 
 async function requestWithCanonicalTransactionCookie(request, env) {
   const cookies = cookieParts(request);
-  const legacyTransaction = cookies.find(value => value.startsWith(`${LEGACY_TRANSACTION_COOKIE}=`));
-  if (legacyTransaction) return request;
+  const state = new URL(request.url).searchParams.get("state") || "";
 
-  const hostTransaction = cookies.find(value => value.startsWith(`${HOST_TRANSACTION_COOKIE}=`));
-  let transactionValue = hostTransaction
-    ? hostTransaction.slice(HOST_TRANSACTION_COOKIE.length + 1)
-    : "";
+  // The state-bound D1 transaction is authoritative. It cannot collide with an
+  // older cookie and it survives privacy settings that partition browser state
+  // during the Microsoft account-selection round trip.
+  let transactionValue = await consumeMicrosoftTransaction(env, state);
 
-  // Recover the transaction from D1 if Edge or another browser does not return
-  // the temporary OIDC cookie after the Microsoft account-selection journey.
   if (!transactionValue) {
-    const state = new URL(request.url).searchParams.get("state") || "";
-    transactionValue = await consumeMicrosoftTransaction(env, state);
+    const legacyTransaction = cookies.find(value => value.startsWith(`${LEGACY_TRANSACTION_COOKIE}=`));
+    const hostTransaction = cookies.find(value => value.startsWith(`${HOST_TRANSACTION_COOKIE}=`));
+    transactionValue = legacyTransaction
+      ? legacyTransaction.slice(LEGACY_TRANSACTION_COOKIE.length + 1)
+      : (hostTransaction ? hostTransaction.slice(HOST_TRANSACTION_COOKIE.length + 1) : "");
   }
 
   if (!transactionValue) return request;
