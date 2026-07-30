@@ -15,7 +15,13 @@
   <link rel="stylesheet" href="/planyx-shell.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-components.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-layout-fixes.css?v=20260728-central-2" data-planyx-layout-fixes>
-  <link rel="stylesheet" href="/professional-interface.css?v=20260730-professional-1" id="professionalInterfaceStyles">
+  <link rel="stylesheet" href="/professional-interface.css?v=20260730-professional-2" id="professionalInterfaceStyles">
+  <style id="authVisibilityGuard">
+    #appShell[hidden],
+    #loginScreen[hidden] {
+      display: none !important;
+    }
+  </style>
 </head>
 <body class="ops-tailwind locked">
   <section class="login-screen" id="loginScreen">
@@ -214,7 +220,7 @@
   <script src="/js/central-platform-ui.js?v=20260728-central-2" defer></script>
   <script src="/js/central-router.js?v=20260728-central-1" defer></script>
   <script src="/js/modal-system.js?v=20260728-modal-1" defer></script>
-  <script src="/js/professional-interface.js?v=20260730-professional-1" defer></script>
+  <script src="/js/professional-interface.js?v=20260730-professional-2" defer></script>
   <script src="/js/boot.js?v=20260728-central-1" defer></script>
 </body>
 </html>
