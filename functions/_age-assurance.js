@@ -31,6 +31,28 @@ export async function ensureAgeAssuranceSchema(env) {
   if (!env?.DB) throw new Error("The Head Office customer database is unavailable.");
   if (schemaReady.has(env.DB)) return schemaReady.get(env.DB);
   const promise = (async () => {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS identity_verification_sessions (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES customers(id),
+      platform_id TEXT REFERENCES platforms(id),
+      restriction_id TEXT REFERENCES restrictions(id),
+      provider TEXT NOT NULL DEFAULT 'didit',
+      provider_session_id TEXT NOT NULL UNIQUE,
+      workflow_id TEXT,
+      environment TEXT NOT NULL DEFAULT 'live',
+      status TEXT NOT NULL DEFAULT 'Not Started',
+      decision TEXT,
+      verification_url_hash TEXT,
+      vendor_data TEXT NOT NULL,
+      return_url TEXT,
+      consent_recorded_at TEXT,
+      consent_version TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT,
+      expires_at TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}'
+    )`).run();
     await addColumnIfMissing(env, "verification_purpose", "verification_purpose TEXT");
     await addColumnIfMissing(env, "required_age", "required_age INTEGER");
     await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_identity_verification_age_assurance
@@ -150,6 +172,15 @@ export async function ageAssuranceForAccess(env, customer, platform) {
 
   if (!deployment.configured || !deployment.masterEnabled || deployment.status === "disabled") return base;
 
+  if (!deployment.thresholdValidated) {
+    return {
+      ...base,
+      required: true,
+      decision: "deny",
+      reason: "The age-assurance deployment has not passed its threshold-validation control."
+    };
+  }
+
   const evidence = await qualifyingEvidence(env, customer.id, deployment);
   if (evidence) {
     return {
@@ -162,21 +193,21 @@ export async function ageAssuranceForAccess(env, customer, platform) {
     };
   }
 
-  if (!deployment.thresholdValidated || !deployment.providerReady) {
-    return {
-      ...base,
-      required: true,
-      decision: "deny",
-      reason: "The age-assurance deployment is enabled but has not passed its provider-threshold readiness check."
-    };
-  }
-
   if (deployment.status === "paused") {
     return {
       ...base,
       required: true,
       decision: "deny",
       reason: "Age assurance is temporarily paused. Existing valid assurance remains accepted, but a new check cannot currently be started."
+    };
+  }
+
+  if (!deployment.providerReady) {
+    return {
+      ...base,
+      required: true,
+      decision: "deny",
+      reason: "The Didit age-assurance provider configuration is not ready for new customer sessions."
     };
   }
 
