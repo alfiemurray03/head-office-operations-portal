@@ -23,6 +23,7 @@ export const onRequestPost = async context => {
   }
   const consentVersion = cleanText(body.consentVersion, 80);
   if (!consentVersion) return error("CONSENT_VERSION_REQUIRED", "Provide the disclosure version accepted by the customer.", 400);
+  const consentRecordedAt = new Date().toISOString();
 
   const customer = await resolvePlatformCustomer(context.env, auth.platform, body);
   if (!customer) return error("CUSTOMER_NOT_FOUND", "The website account is not linked to a Unique Customer Number.", 404);
@@ -59,9 +60,13 @@ export const onRequestPost = async context => {
       source: "platform_age_assurance",
       reason: `${auth.platform.name} requires Head Office confirmation that this customer is aged ${deployment.minimumAge} or over.`,
       sendNotificationEmails: true,
-      consentRecordedAt: new Date().toISOString(),
+      consentRecordedAt,
       consentVersion
     });
+
+    await context.env.DB.prepare(`UPDATE identity_verification_sessions
+      SET consent_recorded_at=?,consent_version=? WHERE id=? AND customer_id=? AND verification_purpose='age_verification'`)
+      .bind(consentRecordedAt, consentVersion, result.session.id, customer.id).run();
 
     return json({
       status: "verification_required",
