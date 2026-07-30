@@ -22,7 +22,11 @@ const [
   stripeRecords,
   socUi,
   socCss,
-  boot
+  boot,
+  portalIndex,
+  professionalCss,
+  professionalJs,
+  interfaceStandard
 ] = await Promise.all([
   read('migrations/0010_security_operations_control_plane.sql'),
   read('migrations/0011_stripe_division_connectors.sql'),
@@ -43,7 +47,11 @@ const [
   read('functions/api/integrations/stripe/records.js'),
   read('public/js/security-operations-centre.js'),
   read('public/security-operations-centre.css'),
-  read('public/js/boot.js')
+  read('public/js/boot.js'),
+  read('public/index.html'),
+  read('public/professional-interface.css'),
+  read('public/js/professional-interface.js'),
+  read('docs/HEAD_OFFICE_INTERFACE_STANDARD.md')
 ]);
 
 for (const table of [
@@ -128,5 +136,21 @@ assert.match(socCss, /grid-template-columns:\s*repeat\(6/, 'The command centre m
 assert.match(boot, /loadSecurityOperationsModule/, 'The Security Operations Centre module must load during boot.');
 assert.match(boot, /hasPermission\('risk:read'\) \? 'security-operations'/,
   'Authorised risk staff must land in the Security Operations Centre by default.');
+
+assert.match(portalIndex, /professional-interface\.css/, 'The governed professional interface stylesheet must load in the portal.');
+assert.match(portalIndex, /professional-interface\.js/, 'The governed page-archetype enhancer must load in the portal.');
+assert.match(portalIndex, /Head Office Operations &amp; Security Portal/, 'The shell must use the approved Head Office product identity.');
+assert.match(professionalCss, /workspace-switcher[\s\S]*display:\s*none/, 'The duplicate workspace card navigation must be removed.');
+assert.match(professionalCss, /grid-template-columns:\s*248px minmax\(0, 1fr\)/, 'The desktop shell must use stable left navigation.');
+assert.match(professionalCss, /enterprise-metrics[\s\S]*border-top:\s*1px solid/, 'Overview metrics must use a restrained status strip rather than floating cards.');
+assert.match(professionalCss, /\.split-grid,[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/, 'Large operational queues must not be squeezed into side-by-side card columns.');
+assert.match(professionalCss, /text-transform:\s*none/, 'Operational table headings and statuses must support sentence case.');
+assert.match(professionalCss, /modal-shell[\s\S]*border-left:\s*1px solid/, 'Controlled actions must use an operational side sheet on desktop.');
+assert.match(professionalJs, /ROUTE_TYPES/, 'Every route must be assigned a governed page archetype.');
+assert.match(professionalJs, /queue-surface/, 'Operational queue surfaces must be classified consistently.');
+assert.match(professionalJs, /keepGovernedStylesLast/, 'The governed interface must remain authoritative over dynamically loaded legacy styles.');
+assert.match(interfaceStandard, /Cards are not the default wrapper/, 'The design standard must explicitly prohibit card-first page construction.');
+assert.match(interfaceStandard, /Tables are operational work surfaces/, 'The design standard must define the approved queue pattern.');
+assert.match(interfaceStandard, /one primary action/, 'The design standard must govern action hierarchy.');
 
 console.log('Security Operations Centre regression checks passed.');

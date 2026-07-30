@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#f8fafc">
-  <title>JA Group Services Ltd · Customer Operations, Security &amp; Relations Centre</title>
+  <title>JA Group Services Ltd · Head Office Operations &amp; Security Portal</title>
   <link rel="stylesheet" href="/styles.css?v=20260728-v7-4">
   <link rel="stylesheet" href="/v7.css?v=20260728-v7-4">
   <link rel="stylesheet" href="/operations-tailwind.css?v=20260728-ops-2">
@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/planyx-shell.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-components.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-layout-fixes.css?v=20260728-central-2" data-planyx-layout-fixes>
+  <link rel="stylesheet" href="/professional-interface.css?v=20260730-professional-1" id="professionalInterfaceStyles">
 </head>
 <body class="ops-tailwind locked">
   <section class="login-screen" id="loginScreen">
@@ -23,7 +24,7 @@
         <div class="brand-mark">JA</div>
         <div>
           <strong>JA Group Services Ltd</strong>
-          <span>Customer Operations, Security &amp; Relations Centre</span>
+          <span>Head Office Operations &amp; Security Portal</span>
         </div>
       </div>
       <span class="version-badge">CENTRAL</span>
@@ -38,7 +39,7 @@
           </svg>
         </div>
         <p class="eyebrow">Authorised Head Office personnel</p>
-        <h1>Central Customer Operations</h1>
+        <h1>Head Office Operations</h1>
         <p class="login-intro">Protect customer identities, accounts and data; prevent and investigate fraud; manage the Universal Customer Register; and control customer operations across every connected JA Group Services website.</p>
         <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
           <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
@@ -54,7 +55,7 @@
     </div>
 
     <div class="login-footer">
-      <span>Internal central customer system · Authorised use only</span>
+      <span>Internal Head Office system · Authorised use only</span>
       <span>JA Group Services Ltd · Company No. 16314179</span>
     </div>
   </section>
@@ -62,11 +63,11 @@
   <div class="app-shell" id="appShell" hidden>
     <header class="ops-header">
       <div class="ops-header-main">
-        <a class="ops-brand" href="#/control-room" aria-label="Customer Operations, Security and Relations Centre home">
+        <a class="ops-brand" href="#/control-room" aria-label="Head Office Operations and Security Portal home">
           <div class="brand-mark">JA</div>
           <div class="ops-brand-copy">
-            <strong>Customer Operations Centre</strong>
-            <span>Relations · Security · Fraud · Operations</span>
+            <strong>Head Office Operations</strong>
+            <span>Customer operations · Security · Assurance</span>
           </div>
           <span class="product-badge">CENTRAL</span>
         </a>
@@ -80,7 +81,7 @@
         </nav>
 
         <div class="ops-header-actions">
-          <button class="all-tools-button" id="menuButton" type="button" aria-label="Open all central customer tools" aria-controls="sidebar" aria-expanded="false">
+          <button class="all-tools-button" id="menuButton" type="button" aria-label="Open all Head Office tools" aria-controls="sidebar" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             <span>All tools</span>
           </button>
@@ -125,15 +126,15 @@
       </div>
     </header>
 
-    <aside class="sidebar tools-drawer" id="sidebar" aria-label="Central Customer Operations Centre navigation">
+    <aside class="sidebar tools-drawer" id="sidebar" aria-label="Head Office Operations and Security navigation">
       <div class="tools-drawer-heading">
         <div>
-          <strong>Central customer functions</strong>
-          <span>Relations, security, fraud and operations</span>
+          <strong>Head Office Operations</strong>
+          <span>Security and customer operations</span>
         </div>
         <button class="drawer-close" id="drawerCloseButton" type="button" aria-label="Close all tools">×</button>
       </div>
-      <nav id="mainNavigation" aria-label="All central customer tools">
+      <nav id="mainNavigation" aria-label="All Head Office tools">
         <section class="nav-group">
           <p class="nav-label">Command and intelligence</p>
           <button class="nav-item" data-route="control-room" data-permission="risk:read">Central control room</button>
@@ -172,16 +173,16 @@
         <span>Head Office central customer authority</span>
       </div>
     </aside>
-    <button class="menu-backdrop" id="menuBackdrop" type="button" aria-label="Close all central customer tools"></button>
+    <button class="menu-backdrop" id="menuBackdrop" type="button" aria-label="Close all Head Office tools"></button>
 
     <main class="main-shell">
       <div class="content" id="viewRoot">
-        <div class="loading-state"><span class="spinner"></span><p>Opening the central customer platform…</p></div>
+        <div class="loading-state"><span class="spinner"></span><p>Opening the Head Office portal…</p></div>
       </div>
       <footer class="system-footer">
         <div>
           <strong>JA Group Services Ltd</strong>
-          <span>Customer Operations, Security &amp; Relations Centre</span>
+          <span>Head Office Operations &amp; Security Portal</span>
         </div>
         <span id="systemClock"></span>
       </footer>
@@ -213,6 +214,7 @@
   <script src="/js/central-platform-ui.js?v=20260728-central-2" defer></script>
   <script src="/js/central-router.js?v=20260728-central-1" defer></script>
   <script src="/js/modal-system.js?v=20260728-modal-1" defer></script>
+  <script src="/js/professional-interface.js?v=20260730-professional-1" defer></script>
   <script src="/js/boot.js?v=20260728-central-1" defer></script>
 </body>
 </html>
