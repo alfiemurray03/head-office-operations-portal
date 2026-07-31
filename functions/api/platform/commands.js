@@ -11,7 +11,7 @@ export const onRequestGet = async context => {
   if (!authorised(auth.platform)) return error("INSUFFICIENT_PLATFORM_SCOPE","The credential cannot receive enforcement commands.",403);
   await ensureCentralPlatformSchema(context.env);
   const now = new Date().toISOString();
-  const result = await context.env.DB.prepare(`SELECT c.id,c.command,c.reason,c.created_at,c.restriction_id,
+  const result = await context.env.DB.prepare(`SELECT c.id,c.command,c.created_at,c.restriction_id,
       u.customer_number,u.display_name,a.external_account_id platform_customer_id
     FROM platform_enforcement_commands c
     JOIN customers u ON u.id=c.customer_id
