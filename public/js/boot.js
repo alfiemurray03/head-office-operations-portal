@@ -262,14 +262,10 @@ async function runBoot() {
   const generation = ++bootGeneration;
   showLogin('Checking your authorised Head Office staff session…');
 
-  const fragment = new URLSearchParams(location.hash.startsWith('#auth_session=') ? location.hash.slice(1) : '');
   const query = new URLSearchParams(location.search);
-  const handoff = fragment.get('auth_session') || query.get('auth_session');
-  if (handoff) retainSession(handoff);
   const authResult = query.get('auth_result');
   query.delete('auth_result');
-  query.delete('auth_session');
-  if (handoff || authResult) history.replaceState({}, '', `${location.pathname}${query.toString() ? `?${query}` : ''}#/security-operations`);
+  if (authResult) history.replaceState({}, '', `${location.pathname}${query.toString() ? `?${query}` : ''}#/dashboard`);
 
   try {
     state.session = await loadSession(authResult);
@@ -287,13 +283,15 @@ async function runBoot() {
   $('#configurationNote').textContent = 'Microsoft sign-in confirmed. Loading your authorised permissions…';
   try {
     state.reference = await loadReference();
+    const accountPreferences = await api('/api/account/preferences', { timeoutMs: 8_000 }).catch(() => null);
+    applyPrincipalPreferences(accountPreferences?.preferences);
   } catch (error) {
     return showLogin(`Microsoft sign-in succeeded, but Head Office permissions could not be loaded. ${error.message || 'Please try again.'}`);
   }
 
   if (generation !== bootGeneration) return;
 
-  const requestedRoute = location.hash.startsWith('#/') ? routeFromHash() : (hasPermission('risk:read') ? 'security-operations' : 'dashboard');
+  const requestedRoute = location.hash.startsWith('#/') ? routeFromHash() : (state.preferences?.defaultLandingPage || (hasPermission('risk:read') ? 'security-operations' : 'dashboard'));
   showApp();
   renderNavigation();
 

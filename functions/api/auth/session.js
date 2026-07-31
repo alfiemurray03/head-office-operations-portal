@@ -1,18 +1,17 @@
-import { getSession, json } from "../../_shared.js";
+import { json } from "../../_shared.js";
 import { inspectMicrosoftSession, microsoftConfiguration } from "../../_microsoft-auth.js";
 
 export const onRequestGet = async ({ request, env }) => {
   const microsoft = microsoftConfiguration(env);
-  const localConfigured = Boolean(env.LOCAL_ADMIN_USERNAME && env.LOCAL_ADMIN_PASSWORD && env.SESSION_SECRET && env.DB);
-  const configured = Boolean(env.DB && (microsoft.configured || localConfigured));
+  const configured = Boolean(env.DB && microsoft.configured);
   const microsoftInspection = microsoft.configured
     ? await inspectMicrosoftSession(requestWithPreferredHostCookies(request), env)
     : { session: null, status: "microsoft_not_configured" };
-  const session = microsoftInspection.session || (configured ? await getSession(request, env) : null);
+  const session = microsoftInspection.session;
   return json({
     authRevision: "host-only-cookie-v6",
     configured,
-    authentication: microsoft.configured ? "microsoft_entra" : (localConfigured ? "local" : "unconfigured"),
+    authentication: microsoft.configured ? "microsoft_entra" : "unconfigured",
     microsoft: {
       configured: microsoft.configured,
       tenantId: microsoft.tenantId,
@@ -21,7 +20,13 @@ export const onRequestGet = async ({ request, env }) => {
     },
     authenticated: Boolean(session),
     sessionStatus: session ? "authenticated" : microsoftInspection.status,
-    user: session ? { displayName: session.displayName, roleName: session.roleName, email: session.username, authenticationSource: session.authSource || "local" } : null
+    user: session ? {
+      id: session.sub, displayName: session.displayName, fullName: session.fullName, preferredName: session.preferredName,
+      roleName: session.roleName, roleCode: session.roleCode, email: session.username, jobTitles: session.jobTitles,
+      profileImage: session.profileImage, securityLevel: session.securityLevel, accessLevel: session.accessLevel,
+      authority: session.authority, sessionId: session.sessionId, sessionCreatedAt: session.createdAt,
+      authenticationStrength: session.authenticationStrength, authenticationSource: session.authSource
+    } : null
   });
 };
 

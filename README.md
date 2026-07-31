@@ -2,6 +2,8 @@
 
 The internal Head Office system for controlled customer operations across JA Group Services Ltd and its connected divisions and platforms.
 
+Production access follows the two-person `HEAD_OFFICE_PRINCIPAL` model in [docs/HEAD_OFFICE_PRINCIPAL_IDENTITY.md](docs/HEAD_OFFICE_PRINCIPAL_IDENTITY.md). Successful Microsoft tenant authentication alone never grants Portal access.
+
 The Centre is designed to hold the authoritative company-wide customer record, coordinate operational cases, issue enforceable security instructions, record communications and payment references, manage approvals, and preserve an append-only audit history.
 
 ## Production endpoints

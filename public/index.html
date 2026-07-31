@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/planyx-components.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-layout-fixes.css?v=20260728-central-2" data-planyx-layout-fixes>
   <link rel="stylesheet" href="/professional-interface.css?v=20260730-professional-2" id="professionalInterfaceStyles">
+  <link rel="stylesheet" href="/principal-account.css?v=20260731-principal-1">
   <style id="authVisibilityGuard">
     #appShell[hidden],
     #loginScreen[hidden] {
@@ -107,8 +108,12 @@
             </summary>
             <div class="account-menu-panel">
               <p class="account-menu-label">Operating authority</p>
-              <strong>JA Group Services Ltd — Head Office</strong>
+              <strong id="accountFullName">JA Group Services Ltd — Head Office</strong>
+              <span class="account-authority" id="accountAuthority">Head Office Principal · Equal authority</span>
               <select id="operatingContext" hidden disabled aria-hidden="true"><option value="HEAD_OFFICE">JA Group Services Ltd — Head Office</option></select>
+              <button type="button" class="account-menu-link" data-route="my-profile">Profile settings</button>
+              <button type="button" class="account-menu-link" data-route="my-security">Security settings</button>
+              <button type="button" class="account-menu-link" data-route="personalisation">Personalisation</button>
               <button id="signOutButton" type="button" class="account-signout">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 5H5v14h5M13 8l4 4-4 4M17 12H9"/></svg>
                 Sign out
@@ -215,6 +220,7 @@
   <script src="/js/views-enterprise.js?v=20260728-enterprise-1" defer></script>
   <script src="/js/v7-overrides.js?v=20260728-v7-4" defer></script>
   <script src="/js/head-office-context.js?v=20260728-central-2" defer></script>
+  <script src="/js/principal-account.js?v=20260731-principal-1" defer></script>
   <script src="/js/operations-shell.js?v=20260728-ops-2" defer></script>
   <script src="/js/customer-record-workspace.js?v=20260728-central-1" defer></script>
   <script src="/js/central-platform-ui.js?v=20260728-central-2" defer></script>

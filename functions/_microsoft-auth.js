@@ -1,4 +1,11 @@
-import { audit, hmac, safeEqual, sha256 } from "./_shared.js";
+import { audit, hmac, safeEqual } from "./_shared.js";
+import {
+  clearPrincipalSessionCookie,
+  createPrincipalSession,
+  inspectPrincipalSession,
+  principalSessionCookie,
+  resolveAuthorisedPrincipal
+} from "./_principal-identity.js";
 
 const TENANT_ID = "53477196-db21-46d2-8123-00be3d6882da";
 const CLIENT_ID = "4f5c0708-f580-4514-b710-3cb780939348";
@@ -18,10 +25,6 @@ let jwksCache;
 
 function clientSecret(env) {
   return String(env.ADMIN_OIDC_CLIENT_SECRET || env.AZURE_AD_CLIENT_SECRET || "").trim();
-}
-
-function sessionSecret(env) {
-  return String(env.SESSION_SECRET || clientSecret(env)).trim();
 }
 
 function base64Url(bytes) {
@@ -52,59 +55,8 @@ function readCookie(request, name) {
   return part ? decodeURIComponent(part.slice(prefix.length)) : "";
 }
 
-function readBearer(request) {
-  const authorization = request.headers.get("Authorization") || "";
-  return authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-}
-
 function cookie(name, value, maxAge) {
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
-}
-
-async function ensureSessionStore(env) {
-  if (!env.DB) throw new Error("The Head Office database is not connected.");
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS microsoft_staff_sessions (
-    token_hash TEXT PRIMARY KEY,
-    session_json TEXT NOT NULL,
-    staff_id TEXT NOT NULL,
-    expires_at INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    last_seen_at TEXT NOT NULL
-  )`).run();
-}
-
-async function storeMicrosoftSession(env, transactionToken, session) {
-  await ensureSessionStore(env);
-  const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO microsoft_staff_sessions
-    (token_hash, session_json, staff_id, expires_at, created_at, last_seen_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(token_hash) DO UPDATE SET
-      session_json=excluded.session_json,
-      staff_id=excluded.staff_id,
-      expires_at=excluded.expires_at,
-      last_seen_at=excluded.last_seen_at`)
-    .bind(await sha256(transactionToken), JSON.stringify(session), session.sub, session.exp, now, now)
-    .run();
-}
-
-async function readStoredMicrosoftSession(request, env) {
-  const transactionToken = readCookie(request, TRANSACTION_COOKIE);
-  if (!transactionToken || !env.DB) return null;
-  await ensureSessionStore(env);
-  const row = await env.DB.prepare(`SELECT session_json, expires_at
-    FROM microsoft_staff_sessions WHERE token_hash=? LIMIT 1`)
-    .bind(await sha256(transactionToken)).first();
-  if (!row || Number(row.expires_at) <= Date.now()) return null;
-  try {
-    const session = JSON.parse(row.session_json);
-    if (session.version !== 2 || session.tenantId !== TENANT_ID || session.exp <= Date.now()) return null;
-    await env.DB.prepare("UPDATE microsoft_staff_sessions SET last_seen_at=? WHERE token_hash=?")
-      .bind(new Date().toISOString(), await sha256(transactionToken)).run();
-    return session;
-  } catch {
-    return null;
-  }
 }
 
 async function signedPayload(value, secret) {
@@ -171,43 +123,11 @@ async function verifyIdToken(token, expectedNonce) {
 function identityFromClaims(claims) {
   return {
     objectId: String(claims.oid || claims.sub),
+    subjectId: String(claims.sub || ""),
+    tenantId: String(claims.tid || ""),
     email: String(claims.preferred_username || claims.email || claims.upn || "").trim().toLowerCase(),
     displayName: String(claims.name || claims.preferred_username || "JA Group Services staff member").trim()
   };
-}
-
-async function resolveStaff(env, identity) {
-  if (!env.DB) throw new Error("The Head Office database is not connected.");
-  let staff = await env.DB.prepare(`
-    SELECT s.id,s.display_name,s.email,s.status,
-      COALESCE((SELECT group_concat(role_code, ', ') FROM staff_role_assignments WHERE staff_id=s.id), 'Authorised Staff') role_name
-    FROM staff_members s
-    WHERE s.external_identity_id=? OR lower(s.email)=lower(?)
-    LIMIT 1
-  `).bind(identity.objectId, identity.email).first();
-
-  if (!staff) {
-    const count = await env.DB.prepare("SELECT COUNT(*) total FROM staff_members").first();
-    if (Number(count?.total || 0) !== 0) throw new Error("Your Microsoft account has not been granted access to this portal.");
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO staff_members
-        (id,external_identity_id,authentication_source,display_name,email,status,created_at,updated_at)
-        VALUES (?,?,'microsoft_entra',?,?,'active',?,?)`)
-        .bind(id, identity.objectId, identity.displayName, identity.email, now, now),
-      env.DB.prepare(`INSERT INTO staff_role_assignments
-        (id,staff_id,role_code,assigned_by,assigned_at) VALUES (?,?,'system_administrator','system.bootstrap',?)`)
-        .bind(crypto.randomUUID(), id, now)
-    ]);
-    staff = { id, display_name: identity.displayName, email: identity.email, status: "active", role_name: "System Administrator" };
-  } else {
-    if (staff.status !== "active") throw new Error("Your Head Office staff access is not active.");
-    await env.DB.prepare(`UPDATE staff_members SET external_identity_id=?,authentication_source='microsoft_entra',
-      display_name=?,email=?,updated_at=? WHERE id=?`)
-      .bind(identity.objectId, identity.displayName, identity.email, new Date().toISOString(), staff.id).run();
-  }
-  return staff;
 }
 
 export function microsoftConfiguration(env) {
@@ -284,23 +204,16 @@ export async function completeMicrosoftLogin(request, env) {
   const claims = await verifyIdToken(tokenBody.id_token, transaction.nonce);
   const identity = identityFromClaims(claims);
   if (!identity.email) throw new Error("Microsoft did not provide a staff email address.");
-  const staff = await resolveStaff(env, identity);
-  const sessionData = {
-    sub: staff.id,
-    objectId: identity.objectId,
-    username: staff.email,
-    displayName: staff.display_name,
-    roleName: staff.role_name || "Authorised Staff",
-    tenantId: TENANT_ID,
-    authSource: "microsoft_entra",
-    exp: Date.now() + 8 * 60 * 60 * 1000,
-    version: 2
-  };
-  await storeMicrosoftSession(env, transactionToken, sessionData);
+  const staff = await resolveAuthorisedPrincipal(env, request, identity);
+  const authenticationStrength = Array.isArray(claims.amr) ? claims.amr.join("+") : String(claims.acr || claims.auth_time || "");
+  const portalSession = await createPrincipalSession(env, request, staff, identity, authenticationStrength);
   try {
     await audit(env, {
       sub: staff.id,
-      displayName: staff.display_name
+      displayName: staff.preferred_name || staff.full_name,
+      objectId: identity.objectId,
+      sessionId: portalSession.id,
+      roleCode: staff.role_code
     }, "auth.microsoft_login", "staff_session", staff.id, { label: "Microsoft staff sign-in" });
   } catch (error) {
     console.error(JSON.stringify({
@@ -311,18 +224,14 @@ export async function completeMicrosoftLogin(request, env) {
   }
   const returnUrl = new URL(safeReturnPath(transaction.returnTo), url.origin);
   returnUrl.searchParams.set("auth_result", "success");
-  const browserSession = await signedPayload(sessionData, sessionSecret(env));
-  returnUrl.hash = `auth_session=${encodeURIComponent(browserSession)}`;
   const headers = new Headers({
     Location: returnUrl.toString(),
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer"
   });
-  // Establish the normal first-party HttpOnly session as well as the
-  // browser-tab hand-off. Either transport can authenticate the next request,
-  // so a browser privacy setting cannot leave a successful Microsoft login
-  // stranded on the sign-in screen.
-  headers.set("Set-Cookie", cookie(SESSION_COOKIE, browserSession, 28_800));
+  // The browser receives only an opaque, rotated, host-only session key. The
+  // identity and authority record remain server-side in D1.
+  headers.set("Set-Cookie", principalSessionCookie(portalSession.token));
   return new Response(null, { status: 303, headers });
 }
 
@@ -331,39 +240,7 @@ export async function getMicrosoftSession(request, env) {
 }
 
 export async function inspectMicrosoftSession(request, env) {
-  const secret = sessionSecret(env);
-  if (!secret) return { session: null, status: "signing_secret_missing" };
-  const candidates = [
-    readBearer(request),
-    readCookie(request, SESSION_COOKIE),
-    readCookie(request, "__Host-ho_session"),
-    readCookie(request, TRANSACTION_COOKIE)
-  ].filter(Boolean);
-  if (!candidates.length) return { session: null, status: "session_cookie_missing" };
-  let lastStatus = "session_cookie_invalid";
-  for (const raw of candidates) {
-    const session = await readSignedPayload(raw, secret);
-    if (!session) {
-      lastStatus = "session_cookie_invalid";
-      continue;
-    }
-    if (session.version !== 2) {
-      lastStatus = "session_version_invalid";
-      continue;
-    }
-    if (session.exp < Date.now()) {
-      lastStatus = "session_expired";
-      continue;
-    }
-    if (session.tenantId !== TENANT_ID) {
-      lastStatus = "session_tenant_invalid";
-      continue;
-    }
-    return { session, status: "authenticated" };
-  }
-  const storedSession = await readStoredMicrosoftSession(request, env);
-  if (storedSession) return { session: storedSession, status: "authenticated_server_session" };
-  return { session: null, status: lastStatus };
+  return inspectPrincipalSession(request, env);
 }
 
 export function microsoftLogout(request) {
@@ -374,8 +251,8 @@ export function microsoftLogout(request) {
     Location: destination.toString(),
     "Cache-Control": "no-store"
   });
+  headers.append("Set-Cookie", clearPrincipalSessionCookie());
   headers.append("Set-Cookie", cookie(SESSION_COOKIE, "", 0));
-  headers.append("Set-Cookie", cookie("__Host-ho_session", "", 0));
   return new Response(null, {
     status: 302,
     headers
