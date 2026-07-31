@@ -255,7 +255,8 @@ async function initialiseOptionalModules(requestedRoute, generation) {
     'stripe-reconciliation': 'stripe-reconciliation'
   };
   const requiredModule = routeRequirements[requestedRoute];
-  if (!requiredModule || resultSucceeded(results, requiredModule)) navigate(requestedRoute, true);
+  if ((!requiredModule || resultSucceeded(results, requiredModule))
+    && (state.route !== requestedRoute || routeFromHash() !== requestedRoute)) navigate(requestedRoute, true);
 }
 
 async function runBoot() {
@@ -295,9 +296,11 @@ async function runBoot() {
   showApp();
   renderNavigation();
 
-  // Open a core workspace immediately. Specialist modules initialise separately and
-  // can no longer freeze the entire portal on an endless loading screen.
-  navigate('dashboard', true);
+  // Core routes, including full customer records, are already available at this
+  // point. Preserve the requested deep link instead of briefly replacing it with
+  // Control Room while optional specialist modules initialise.
+  const coreRoute = /^(?:dashboard|customers(?:\/[^/?#]+)?|cases|complaints|data-protection|safeguarding|security|communications|payments|platforms|staff|audit|settings|my-profile|my-security|personalisation)$/;
+  navigate(coreRoute.test(requestedRoute) ? requestedRoute : 'dashboard', true);
   initialiseOptionalModules(requestedRoute, generation).catch(error => {
     console.error('Optional Head Office modules did not finish initialising.', error);
     toast('Specialist tools unavailable', error.message || 'The core portal remains available.', 'error');

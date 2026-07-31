@@ -19,6 +19,8 @@ assert.match(events,/CUSTOMER_EVENT_CORRELATION_MISMATCH/);
 assert.match(events,/INSUFFICIENT_PLATFORM_SCOPE/);
 assert.match(events,/duplicate:true/);
 assert.match(events,/sourcePlatform:"Profile Centre"/);
+assert.match(events,/INSERT INTO customer_sessions/);
+assert.match(events,/ON CONFLICT\(platform_id,external_session_id\) DO UPDATE/);
 assert.match(customerApi,/synchronisation_status/);
 assert.match(workspace,/Open Profile Centre record/);
 assert.match(workspace,/platform_name/);
