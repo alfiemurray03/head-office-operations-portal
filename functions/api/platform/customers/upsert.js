@@ -34,10 +34,26 @@ async function createCustomer(env, identity, now) {
 }
 
 async function findCustomer(env, platform, input) {
+  if (input.centralCustomerId) {
+    const central = await env.DB.prepare("SELECT * FROM customers WHERE id=? LIMIT 1").bind(input.centralCustomerId).first();
+    if (central) return {customer:central,match:"central_customer_id"};
+    return {customer:null,match:"central_customer_not_found"};
+  }
+  if (input.customerNumber) {
+    const ucn = await env.DB.prepare("SELECT * FROM customers WHERE customer_number=? LIMIT 1").bind(input.customerNumber).first();
+    if (ucn) return {customer:ucn,match:"ucn"};
+    return {customer:null,match:"ucn_not_found"};
+  }
   const platformAccount = await env.DB.prepare(`SELECT c.* FROM customer_platform_accounts a
     JOIN customers c ON c.id=a.customer_id WHERE a.platform_id=? AND a.external_account_id=? LIMIT 1`)
     .bind(platform.id,input.platformCustomerId).first();
   if (platformAccount) return {customer:platformAccount,match:"platform_account"};
+  if (input.externalPersonId) {
+    const platformPerson = await env.DB.prepare(`SELECT c.* FROM customer_platform_accounts a
+      JOIN customers c ON c.id=a.customer_id WHERE a.platform_id=? AND a.external_person_id=? LIMIT 1`)
+      .bind(platform.id,input.externalPersonId).first();
+    if (platformPerson) return {customer:platformPerson,match:"platform_person"};
+  }
   const directoryIdentity = await env.DB.prepare(`SELECT c.* FROM customer_directory_identities i
     JOIN customers c ON c.id=i.customer_id WHERE i.provider=? AND i.tenant_id=? AND i.object_id=? LIMIT 1`)
     .bind(CUSTOMER_DIRECTORY_PROVIDER,input.tenantId,input.objectId).first();
@@ -46,11 +62,8 @@ async function findCustomer(env, platform, input) {
     .bind(input.externalKey,input.objectId).first();
   if (external) return {customer:external,match:"external_identity"};
   const email = await env.DB.prepare("SELECT * FROM customers WHERE verified_email=? LIMIT 1").bind(input.email).first();
-  if (!email) return {customer:null,match:"new"};
-  if (email.external_identity_id && ![input.externalKey,input.objectId].includes(email.external_identity_id)) {
-    return {customer:null,match:"identity_conflict",conflict:email};
-  }
-  return {customer:email,match:"verified_email"};
+  if (email) return {customer:null,match:"verified_email_reconciliation_required",conflict:email};
+  return {customer:null,match:"new_verified_identity"};
 }
 
 async function upsertDirectoryIdentity(env, customer, input, now) {
@@ -77,21 +90,42 @@ async function upsertDirectoryIdentity(env, customer, input, now) {
   return id;
 }
 
-async function upsertPlatformAccount(env, platform, customer, platformCustomerId, status, now) {
+async function upsertPlatformAccount(env, platform, customer, input, now) {
   const existing = await env.DB.prepare("SELECT id FROM customer_platform_accounts WHERE customer_id=? AND platform_id=? LIMIT 1")
     .bind(customer.id,platform.id).first();
   if (existing) {
-    await env.DB.prepare("UPDATE customer_platform_accounts SET external_account_id=?,status=?,last_synced_at=? WHERE id=?")
-      .bind(platformCustomerId,status,now,existing.id).run();
+    await env.DB.prepare(`UPDATE customer_platform_accounts SET external_account_id=?,external_person_id=?,platform_code=?,
+      status=?,registration_date=COALESCE(registration_date,?),last_activity_date=?,source_system='Profile Centre',
+      synchronisation_status='linked',last_synced_at=?,updated_at=?,secure_record_url=? WHERE id=?`)
+      .bind(input.platformCustomerId,input.externalPersonId,platform.code,input.accountStatus,input.createdAt,
+        input.lastActivityAt||now,now,now,input.secureRecordUrl,existing.id).run();
     return existing.id;
   }
   const id = crypto.randomUUID();
   await env.DB.prepare(`INSERT INTO customer_platform_accounts
-    (id,customer_id,platform_id,external_account_id,status,linked_at,last_synced_at)
-    VALUES (?,?,?,?,?,?,?) ON CONFLICT(platform_id,external_account_id) DO UPDATE SET
-    customer_id=excluded.customer_id,status=excluded.status,last_synced_at=excluded.last_synced_at`)
-    .bind(id,customer.id,platform.id,platformCustomerId,status,now,now).run();
+    (id,customer_id,platform_id,external_account_id,status,linked_at,last_synced_at,platform_code,
+     external_person_id,registration_date,last_activity_date,source_system,synchronisation_status,updated_at,secure_record_url)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(platform_id,external_account_id) DO UPDATE SET
+    customer_id=excluded.customer_id,status=excluded.status,external_person_id=excluded.external_person_id,
+    registration_date=COALESCE(customer_platform_accounts.registration_date,excluded.registration_date),
+    last_activity_date=excluded.last_activity_date,source_system=excluded.source_system,
+    synchronisation_status='linked',last_synced_at=excluded.last_synced_at,updated_at=excluded.updated_at,
+    secure_record_url=excluded.secure_record_url`)
+    .bind(id,customer.id,platform.id,input.platformCustomerId,input.accountStatus,now,now,platform.code,
+      input.externalPersonId,input.createdAt,input.lastActivityAt||now,"Profile Centre","linked",now,input.secureRecordUrl).run();
   return id;
+}
+
+async function recordReconciliationFailure(env, platform, input, reasonCode, now) {
+  await env.DB.prepare(`INSERT INTO platform_reconciliation_failures
+    (id,platform_id,platform_code,external_account_id,external_person_id,supplied_customer_id,
+     supplied_customer_number,reason_code,status,safe_metadata_json,first_seen_at,last_seen_at)
+    VALUES (?,?,?,?,?,?,?,?,'unresolved','{}',?,?)
+    ON CONFLICT(platform_id,external_account_id,reason_code) DO UPDATE SET
+      external_person_id=excluded.external_person_id,supplied_customer_id=excluded.supplied_customer_id,
+      supplied_customer_number=excluded.supplied_customer_number,last_seen_at=excluded.last_seen_at,status='unresolved'`)
+    .bind(crypto.randomUUID(),platform.id,platform.code,input.platformCustomerId,input.externalPersonId,
+      input.centralCustomerId,input.customerNumber,reasonCode,now,now).run();
 }
 
 export const onRequestPost = async context => {
@@ -107,7 +141,13 @@ export const onRequestPost = async context => {
     email:cleanText(body.email,254).toLowerCase(),userPrincipalName:cleanText(body.userPrincipalName,254)||null,
     accountEnabled:body.accountEnabled!==false,
     accountStatus:["active","pending","suspended","closed"].includes(body.accountStatus)?body.accountStatus:"active",
-    createdAt:body.createdAt?new Date(body.createdAt).toISOString():null,platformId:auth.platform.id
+    createdAt:body.createdAt?new Date(body.createdAt).toISOString():null,
+    lastActivityAt:body.lastActivityAt?new Date(body.lastActivityAt).toISOString():null,
+    centralCustomerId:cleanText(body.centralCustomerId,100)||null,
+    customerNumber:cleanText(body.customerNumber||body.ucn,40)||null,
+    externalPersonId:cleanText(body.platformPersonId||body.profileId,160)||null,
+    secureRecordUrl:cleanText(body.secureRecordUrl,500)||null,
+    platformId:auth.platform.id
   };
   input.externalKey = `${input.tenantId}:${input.objectId}`;
   if (!input.tenantId || !input.objectId || !input.platformCustomerId || input.displayName.length<2 || !validEmail(input.email)) {
@@ -118,9 +158,11 @@ export const onRequestPost = async context => {
     await ensureCentralPlatformSchema(context.env);
     const now = new Date().toISOString();
     const found = await findCustomer(context.env,auth.platform,input);
-    if (found.match === "identity_conflict") return error("CUSTOMER_IDENTITY_REVIEW_REQUIRED",
-      "The verified email belongs to a customer linked to a different Microsoft identity. Head Office review is required.",409,
-      {customerNumber:found.conflict.customer_number});
+    if (["central_customer_not_found","ucn_not_found","verified_email_reconciliation_required"].includes(found.match)) {
+      await recordReconciliationFailure(context.env,auth.platform,input,found.match,now);
+      return error("CUSTOMER_IDENTITY_REVIEW_REQUIRED",
+        "The supplied identifiers could not be reconciled authoritatively. Head Office review is required.",409);
+    }
     let customer = found.customer;
     let created = false;
     if (!customer) {
@@ -138,7 +180,7 @@ export const onRequestPost = async context => {
       customer = await context.env.DB.prepare("SELECT * FROM customers WHERE id=?").bind(customer.id).first();
     }
     const identityId = await upsertDirectoryIdentity(context.env,customer,input,now);
-    const platformAccountId = await upsertPlatformAccount(context.env,auth.platform,customer,input.platformCustomerId,input.accountStatus,now);
+    const platformAccountId = await upsertPlatformAccount(context.env,auth.platform,customer,input,now);
     await upsertCustomerSnapshot(context.env,auth.platform,customer,{
       platformCustomerId:input.platformCustomerId,accountStatus:input.accountStatus,planCode:body.planCode,
       subscriptionStatus:body.subscriptionStatus,entitlements:body.entitlements,registeredAt:input.createdAt,

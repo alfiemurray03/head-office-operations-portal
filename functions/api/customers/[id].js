@@ -17,7 +17,9 @@ export const onRequestGet = async context => {
   const includePayments = hasPermission(auth.authorisation, "payments:read");
   const statements = [
     context.env.DB.prepare("SELECT id,contact_type,contact_value,is_primary,verification_status,verified_at FROM customer_contact_points WHERE customer_id=? ORDER BY is_primary DESC,contact_type").bind(customer.id),
-    context.env.DB.prepare(`SELECT a.id,a.external_account_id,a.status,a.linked_at,a.last_synced_at,p.id platform_id,p.code,p.name,
+    context.env.DB.prepare(`SELECT a.id,a.external_account_id,a.external_person_id,a.status,a.linked_at,a.last_synced_at,
+      a.registration_date,a.last_activity_date,a.source_system,a.synchronisation_status,a.updated_at,a.secure_record_url,
+      p.id platform_id,p.code,p.name,
       s.account_status snapshot_account_status,s.plan_code,s.subscription_status,s.last_sign_in_at,s.last_activity_at,s.entitlement_json,
       o.health_status platform_health,o.public_url,o.hosting_provider,o.release_version,o.release_commit,o.last_heartbeat_at
       FROM customer_platform_accounts a JOIN platforms p ON p.id=a.platform_id

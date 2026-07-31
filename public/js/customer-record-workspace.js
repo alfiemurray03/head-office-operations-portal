@@ -13,9 +13,9 @@ function customerRecordServiceRows(rows = []) {
   if (!rows.length) return customerRecordEmpty('No connected services', 'No website or service account has been linked to this customer yet.');
   return rows.map(item => customerRecordListItem({
     title: item.name || item.code || 'Connected service',
-    copy: [item.plan_code ? `Plan ${item.plan_code}` : '', item.subscription_status ? label(item.subscription_status) : '', item.external_account_id ? `Account ${item.external_account_id}` : ''].filter(Boolean).join(' · '),
-    detail: `Last activity ${formatDate(item.last_activity_at || item.last_synced_at, 'not yet reported')} · ${item.hosting_provider || 'Hosting not reported'}${item.release_version ? ` · ${item.release_version}` : ''}`,
-    meta: `${tag(item.snapshot_account_status || item.status || 'active')}${tag(item.platform_health || 'awaiting_connection')}`
+    copy: [item.plan_code ? `Plan ${item.plan_code}` : '', item.subscription_status ? label(item.subscription_status) : '', item.external_account_id ? `Account ${item.external_account_id}` : '', item.external_person_id ? `Profile ${item.external_person_id}` : ''].filter(Boolean).join(' · '),
+    detail: `Connected ${formatDate(item.registration_date || item.linked_at)} · Last activity ${formatDate(item.last_activity_date || item.last_activity_at || item.last_synced_at, 'not yet reported')} · Updated ${formatDate(item.updated_at || item.last_synced_at)}`,
+    meta: `${tag(item.snapshot_account_status || item.status || 'active')}${tag(item.synchronisation_status || 'linked')}${item.secure_record_url ? `<a class="button secondary small" href="${escapeHtml(item.secure_record_url)}" target="_blank" rel="noopener noreferrer">Open Profile Centre record</a>` : ''}`
   })).join('');
 }
 
@@ -152,7 +152,7 @@ function customerRecordTimelineRows(rows = []) {
     title: item.title || label(item.event_type),
     copy: item.summary || `${label(item.event_category)} activity`,
     detail: `${item.platform_name || 'Head Office'} · ${formatDate(item.occurred_at)}`,
-    meta: `<span class="tag information">${escapeHtml(label(item.event_category))}</span>`
+    meta: `${item.platform_name ? `<span class="tag information">${escapeHtml(item.platform_name)}</span>` : ''}<span class="tag information">${escapeHtml(label(item.event_category))}</span>`
   })).join('');
 }
 
