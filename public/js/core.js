@@ -2,8 +2,8 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const DEFAULT_API_TIMEOUT_MS = 12_000;
 const state = {
-  sessionToken: "",
   session: null,
+  preferences: null,
   reference: { permissions: [], roles: [], platforms: [], staff: [], units: [], roleDefinitions: [], markerTypes: [], restrictionTypes: [], settings: {} },
   route: "dashboard",
   routeQuery: {},
@@ -16,20 +16,15 @@ const state = {
 };
 
 function storedSession() {
-  if (state.sessionToken) return state.sessionToken;
-  try { state.sessionToken = sessionStorage.getItem("customerops_staff_session") || ""; } catch {}
-  return state.sessionToken;
+  return "";
 }
 
 function retainSession(token) {
-  state.sessionToken = String(token || "").trim();
-  if (!state.sessionToken) return;
-  try { sessionStorage.setItem("customerops_staff_session", state.sessionToken); } catch {}
+  return Boolean(token);
 }
 
 function clearSession() {
-  state.sessionToken = "";
-  try { sessionStorage.removeItem("customerops_staff_session"); } catch {}
+  // Session state is held only in the server-managed HttpOnly cookie.
 }
 
 async function api(path, options = {}) {
@@ -62,7 +57,6 @@ async function api(path, options = {}) {
       signal: controller.signal,
       headers: {
         ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(suppliedHeaders || {})
       }
     });
@@ -159,6 +153,32 @@ function showApp() {
   $("#userName").textContent = user.displayName;
   $("#userRole").textContent = user.roleName || "Authorised staff";
   $("#userInitials").textContent = initials(user.displayName);
+  if ($("#accountFullName")) $("#accountFullName").textContent = user.fullName || user.displayName;
+  if ($("#accountAuthority")) $("#accountAuthority").textContent = `${user.roleName} · ${user.authority || "Equal Principal"}`;
+}
+
+function applyPrincipalPreferences(preferences) {
+  state.preferences = preferences || null;
+  if (!preferences) return;
+  document.documentElement.dataset.theme = preferences.theme || "system";
+  document.documentElement.dataset.opsTheme = preferences.theme === "system"
+    ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : preferences.theme;
+  document.documentElement.dataset.tableDensity = preferences.tableDensity || "comfortable";
+  document.body.classList.toggle("mask-sensitive-values", preferences.sensitiveValuesMasked !== false);
+}
+
+function applyDashboardPreferences() {
+  const dashboard = state.preferences?.dashboard;
+  if (!dashboard) return;
+  const visible = new Set(dashboard.widgets || []);
+  const hidden = new Set(dashboard.hidden || []);
+  const elements = new Map($$("[data-dashboard-widget]").map(element => [element.dataset.dashboardWidget, element]));
+  for (const [id, element] of elements) element.hidden = hidden.has(id) || (visible.size > 0 && !visible.has(id));
+  for (const id of dashboard.widgets || []) {
+    const element = elements.get(id);
+    if (element?.parentElement) element.parentElement.append(element);
+  }
 }
 
 function openModal(title, description, content, eyebrow = "Head Office record") {
@@ -214,6 +234,7 @@ async function renderRoute(route = routeFromHash()) {
     if (route === "staff") return await renderStaff();
     if (route === "audit") return await renderAudit();
     if (route === "settings") return await renderSettings();
+    if (["my-profile", "my-security", "personalisation"].includes(route)) return await window.renderPrincipalAccount(route);
     return navigate("dashboard", true);
   } catch (error) {
     $("#viewRoot").innerHTML = `<div class="panel"><div class="empty-state"><strong>The section could not be opened</strong><span>${escapeHtml(error.message)}</span></div></div>`;

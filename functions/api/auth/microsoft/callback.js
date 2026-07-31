@@ -61,22 +61,6 @@ function useHostOnlySessionCookie(response) {
     headers.append("Set-Cookie", rewritten);
   }
 
-  // Edge has previously returned from Microsoft without exposing the fragment
-  // hand-off to the portal boot code. Mirror the signed session into the query
-  // string as a one-time transport; boot.js immediately removes it from the URL.
-  const location = headers.get("Location");
-  if (location) {
-    const redirect = new URL(location);
-    const fragment = new URLSearchParams(redirect.hash.startsWith("#") ? redirect.hash.slice(1) : redirect.hash);
-    const session = fragment.get("auth_session");
-    if (session) {
-      redirect.searchParams.set("auth_session", session);
-      redirect.searchParams.set("auth_result", "success");
-      redirect.hash = "#/security-operations";
-      headers.set("Location", redirect.toString());
-    }
-  }
-
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -96,6 +80,7 @@ function escapeHtml(value) {
 
 function authenticationErrorResponse(request, error) {
   const message = error instanceof Error ? error.message : "Microsoft staff sign-in could not be completed.";
+  const accessDenied = error?.code === "PRINCIPAL_NOT_AUTHORISED" || error?.status === 403;
   const origin = new URL(request.url).origin;
   const body = `<!doctype html>
 <html lang="en-GB">
@@ -103,7 +88,7 @@ function authenticationErrorResponse(request, error) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <title>Microsoft sign-in could not be completed</title>
+  <title>${accessDenied ? "Head Office Portal access denied" : "Microsoft sign-in could not be completed"}</title>
   <style>
     :root{font-family:Segoe UI,system-ui,sans-serif;color:#fff;background:#08162a}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 70% 20%,#123766,transparent 35%),#08162a}
@@ -115,15 +100,15 @@ function authenticationErrorResponse(request, error) {
 <body>
   <main>
     <strong>Head Office Operations &amp; Security Portal</strong>
-    <h1>Microsoft sign-in could not be completed</h1>
-    <p>The portal has stopped the failed sign-in instead of silently returning you to the login screen.</p>
+    <h1>${accessDenied ? "Head Office Portal access denied" : "Microsoft sign-in could not be completed"}</h1>
+    <p>${accessDenied ? "Microsoft verified this identity, but it is not one of the two authorised Head Office principals. No Portal session was created." : "The portal has stopped the failed sign-in instead of silently returning you to the login screen."}</p>
     <code>${escapeHtml(message)}</code>
     <a href="${escapeHtml(origin)}/">Try Microsoft sign-in again</a>
   </main>
 </body>
 </html>`;
   return new Response(body, {
-    status: 401,
+    status: accessDenied ? 403 : 401,
     headers: {
       "Content-Type": "text/html; charset=UTF-8",
       "Cache-Control": "no-store, max-age=0",

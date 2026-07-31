@@ -5,6 +5,7 @@ export const CASE_STATUSES = new Set(["draft", "open", "triage", "investigating"
 export const CASE_PRIORITIES = new Set(["low", "normal", "high", "critical"]);
 
 const ROLE_BLUEPRINTS = [
+  ["HEAD_OFFICE_PRINCIPAL", "Head Office Principal", "Equal highest-level authority for an individually authorised Head Office principal.", ["*"]],
   ["SYSTEM_ADMINISTRATOR", "System Administrator", "Full technical, operational and configuration authority.", ["*"]],
   ["HEAD_OFFICE_OPERATIONS", "Head Office Operations", "Company-wide customer operations, communications, payments, complaints and cases.", ["dashboard:read", "customers:*", "cases:*", "communications:*", "payments:*", "approvals:*", "complaints:*", "security:read", "audit:read", "platforms:read"]],
   ["SECURITY_OFFICER", "Security Officer", "Security markers, restrictions, account recovery and controlled investigations.", ["dashboard:read", "customers:read", "cases:*", "communications:read", "security:*", "audit:read", "platforms:read"]],
@@ -118,7 +119,7 @@ export async function getAuthorisation(env, session) {
       for (const permission of JSON.parse(row.permissions_json || "[]")) permissions.add(permission);
     } catch {}
   }
-  if (roles.has("SYSTEM_ADMINISTRATOR") || sessionRoles.includes("SYSTEM_ADMINISTRATOR")) permissions.add("*");
+  if (roles.has("HEAD_OFFICE_PRINCIPAL") || roles.has("SYSTEM_ADMINISTRATOR") || sessionRoles.includes("SYSTEM_ADMINISTRATOR")) permissions.add("*");
   return { roles: [...roles], permissions: [...permissions] };
 }
 

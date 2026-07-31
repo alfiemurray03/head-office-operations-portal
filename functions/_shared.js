@@ -73,38 +73,7 @@ function requestWithPreferredAuthCookies(request) {
 export async function getSession(request, env) {
   const canonicalRequest = requestWithPreferredAuthCookies(request);
   const { getMicrosoftSession } = await import("./_microsoft-auth.js");
-  const microsoftSession = await getMicrosoftSession(canonicalRequest, env);
-  if (microsoftSession) return microsoftSession;
-
-  const token = cookies(canonicalRequest).ho_session;
-  if (!token || !env.SESSION_SECRET) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature || !safeEqual(await hmac(payload, env.SESSION_SECRET), signature)) return null;
-  try {
-    const session = JSON.parse(atob(payload.replaceAll("-", "+").replaceAll("_", "/")));
-    if (session.exp < Date.now() || session.version !== 1) return null;
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-export async function createSession(user, env) {
-  let sessionHours = 8;
-  try {
-    const { getSystemSetting } = await import("./_system-settings.js");
-    sessionHours = Number(await getSystemSetting(env, "security.session_hours", 8));
-  } catch {}
-  if (!Number.isFinite(sessionHours) || sessionHours < 1 || sessionHours > 24) sessionHours = 8;
-  const raw = btoa(JSON.stringify({
-    sub: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    roleName: user.roleName,
-    exp: Date.now() + sessionHours * 60 * 60 * 1000,
-    version: 1
-  })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-  return `${raw}.${await hmac(raw, env.SESSION_SECRET)}`;
+  return getMicrosoftSession(canonicalRequest, env);
 }
 
 export async function requireSession(context) {
@@ -205,7 +174,13 @@ export async function audit(env, session, action, entityType, entityId, details 
       details.requestId || null,
       details.before === undefined ? null : JSON.stringify(details.before),
       details.after === undefined ? null : JSON.stringify(details.after),
-      JSON.stringify(details.metadata || {})
+      JSON.stringify({
+        ...(details.metadata || {}),
+        portalRole: session.roleCode || session.roleName || null,
+        entraObjectId: session.objectId || null,
+        sessionId: session.sessionId || null,
+        authenticationStrength: session.authenticationStrength || null
+      })
     ).run();
 }
 
