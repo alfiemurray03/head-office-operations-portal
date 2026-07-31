@@ -23,6 +23,27 @@ function titleFor(type) {
   return type.split(/[._-]/).filter(Boolean).map(part=>part[0]?.toUpperCase()+part.slice(1)).join(" ");
 }
 
+function sessionStatement(env, platformId, customerId, session, occurredAt) {
+  if (!session || typeof session !== "object" || Array.isArray(session)) return null;
+  const externalSessionId = cleanText(session.id,220);
+  if (!externalSessionId) return null;
+  const allowedStatuses = new Set(["active","revocation_required","revoked","expired","signed_out"]);
+  const status = allowedStatuses.has(session.status) ? session.status : "active";
+  const validDate = (value, fallback = null) => value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : fallback;
+  return env.DB.prepare(`INSERT INTO customer_sessions
+    (id,customer_id,platform_id,external_session_id,status,started_at,last_seen_at,revoked_at,revocation_reason,
+     device_summary,ip_country,metadata_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(platform_id,external_session_id) DO UPDATE SET status=excluded.status,
+      last_seen_at=excluded.last_seen_at,revoked_at=COALESCE(excluded.revoked_at,customer_sessions.revoked_at),
+      revocation_reason=COALESCE(excluded.revocation_reason,customer_sessions.revocation_reason),
+      device_summary=COALESCE(excluded.device_summary,customer_sessions.device_summary),
+      ip_country=COALESCE(excluded.ip_country,customer_sessions.ip_country),metadata_json=excluded.metadata_json`)
+    .bind(crypto.randomUUID(),customerId,platformId,externalSessionId,status,
+      validDate(session.startedAt,occurredAt),validDate(session.lastSeenAt,occurredAt),validDate(session.revokedAt),
+      cleanText(session.revocationReason,1000)||null,cleanText(session.deviceSummary,500)||null,
+      cleanText(session.ipCountry,8)||null,JSON.stringify(safeMetadata(session.metadata)));
+}
+
 export const onRequestPost = async context => {
   const auth = await requirePlatform(context,[]);
   if (auth.response) return auth.response;
@@ -78,6 +99,8 @@ export const onRequestPost = async context => {
      actor_type,actor_identifier,outcome,target_type,target_reference,correlation_id,occurred_at,received_at,safe_metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(receiptId,auth.platform.id,eventId,link.customer_id,link.id,eventType,
       category,actorType,actorIdentifier,outcome,targetType,targetReference,correlationId,occurredAt,now,JSON.stringify(metadata))];
+  const sessionUpsert = sessionStatement(context.env,auth.platform.id,link.customer_id,body.session,occurredAt);
+  if (sessionUpsert) statements.push(sessionUpsert);
   if (showInTimeline) statements.push(context.env.DB.prepare(`INSERT INTO customer_timeline_events
     (id,customer_id,platform_id,event_type,event_category,title,summary,occurred_at,source_reference,metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(timelineId,link.customer_id,auth.platform.id,eventType,category,title,summary,
