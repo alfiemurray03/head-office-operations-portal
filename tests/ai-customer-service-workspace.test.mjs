@@ -10,6 +10,19 @@ assert.match(interfaceScript, /AI Customer Service Centre/);
 assert.match(interfaceScript, /customer-service-centre\.js/);
 assert.match(interfaceScript, /customer-service-centre\.css/);
 assert.match(interfaceScript, /communications:read/);
+assert.match(interfaceScript, /activateCustomerServiceAfterAuthentication/,
+  'The specialist Customer Service workspace must be activated only after the secure application shell is available.');
+assert.match(interfaceScript, /if \(appShell\.hidden\) return false/,
+  'Customer Service assets must not load while the unauthenticated login screen is active.');
+assert.match(interfaceScript, /observer\.observe\(appShell, \{ attributes: true, attributeFilter: \['hidden'\] \}\)/,
+  'Customer Service activation must follow the authenticated application-shell transition.');
+assert.match(interfaceScript, /the core Head Office Portal is continuing/,
+  'A Customer Service module failure must explicitly preserve the core Head Office Portal.');
+assert.doesNotMatch(
+  interfaceScript,
+  /function start\(\) \{[\s\S]{0,200}ensureCustomerServiceAssets\(\)/,
+  'The Customer Service module must not be loaded directly during global pre-authentication startup.'
+);
 
 assert.match(workspace, /\/api\/support-centre\/conversations/);
 assert.match(workspace, /\/api\/support-centre\/branches/);
@@ -38,4 +51,4 @@ assert.match(stylesheet, /support-transcript/);
 assert.match(stylesheet, /data-ops-theme="dark"/);
 assert.match(stylesheet, /@media \(max-width: 780px\)/);
 
-console.log('AI Customer Service Centre workspace checks passed.');
+console.log('AI Customer Service Centre workspace and startup-isolation checks passed.');
