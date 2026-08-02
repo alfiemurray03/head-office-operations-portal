@@ -15,14 +15,57 @@
   <link rel="stylesheet" href="/planyx-shell.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-components.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-layout-fixes.css?v=20260728-central-2" data-planyx-layout-fixes>
-  <link rel="stylesheet" href="/professional-interface.css?v=20260730-professional-2" id="professionalInterfaceStyles">
+  <link rel="stylesheet" href="/professional-interface.css?v=20260802-login-recovery-1" id="professionalInterfaceStyles">
   <link rel="stylesheet" href="/principal-account.css?v=20260731-principal-1">
   <style id="authVisibilityGuard">
     #appShell[hidden],
     #loginScreen[hidden] {
       display: none !important;
     }
+
+    html body.ops-tailwind.locked #appShell {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    html body.ops-tailwind.locked #loginScreen {
+      display: grid !important;
+      visibility: visible !important;
+      position: relative !important;
+      z-index: 2147483646 !important;
+      pointer-events: auto !important;
+    }
+
+    html body.ops-tailwind.locked #loginScreen,
+    html body.ops-tailwind.locked #loginScreen *,
+    html body.ops-tailwind.locked #microsoftLogin {
+      pointer-events: auto !important;
+    }
+
+    html body.ops-tailwind.locked #microsoftLogin {
+      position: relative !important;
+      z-index: 2147483647 !important;
+      cursor: pointer !important;
+    }
   </style>
+  <script id="criticalLoginRecovery">
+    (() => {
+      const showSecureLogin = () => {
+        const appShell = document.getElementById('appShell');
+        const loginScreen = document.getElementById('loginScreen');
+        if (appShell) appShell.hidden = true;
+        if (loginScreen) loginScreen.hidden = false;
+        document.body?.classList.add('locked');
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', showSecureLogin, { once: true });
+      } else {
+        showSecureLogin();
+      }
+    })();
+  </script>
 </head>
 <body class="ops-tailwind locked">
   <section class="login-screen" id="loginScreen">
@@ -211,7 +254,7 @@
   </dialog>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
-  <script src="/js/core.js?v=20260730-emergency-login-1" defer></script>
+  <script src="/js/core.js?v=20260802-login-recovery-1" defer></script>
   <script src="/js/views-operations.js?v=20260728-v7-4" defer></script>
   <script src="/js/views-control.js?v=20260728-v7-4" defer></script>
   <script src="/js/modals.js?v=20260728-v7-4" defer></script>
@@ -226,7 +269,7 @@
   <script src="/js/central-platform-ui.js?v=20260728-central-2" defer></script>
   <script src="/js/central-router.js?v=20260728-central-1" defer></script>
   <script src="/js/modal-system.js?v=20260728-modal-1" defer></script>
-  <script src="/js/professional-interface.js?v=20260730-professional-2" defer></script>
-  <script src="/js/boot.js?v=20260730-emergency-login-1" defer></script>
+  <script src="/js/professional-interface.js?v=20260802-login-recovery-1" defer></script>
+  <script src="/js/boot.js?v=20260802-login-recovery-1" defer></script>
 </body>
 </html>
