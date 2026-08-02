@@ -1,13 +1,17 @@
 import { audit, cleanText, error, json, readJson } from "../../_shared.js";
 import { hasPermission, requirePermission } from "../../_operations.js";
-import { ensureSupportCentreSchema, jsonValue, safeObject } from "../../_support-centre-schema.js";
+import {
+  ensureSupportCentreSchema,
+  jsonValue,
+  normaliseSupportCategory,
+  safeObject
+} from "../../_support-centre-schema.js";
 
 const STATUSES = new Set([
   "ai_handling", "awaiting_customer", "human_assistance_requested", "assigned",
   "under_investigation", "resolved", "closed", "escalated", "security_review_required"
 ]);
 const HANDLING_MODES = new Set(["ai", "human_pending", "human", "hybrid", "paused"]);
-const RESTRICTED_CATEGORIES = new Set(["data_protection", "safeguarding"]);
 
 function segments(value) {
   if (Array.isArray(value)) return value.flatMap(item => String(item).split("/")).filter(Boolean);
@@ -24,19 +28,25 @@ function isPrincipal(auth) {
 }
 
 function categoryPermitted(auth, category) {
-  const value = String(category || "general").toLowerCase();
+  const value = normaliseSupportCategory(category);
   if (isPrincipal(auth)) return true;
+  const roles = rolesOf(auth);
+  if (roles.has("HEAD_OFFICE_OPERATIONS")) return true;
+  if (roles.has("DPO_RESTRICTED")) return value === "data_protection";
+  if (roles.has("SAFEGUARDING_RESTRICTED")) return value === "safeguarding";
+  if (roles.has("SECURITY_OFFICER")) return value === "security" || value === "account_recovery";
   if (value === "data_protection") return hasPermission(auth.authorisation, "data_protection:*");
   if (value === "safeguarding") return hasPermission(auth.authorisation, "safeguarding:*");
-  if (hasPermission(auth.authorisation, "communications:read") || hasPermission(auth.authorisation, "communications:write")) return true;
-  return false;
+  return hasPermission(auth.authorisation, "communications:read") || hasPermission(auth.authorisation, "communications:write");
 }
 
 async function branchAccess(env, auth, platformId) {
   if (isPrincipal(auth)) return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 1, elevated: true };
   const roles = rolesOf(auth);
-  if (roles.has("HEAD_OFFICE_OPERATIONS")) return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 0, elevated: true };
-  if (roles.has("SECURITY_OFFICER")) return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 0, elevated: true };
+  if (roles.has("HEAD_OFFICE_OPERATIONS") || roles.has("SECURITY_OFFICER") ||
+      roles.has("DPO_RESTRICTED") || roles.has("SAFEGUARDING_RESTRICTED")) {
+    return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 0, elevated: true };
+  }
   const row = await env.DB.prepare(`SELECT can_read,can_reply,can_takeover,can_configure
     FROM support_staff_branch_access WHERE staff_id=? AND platform_id=? LIMIT 1`)
     .bind(auth.session.sub, platformId).first();
@@ -68,6 +78,11 @@ async function authoriseConversation(env, auth, conversation, capability = "can_
   return { access };
 }
 
+function parseJson(value) {
+  try { return JSON.parse(value || "{}"); }
+  catch { return {}; }
+}
+
 function conversationSummary(row) {
   return {
     id: row.id,
@@ -81,7 +96,7 @@ function conversationSummary(row) {
     verifiedEmail: row.customer_email || row.verified_email_snapshot,
     status: row.status,
     handlingMode: row.handling_mode,
-    category: row.category,
+    category: normaliseSupportCategory(row.category),
     priority: row.priority,
     currentPage: row.current_page,
     authenticated: Boolean(row.authenticated),
@@ -151,12 +166,12 @@ async function getConversation(context, auth, reference) {
     customerId: conversation.customer_id,
     caseId: conversation.case_id,
     requestId: context.data?.requestId,
-    metadata: { platformId: conversation.platform_id }
+    metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
   });
   return json({
     conversation: conversationSummary(conversation),
-    serviceContext: (() => { try { return JSON.parse(conversation.service_context_json || "{}"); } catch { return {}; } })(),
-    safeSupportFlags: (() => { try { return JSON.parse(conversation.safe_support_flags_json || "{}"); } catch { return {}; } })(),
+    serviceContext: parseJson(conversation.service_context_json),
+    safeSupportFlags: parseJson(conversation.safe_support_flags_json),
     permissions: authorised.access,
     messages: messages.results.map(row => ({
       id: row.id,
@@ -167,7 +182,7 @@ async function getConversation(context, auth, reference) {
       body: row.body,
       visibility: row.visibility,
       deliveryStatus: row.delivery_status,
-      metadata: (() => { try { return JSON.parse(row.metadata_json || "{}"); } catch { return {}; } })(),
+      metadata: parseJson(row.metadata_json),
       createdAt: row.created_at
     })),
     events: events.results.map(row => ({
@@ -175,7 +190,7 @@ async function getConversation(context, auth, reference) {
       eventType: row.event_type,
       actorType: row.actor_type,
       actorId: row.actor_id,
-      metadata: (() => { try { return JSON.parse(row.metadata_json || "{}"); } catch { return {}; } })(),
+      metadata: parseJson(row.metadata_json),
       occurredAt: row.occurred_at
     })),
     providerEscalations: providerEscalations.results
@@ -197,7 +212,7 @@ async function addStaffMessage(context, auth, reference) {
   await context.env.DB.batch([
     context.env.DB.prepare(`INSERT INTO support_messages
       (id,conversation_id,sender_type,sender_id,sender_name,body,visibility,delivery_status,metadata_json,created_at)
-      VALUES (?,?,'staff',?,?,?,?, 'accepted',?,?)`)
+      VALUES (?,?,'staff',?,?,?,?,'accepted',?,?)`)
       .bind(id, conversation.id, auth.session.sub, auth.session.displayName, messageBody, visibility,
         jsonValue(safeObject(body.metadata)), now),
     context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=COALESCE(assigned_staff_id,?),
@@ -217,7 +232,7 @@ async function addStaffMessage(context, auth, reference) {
       customerId: conversation.customer_id,
       caseId: conversation.case_id,
       requestId: context.data?.requestId,
-      metadata: { platformId: conversation.platform_id, visibility }
+      metadata: { platformId: conversation.platform_id, visibility, category: normaliseSupportCategory(conversation.category) }
     });
   return json({ accepted: true, messageId: id, visibility, createdAt: now }, 201);
 }
@@ -241,7 +256,7 @@ async function takeOver(context, auth, reference) {
     customerId: conversation.customer_id,
     caseId: conversation.case_id,
     requestId: context.data?.requestId,
-    metadata: { platformId: conversation.platform_id }
+    metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
   });
   return json({ assigned: true, assignedStaffId: auth.session.sub, handlingMode: "human", status: "assigned", updatedAt: now });
 }
@@ -276,7 +291,7 @@ async function updateStatus(context, auth, reference) {
     requestId: context.data?.requestId,
     before: { status: conversation.status, handlingMode: conversation.handling_mode },
     after: { status, handlingMode },
-    metadata: { platformId: conversation.platform_id }
+    metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
   });
   return json({ status, handlingMode, updatedAt: now });
 }
@@ -304,9 +319,10 @@ async function listBranches(context, auth) {
       emergencyNotice: row.emergency_notice || "",
       greeting: row.greeting || "",
       awayMessage: row.away_message || "",
-      operatingHours: (() => { try { return JSON.parse(row.operating_hours_json || "{}"); } catch { return {}; } })(),
-      appearance: (() => { try { return JSON.parse(row.appearance_json || "{}"); } catch { return {}; } })(),
-      contactOptions: (() => { try { return JSON.parse(row.contact_options_json || "{}"); } catch { return {}; } })(),
+      operatingHours: parseJson(row.operating_hours_json),
+      appearance: parseJson(row.appearance_json),
+      escalationRules: parseJson(row.escalation_rules_json),
+      contactOptions: parseJson(row.contact_options_json),
       retentionDays: Number(row.retention_days || 365),
       permissions: access
     });
@@ -325,7 +341,10 @@ async function updateBranch(context, auth, platformId) {
   try { body = await readJson(context.request, 48_000); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   const now = new Date().toISOString();
-  const retentionDays = Math.max(30, Math.min(2555, Number(body.retentionDays || 365)));
+  const requestedRetentionDays = Number(body.retentionDays);
+  const retentionDays = Number.isFinite(requestedRetentionDays)
+    ? Math.max(30, Math.min(2555, Math.round(requestedRetentionDays)))
+    : 365;
   await context.env.DB.prepare(`INSERT INTO support_branch_settings
     (platform_id,assistant_name,assistant_enabled,ai_enabled,human_takeover_enabled,anonymous_enabled,
      maintenance_enabled,maintenance_message,emergency_notice,greeting,away_message,operating_hours_json,
@@ -351,9 +370,12 @@ async function updateBranch(context, auth, platformId) {
     reference: platform.name,
     requestId: context.data?.requestId,
     after: {
-      assistantEnabled: Boolean(body.assistantEnabled), aiEnabled: Boolean(body.aiEnabled),
-      humanTakeoverEnabled: body.humanTakeoverEnabled !== false, anonymousEnabled: body.anonymousEnabled !== false,
-      maintenanceEnabled: Boolean(body.maintenanceEnabled), retentionDays
+      assistantEnabled: Boolean(body.assistantEnabled),
+      aiEnabled: Boolean(body.aiEnabled),
+      humanTakeoverEnabled: body.humanTakeoverEnabled !== false,
+      anonymousEnabled: body.anonymousEnabled !== false,
+      maintenanceEnabled: Boolean(body.maintenanceEnabled),
+      retentionDays
     }
   });
   return json({ updated: true, platformId, updatedAt: now });
@@ -371,7 +393,7 @@ export const onRequestGet = async context => {
 };
 
 export const onRequestPost = async context => {
-  const auth = await requirePermission(context, "communications:write");
+  const auth = await requirePermission(context, "communications:read");
   if (auth.response) return auth.response;
   await ensureSupportCentreSchema(context.env);
   const route = segments(context.params.path);
