@@ -31,6 +31,17 @@ function hasHeadOfficeOverride(auth) {
   return isPrincipal(auth) || rolesOf(auth).has("HEAD_OFFICE_OPERATIONS");
 }
 
+async function resolveSupportStaffId(env, auth) {
+  const portalUserId = cleanText(auth.session?.sub, 180) || null;
+  const entraObjectId = cleanText(auth.session?.objectId, 180) || null;
+  if (!portalUserId && !entraObjectId) return null;
+  const staff = await env.DB.prepare(`SELECT id,status FROM staff_members
+    WHERE id=? OR (? IS NOT NULL AND external_identity_id=?)
+    ORDER BY CASE WHEN id=? THEN 0 ELSE 1 END LIMIT 1`)
+    .bind(portalUserId, entraObjectId, entraObjectId, portalUserId).first();
+  return staff?.status === "active" ? staff.id : null;
+}
+
 function categoryPermitted(auth, category) {
   const value = normaliseSupportCategory(category);
   if (isPrincipal(auth)) return true;
@@ -49,7 +60,7 @@ function categoryPermitted(auth, category) {
   return hasPermission(auth.authorisation, "communications:read") || hasPermission(auth.authorisation, "communications:write");
 }
 
-async function branchAccess(env, auth, platformId) {
+async function branchAccess(env, auth, platformId, resolvedStaffId = null) {
   if (isPrincipal(auth)) return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 1, elevated: true };
   const roles = rolesOf(auth);
   if (roles.has("HEAD_OFFICE_OPERATIONS") || roles.has("SECURITY_OFFICER") || roles.has("FRAUD_OPERATIONS") ||
@@ -57,9 +68,11 @@ async function branchAccess(env, auth, platformId) {
       roles.has("SAFEGUARDING_RESTRICTED")) {
     return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 0, elevated: true };
   }
+  const staffId = resolvedStaffId || await resolveSupportStaffId(env, auth);
+  if (!staffId) return { can_read: 0, can_reply: 0, can_takeover: 0, can_configure: 0, elevated: false };
   const row = await env.DB.prepare(`SELECT can_read,can_reply,can_takeover,can_configure
     FROM support_staff_branch_access WHERE staff_id=? AND platform_id=? LIMIT 1`)
-    .bind(auth.session.sub, platformId).first();
+    .bind(staffId, platformId).first();
   return row || { can_read: 0, can_reply: 0, can_takeover: 0, can_configure: 0, elevated: false };
 }
 
@@ -81,15 +94,20 @@ async function authoriseConversation(env, auth, conversation, capability = "can_
   if (!categoryPermitted(auth, conversation.category)) {
     return { response: error("SUPPORT_CONVERSATION_ACCESS_DENIED", "You are not authorised for this restricted conversation.", 403) };
   }
-  const access = await branchAccess(env, auth, conversation.platform_id);
+  const requiresStaffIdentity = capability !== "can_read" || !hasHeadOfficeOverride(auth);
+  const staffId = requiresStaffIdentity ? await resolveSupportStaffId(env, auth) : null;
+  const access = await branchAccess(env, auth, conversation.platform_id, staffId);
   if (!access[capability]) {
     return { response: error("SUPPORT_BRANCH_ACCESS_DENIED", "You are not authorised for this support branch.", 403) };
   }
-  return { access };
+  if (capability !== "can_read" && !staffId) {
+    return { response: error("SUPPORT_STAFF_IDENTITY_REQUIRED", "Your Head Office account is not linked to an active staff registry identity.", 409) };
+  }
+  return { access, staffId };
 }
 
-function assignmentConflict(auth, conversation) {
-  return Boolean(conversation.assigned_staff_id && conversation.assigned_staff_id !== auth.session.sub && !hasHeadOfficeOverride(auth));
+function assignmentConflict(auth, conversation, staffId) {
+  return Boolean(conversation.assigned_staff_id && conversation.assigned_staff_id !== staffId && !hasHeadOfficeOverride(auth));
 }
 
 function parseJson(value) {
@@ -227,7 +245,7 @@ async function addStaffMessage(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_reply");
   if (authorised.response) return authorised.response;
-  if (assignmentConflict(auth, conversation)) {
+  if (assignmentConflict(auth, conversation, authorised.staffId)) {
     return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
   }
   let body;
@@ -243,17 +261,17 @@ async function addStaffMessage(context, auth, reference) {
     context.env.DB.prepare(`INSERT INTO support_messages
       (id,conversation_id,sender_type,sender_id,sender_name,body,visibility,delivery_status,metadata_json,created_at)
       VALUES (?,?,'staff',?,?,?,?,'accepted',?,?)`)
-      .bind(id, conversation.id, auth.session.sub, auth.session.displayName, messageBody, visibility,
+      .bind(id, conversation.id, authorised.staffId, auth.session.displayName, messageBody, visibility,
         jsonValue(safeObject(body.metadata)), now),
     context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=COALESCE(assigned_staff_id,?),
       status=CASE WHEN ?='customer' THEN 'awaiting_customer' ELSE status END,
       handling_mode=CASE WHEN ?='customer' THEN 'human' ELSE handling_mode END,
       last_staff_message_at=?,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(auth.session.sub, visibility, visibility, now, now, now, conversation.id),
+      .bind(authorised.staffId, visibility, visibility, now, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.staff_message','staff',?,?,?)`)
-      .bind(crypto.randomUUID(), conversation.id, auth.session.sub, jsonValue({ visibility }), now)
+      .bind(crypto.randomUUID(), conversation.id, authorised.staffId, jsonValue({ visibility }), now)
   ]);
   const noteLabel = visibility === "head_office"
     ? "Head Office-only support note added"
@@ -276,21 +294,21 @@ async function takeOver(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_takeover");
   if (authorised.response) return authorised.response;
-  if (assignmentConflict(auth, conversation)) {
+  if (assignmentConflict(auth, conversation, authorised.staffId)) {
     return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
   }
   const now = new Date().toISOString();
   const previousAssignedStaffId = conversation.assigned_staff_id || null;
   await context.env.DB.batch([
     context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=?,status='assigned',handling_mode='human',
-      last_activity_at=?,updated_at=? WHERE id=?`).bind(auth.session.sub, now, now, conversation.id),
+      last_activity_at=?,updated_at=? WHERE id=?`).bind(authorised.staffId, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.taken_over','staff',?,?,?)`)
-      .bind(crypto.randomUUID(), conversation.id, auth.session.sub, jsonValue({ previousAssignedStaffId }), now)
+      .bind(crypto.randomUUID(), conversation.id, authorised.staffId, jsonValue({ previousAssignedStaffId }), now)
   ]);
   await audit(context.env, auth.session, "support.conversation.takeover", "support_conversation", conversation.id, {
-    label: previousAssignedStaffId && previousAssignedStaffId !== auth.session.sub
+    label: previousAssignedStaffId && previousAssignedStaffId !== authorised.staffId
       ? "Head Office override reassigned support conversation"
       : "Support conversation taken over",
     reference: conversation.conversation_reference,
@@ -298,17 +316,17 @@ async function takeOver(context, auth, reference) {
     caseId: conversation.case_id,
     requestId: context.data?.requestId,
     before: { assignedStaffId: previousAssignedStaffId, handlingMode: conversation.handling_mode },
-    after: { assignedStaffId: auth.session.sub, handlingMode: "human" },
+    after: { assignedStaffId: authorised.staffId, handlingMode: "human" },
     metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
   });
-  return json({ assigned: true, assignedStaffId: auth.session.sub, handlingMode: "human", status: "assigned", updatedAt: now });
+  return json({ assigned: true, assignedStaffId: authorised.staffId, handlingMode: "human", status: "assigned", updatedAt: now });
 }
 
 async function updateStatus(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_reply");
   if (authorised.response) return authorised.response;
-  if (assignmentConflict(auth, conversation)) {
+  if (assignmentConflict(auth, conversation, authorised.staffId)) {
     return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
   }
   let body;
@@ -328,11 +346,11 @@ async function updateStatus(context, auth, reference) {
   await context.env.DB.batch([
     context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=COALESCE(assigned_staff_id,?),
       status=?,handling_mode=?,closed_at=?,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(auth.session.sub, status, handlingMode, closedAt, now, now, conversation.id),
+      .bind(authorised.staffId, status, handlingMode, closedAt, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.status_changed','staff',?,?,?)`)
-      .bind(crypto.randomUUID(), conversation.id, auth.session.sub, jsonValue({ status, handlingMode }), now)
+      .bind(crypto.randomUUID(), conversation.id, authorised.staffId, jsonValue({ status, handlingMode }), now)
   ]);
   await audit(context.env, auth.session, "support.conversation.status", "support_conversation", conversation.id, {
     label: "Support conversation status changed",
