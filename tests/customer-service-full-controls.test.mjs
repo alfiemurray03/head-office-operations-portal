@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [staffApi, platformApi, workspace, stylesheet, migration, registrationMigration, registrationHelper, branchRoute, index] = await Promise.all([
+const [staffApi, platformApi, credentialApi, workspace, stylesheet, migration, registrationMigration, registrationHelper, branchRoute, index] = await Promise.all([
   read('functions/api/support-controls/[[path]].js'),
   read('functions/api/v1/platform/support-control.js'),
+  read('functions/api/platforms/[id]/credentials.js'),
   read('public/js/customer-service-controls.js'),
   read('public/customer-service-controls.css'),
   read('migrations/0024_customer_service_full_controls.sql'),
@@ -34,6 +35,12 @@ assert.match(platformApi, /isLiveSupportPlatform/, 'Only the four approved suppo
 assert.match(platformApi, /launchGate/, 'The JA Group Services website must receive its Head Office Launch Gate state.');
 assert.doesNotMatch(platformApi, /CUSTOMEROPS_API_KEY|Bearer\s+[A-Za-z0-9]/, 'No website credential may be embedded in the public endpoint.');
 
+for (const scope of ['support:read', 'support:write', 'support:ai']) {
+  assert.match(credentialApi, new RegExp(scope.replace(':', '\\:')), `${scope} must be an authorised generated credential scope.`);
+}
+assert.match(credentialApi, /token = `ho_live_/, 'The credential token must be generated server-side.');
+assert.match(credentialApi, /secret_hash/, 'Only the credential hash must be stored.');
+
 assert.match(registrationHelper, /ensureCentralPlatformSchema/);
 assert.match(registrationHelper, /INSERT INTO platforms/);
 assert.match(registrationHelper, /ON CONFLICT\(code\) DO UPDATE/);
@@ -62,6 +69,15 @@ assert.match(workspace, /\/api\/support-controls\/branches/);
 assert.match(workspace, /launchGateEnabled/);
 assert.match(workspace, /accentColour/);
 assert.match(workspace, /connection.*lastSeenAt/s);
+assert.match(workspace, /CUSTOMEROPS_API_KEY/, 'The portal must identify the exact Cloudflare secret name.');
+assert.match(workspace, /data-csc-generate-key/, 'Registered website profiles must expose a key generator.');
+assert.match(workspace, /support:read/);
+assert.match(workspace, /support:write/);
+assert.match(workspace, /support:ai/);
+assert.match(workspace, /routeFor\(branch\)/, 'Each website editor must have a stable route.');
+assert.match(workspace, /window\.navigate\(routeFor/, 'Opening a website profile must navigate instead of rendering a temporary view.');
+assert.match(workspace, /event\.stopImmediatePropagation\(\)/, 'Customer Service actions must not fall through to competing portal handlers.');
+assert.doesNotMatch(workspace, /ho_live_[A-Za-z0-9_-]{10,}/, 'No live platform key may be embedded in the browser workspace.');
 
 assert.match(stylesheet, /csc-branch-control-grid/);
 assert.match(stylesheet, /csc-design-preview/);
@@ -78,4 +94,4 @@ assert.match(index, /customer-service-controls\.css/);
 assert.match(index, /customer-service-controls\.js/);
 assert.ok(index.indexOf('boot.js') < index.indexOf('customer-service-controls.js'), 'Full controls must load after the secure portal boot script.');
 
-console.log('Four registered website controls and prominent JA Group Services Launch Gate checks passed.');
+console.log('Four registered website controls, stable routes, scoped key generation and prominent JA Group Services Launch Gate checks passed.');
