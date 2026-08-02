@@ -39,7 +39,7 @@
     if (pin.setupRequired) {
       return `<label class="principal-pin-field"><span>Create a private four-digit PIN</span><input id="principalPinInput" name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>
         <label class="principal-pin-field"><span>Confirm your PIN</span><input id="principalPinConfirm" name="confirmPin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>
-        <p class="principal-pin-guidance">Use a PIN known only to you. Do not use Jack’s PIN, your phone PIN, a date of birth or the Cloudflare pepper.</p>`;
+        <p class="principal-pin-guidance">Use a PIN known only to you. Do not use another principal’s PIN, your phone PIN, a date of birth or the Cloudflare pepper.</p>`;
     }
     return `<label class="principal-pin-field"><span>Your four-digit PIN</span><input id="principalPinInput" name="pin" type="password" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>`;
   }
@@ -74,6 +74,7 @@
 
   async function submitPin(event) {
     event.preventDefault();
+    event.stopPropagation();
     const gate = ensureGate();
     const pin = String(gate.querySelector('#principalPinInput')?.value || '');
     const confirmPin = String(gate.querySelector('#principalPinConfirm')?.value || '');
@@ -123,7 +124,9 @@
     }
   }
 
-  async function signOut() {
+  async function signOut(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
     const response = await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'same-origin',
@@ -143,12 +146,10 @@
     if (pending) return pending.promise;
     show(session);
     let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
+    const promise = new Promise(resolvePromise => {
       resolve = resolvePromise;
-      reject = rejectPromise;
     });
-    pending = { promise, resolve, reject };
+    pending = { promise, resolve };
     return promise;
   };
 })();
