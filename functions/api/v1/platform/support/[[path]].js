@@ -22,6 +22,7 @@ import { allocateCaseReference, defaultDueDate, ensureOperationsReady } from "..
 const PRIORITIES = new Set(["low", "normal", "high", "critical"]);
 const PLATFORM_SENDERS = new Set(["customer", "ai", "system"]);
 const EVENTS = new Set(["heartbeat", "close", "reopen", "request_human", "customer_typing", "page_changed", "consent_recorded"]);
+const HUMAN_ONLY_CATEGORIES = new Set(["data_protection", "safeguarding", "security"]);
 
 function segments(value) {
   if (Array.isArray(value)) return value.flatMap(item => String(item).split("/")).filter(Boolean);
@@ -177,7 +178,8 @@ async function startConversation(context, auth) {
         reference: existing.conversation_reference,
         status: existing.status,
         handlingMode: existing.handling_mode,
-        identityStatus: existing.identity_status
+        identityStatus: existing.identity_status,
+        category: normaliseSupportCategory(existing.category)
       },
       branch: publicBranchConfig(settings)
     });
@@ -198,8 +200,13 @@ async function startConversation(context, auth) {
       : authenticated
         ? "reconciliation_required"
         : "anonymous";
-  const status = settings.ai_enabled ? "ai_handling" : settings.human_takeover_enabled ? "human_assistance_requested" : "awaiting_customer";
-  const handlingMode = settings.ai_enabled ? "ai" : settings.human_takeover_enabled ? "human_pending" : "paused";
+  const requiresHuman = HUMAN_ONLY_CATEGORIES.has(category);
+  const status = requiresHuman
+    ? category === "security" ? "security_review_required" : "human_assistance_requested"
+    : settings.ai_enabled ? "ai_handling" : settings.human_takeover_enabled ? "human_assistance_requested" : "awaiting_customer";
+  const handlingMode = requiresHuman
+    ? "human_pending"
+    : settings.ai_enabled ? "ai" : settings.human_takeover_enabled ? "human_pending" : "paused";
 
   await context.env.DB.batch([
     context.env.DB.prepare(`INSERT INTO support_conversations
@@ -220,7 +227,7 @@ async function startConversation(context, auth) {
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.opened','platform',?,?,?)`)
-      .bind(crypto.randomUUID(), id, auth.platform.id, jsonValue({ authenticated, identityStatus, category, pagePath: cleanText(body.pagePath, 500) }), now)
+      .bind(crypto.randomUUID(), id, auth.platform.id, jsonValue({ authenticated, identityStatus, category, requiresHuman, pagePath: cleanText(body.pagePath, 500) }), now)
   ]);
 
   await platformAudit(context.env, auth.platform, "support.conversation.open", "support_conversation", id, {
@@ -228,7 +235,7 @@ async function startConversation(context, auth) {
     reference,
     customerId: resolved.customer?.id || null,
     requestId: context.data?.requestId,
-    metadata: { identityStatus, authenticated, category }
+    metadata: { identityStatus, authenticated, category, requiresHuman }
   });
 
   return json({
@@ -250,9 +257,22 @@ async function addMessage(context, auth, conversationReference) {
   if (!PLATFORM_SENDERS.has(senderType) || !messageBody) {
     return error("INVALID_SUPPORT_MESSAGE", "A valid customer, AI or system message is required.");
   }
+  if (senderType === "ai" && !["ai", "hybrid"].includes(conversation.handling_mode)) {
+    return error("SUPPORT_AI_STANDBY", "AI replies are paused because this conversation requires or is receiving human assistance.", 409);
+  }
+  if (externalMessageId) {
+    const duplicate = await context.env.DB.prepare(`SELECT id,created_at FROM support_messages
+      WHERE conversation_id=? AND external_message_id=? LIMIT 1`)
+      .bind(conversation.id, externalMessageId).first();
+    if (duplicate) return json({ accepted: true, duplicate: true, messageId: duplicate.id, conversationId: conversation.id }, 200);
+  }
+
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  await context.env.DB.prepare(`INSERT INTO support_messages
+  const reopened = senderType === "customer" && conversation.status === "closed";
+  const nextStatus = reopened ? "human_assistance_requested" : conversation.status;
+  const nextHandlingMode = reopened ? "human_pending" : conversation.handling_mode;
+  const insert = await context.env.DB.prepare(`INSERT INTO support_messages
     (id,conversation_id,external_message_id,sender_type,sender_id,sender_name,body,visibility,delivery_status,metadata_json,created_at)
     VALUES (?,?,?,?,?,?,?,'customer','accepted',?,?)
     ON CONFLICT(conversation_id,external_message_id) DO NOTHING`)
@@ -260,16 +280,24 @@ async function addMessage(context, auth, conversationReference) {
       cleanText(body.senderName, 120) || (senderType === "ai" ? "Support Assistant" : null),
       messageBody, jsonValue(safeObject(body.metadata)), now).run();
 
+  if (externalMessageId && Number(insert.meta?.changes || 0) === 0) {
+    const duplicate = await context.env.DB.prepare(`SELECT id,created_at FROM support_messages
+      WHERE conversation_id=? AND external_message_id=? LIMIT 1`)
+      .bind(conversation.id, externalMessageId).first();
+    return json({ accepted: true, duplicate: true, messageId: duplicate?.id || null, conversationId: conversation.id }, 200);
+  }
+
   const timeColumn = senderType === "customer" ? "last_customer_message_at" : senderType === "ai" ? "last_ai_message_at" : null;
   if (timeColumn) {
-    await context.env.DB.prepare(`UPDATE support_conversations SET ${timeColumn}=?,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(now, now, now, conversation.id).run();
+    await context.env.DB.prepare(`UPDATE support_conversations SET ${timeColumn}=?,status=?,handling_mode=?,
+      closed_at=CASE WHEN ? THEN NULL ELSE closed_at END,last_activity_at=?,updated_at=? WHERE id=?`)
+      .bind(now, nextStatus, nextHandlingMode, reopened ? 1 : 0, now, now, conversation.id).run();
   } else {
     await context.env.DB.prepare("UPDATE support_conversations SET last_activity_at=?,updated_at=? WHERE id=?")
       .bind(now, now, conversation.id).run();
   }
 
-  return json({ accepted: true, messageId: id, conversationId: conversation.id }, 202);
+  return json({ accepted: true, duplicate: false, messageId: id, conversationId: conversation.id, reopened }, 202);
 }
 
 async function recordEvent(context, auth, conversationReference) {
@@ -308,6 +336,15 @@ async function recordEvent(context, auth, conversationReference) {
         cleanText(body.noticeVersion, 80) || null, jsonValue(safeObject(body.evidence)), now));
   }
   await context.env.DB.batch(statements);
+  if (["request_human", "close", "reopen", "consent_recorded"].includes(eventType)) {
+    await platformAudit(context.env, auth.platform, `support.conversation.${eventType}`, "support_conversation", conversation.id, {
+      label: `Customer support event: ${eventType}`,
+      reference: conversation.conversation_reference,
+      customerId: conversation.customer_id,
+      requestId: context.data?.requestId,
+      metadata: { status, handlingMode, category: normaliseSupportCategory(conversation.category) }
+    });
+  }
   return json({ accepted: true, status, handlingMode, updatedAt: now }, 202);
 }
 
