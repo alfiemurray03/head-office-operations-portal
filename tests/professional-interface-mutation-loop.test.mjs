@@ -18,5 +18,10 @@ assert.doesNotMatch(
   /MutationObserver\([\s\S]*setShellIdentity[\s\S]*observe\(sidebarHeading/,
   'The professional interface must not observe and rewrite the same sidebar heading, which creates a recursive mutation loop.'
 );
+assert.doesNotMatch(
+  source,
+  /observe\(document\.head/,
+  'The professional interface must not observe and reorder stylesheets within the same document head.'
+);
 
 console.log('Professional interface mutation-loop regression checks passed.');

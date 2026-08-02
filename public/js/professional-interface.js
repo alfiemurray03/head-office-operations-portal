@@ -205,13 +205,6 @@
         .observe(viewRoot, { childList: true, subtree: true });
     }
 
-    new MutationObserver(mutations => {
-      const stylesheetAdded = mutations.some(mutation => [...mutation.addedNodes].some(node =>
-        node.nodeType === Node.ELEMENT_NODE &&
-        ((node.matches?.('link[rel="stylesheet"]')) || node.matches?.('style'))
-      ));
-      if (stylesheetAdded) queueMicrotask(keepGovernedStylesLast);
-    }).observe(document.head, { childList: true });
   }
 
   ensureAuthVisibilityGuard();
