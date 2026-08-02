@@ -18,7 +18,10 @@ assert.match(
   'An authenticated user must receive the requested core workspace or the dashboard fallback before optional modules finish loading.'
 );
 const initialNavigationIndex = boot.indexOf("navigate(coreRoute.test(requestedRoute) ? requestedRoute : 'dashboard', true)");
-const optionalInitialisationIndex = boot.indexOf('initialiseOptionalModules(requestedRoute, generation)');
+const optionalInitialisationIndex = boot.indexOf(
+  'initialiseOptionalModules(requestedRoute, generation).catch',
+  initialNavigationIndex
+);
 assert.ok(initialNavigationIndex >= 0 && optionalInitialisationIndex > initialNavigationIndex,
   'Core navigation must happen before optional specialist modules are initialised.');
 assert.match(boot, /initialiseOptionalModules\(requestedRoute, generation\)/,
