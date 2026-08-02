@@ -14,7 +14,7 @@ assert.match(interfaceScript, /communications:read/);
 assert.match(workspace, /\/api\/support-centre\/conversations/);
 assert.match(workspace, /\/api\/support-centre\/branches/);
 assert.match(workspace, /data-support-takeover/);
-assert.match(workspace, /visibility: 'customer'/);
+assert.match(workspace, /const visibility = type === 'reply' \? 'customer'/);
 assert.match(workspace, /branch_internal/);
 assert.match(workspace, /head_office/);
 assert.match(workspace, /handlingMode/);
