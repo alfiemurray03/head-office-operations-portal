@@ -98,6 +98,13 @@ export const onRequestGet = async context => {
   const origin = cleanText(context.request.headers.get('Origin') || '', 300);
   const userAgent = cleanText(context.request.headers.get('User-Agent') || '', 300);
 
+  if (String(settings.contact_options_json || '').includes('hello@jagroupservices.co.uk')) {
+    settings.contact_options_json = String(settings.contact_options_json)
+      .replaceAll('hello@jagroupservices.co.uk', 'contact@jagroupservices.co.uk');
+    await context.env.DB.prepare('UPDATE support_branch_settings SET contact_options_json=?,updated_at=? WHERE platform_id=?')
+      .bind(settings.contact_options_json, now, auth.platform.id).run();
+  }
+
   await context.env.DB.prepare(`INSERT INTO support_branch_connections
     (platform_id,connection_status,last_seen_at,last_config_fetch_at,last_user_agent,last_origin,last_error_code,created_at,updated_at)
     VALUES (?,'connected',?,?,?,?,NULL,?,?)
