@@ -66,7 +66,9 @@ function enterpriseTaskRows(rows, limit = 200) {
   </tr>`).join('') : `<tr><td colspan="8">${emptyState('No outstanding Head Office work', 'The central queue contains no open task at present.')}</td></tr>`;
 }
 
-renderControlRoomV7 = async function renderEnterpriseControlRoom() {
+// Retain the previous enterprise register as an explicitly callable fallback,
+// but do not replace the live Control Centre renderer registered by views-v7.
+window.renderEnterpriseControlRoomV7 = async function renderEnterpriseControlRoom() {
   const operationsRequest = hasPermission('operations:read') ? api('/api/v7/operations') : Promise.resolve({ tasks: [], complaints: [], financial: [] });
   const [data, health, operations] = await Promise.all([
     api('/api/v7/overview'),

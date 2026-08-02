@@ -32,6 +32,7 @@ body.ops-tailwind {
   color: var(--ho-text) !important;
   font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif !important;
   font-size: 13px !important;
+  overflow-x: hidden;
 }
 
 html[data-ops-theme="dark"] body.ops-tailwind {
@@ -54,6 +55,7 @@ html[data-ops-theme="dark"] body.ops-tailwind {
 
 /* Stable enterprise application shell */
 body.ops-tailwind .app-shell {
+  min-width: 0;
   background: var(--ho-canvas) !important;
 }
 
@@ -163,7 +165,7 @@ body.ops-tailwind .global-search kbd {
   color: var(--ho-muted) !important;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 900px) {
   body.ops-tailwind .app-shell {
     display: grid !important;
     grid-template-columns: 248px minmax(0, 1fr) !important;
@@ -321,6 +323,7 @@ body.ops-tailwind .global-search kbd {
 
 /* Page structure */
 body.ops-tailwind .main-shell {
+  min-width: 0 !important;
   background: var(--ho-canvas) !important;
 }
 
@@ -330,6 +333,16 @@ body.ops-tailwind .content {
   min-height: calc(100vh - 150px) !important;
   margin: 0 auto !important;
   padding: 22px 28px 44px !important;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+body.ops-tailwind #viewRoot,
+body.ops-tailwind .panel,
+body.ops-tailwind .enterprise-panel,
+body.ops-tailwind .table-wrap {
+  min-width: 0;
+  max-width: 100%;
 }
 
 body.ops-tailwind .workspace-view {
@@ -979,7 +992,7 @@ body.ops-tailwind .system-footer strong {
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 899px) {
   body.ops-tailwind .ops-brand {
     display: flex !important;
   }

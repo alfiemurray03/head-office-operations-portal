@@ -5,12 +5,13 @@ import test from 'node:test';
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('the control-centre shell is stable, branded and guarded by the reviewed PIN flow', async () => {
-  const [index, boot, professionalCss, modalSystem, contextLoader] = await Promise.all([
+  const [index, boot, professionalCss, modalSystem, contextLoader, enterpriseViews] = await Promise.all([
     read('public/index.html'),
     read('public/js/boot.js'),
     read('public/professional-interface.css'),
     read('public/js/modal-system.js'),
-    read('public/js/head-office-context.js')
+    read('public/js/head-office-context.js'),
+    read('public/js/views-enterprise.js')
   ]);
 
   assert.match(index, /id="entranceTitle"[\s\S]*Customer control room[\s\S]*Security command[\s\S]*Website operations/,
@@ -20,7 +21,7 @@ test('the control-centre shell is stable, branded and guarded by the reviewed PI
   assert.match(index, /data-route="notifications"/);
   assert.match(index, /data-route="security-procedures"/);
 
-  const finalStyle = index.indexOf('/professional-interface.css?v=20260802-control-centre-1');
+  const finalStyle = index.indexOf('/professional-interface.css?v=20260802-control-centre-2');
   for (const stylesheet of [
     '/security-operations-centre.css',
     '/customer-service-centre.css',
@@ -47,6 +48,10 @@ test('the control-centre shell is stable, branded and guarded by the reviewed PI
     'Boot must prepare the requested route, render it once, then load optional modules in the background.');
   assert.ok(boot.indexOf('await window.ensurePrincipalPin(state.session)') < boot.indexOf('state.reference = await loadReference()'),
     'The reviewed personal PIN gate must run before protected portal data is loaded.');
+  assert.match(enterpriseViews, /window\.renderEnterpriseControlRoomV7 = async function/,
+    'The previous enterprise register may remain available as an explicit fallback.');
+  assert.doesNotMatch(enterpriseViews, /(?:^|\n)renderControlRoomV7\s*=\s*async function/,
+    'A later presentation module must not replace the live redesigned Control Centre renderer.');
 });
 test('the live Control Room refreshes real operational metrics without replacing the route', async () => {
   const [overviewApi, views] = await Promise.all([

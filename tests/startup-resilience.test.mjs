@@ -19,7 +19,7 @@ assert.match(index, /#microsoftLogin[\s\S]*z-index: 2147483647 !important/,
   'The Microsoft sign-in control must remain above any stale application overlay.');
 assert.match(index, /professional-interface\.js\?v=20260802-control-centre-1/,
   'The corrected global interface loader must use a fresh cache-busting URL.');
-assert.match(index, /professional-interface\.css\?v=20260802-control-centre-1/,
+assert.match(index, /professional-interface\.css\?v=20260802-control-centre-2/,
   'The stable Control Centre layout must use a fresh cache-busting URL.');
 assert.match(index, /core\.js\?v=20260802-control-centre-1/,
   'The corrected core login code must use a fresh cache-busting URL.');
