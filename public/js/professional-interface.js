@@ -1,12 +1,15 @@
 (() => {
   const STYLE_ID = 'professionalInterfaceStyles';
   const AUTH_VISIBILITY_STYLE_ID = 'headOfficeAuthVisibilityGuard';
+  const CUSTOMER_SERVICE_STYLE_ID = 'customerServiceCentreStyles';
+  const CUSTOMER_SERVICE_SCRIPT_SELECTOR = 'script[data-customer-service-centre]';
   const ROUTE_TYPES = Object.freeze({
     'control-room': 'overview',
     dashboard: 'overview',
     'central-operations': 'queue',
     customers: 'queue',
     'customer-directory': 'queue',
+    'customer-service-centre': 'queue',
     cases: 'queue',
     communications: 'queue',
     payments: 'queue',
@@ -63,6 +66,45 @@
     }
   }
 
+  function ensureCustomerServiceNavigation() {
+    const navigation = document.getElementById('mainNavigation');
+    if (!navigation || navigation.querySelector('[data-route="customer-service-centre"]')) return;
+    const communications = navigation.querySelector('[data-route="communications"]');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'nav-item';
+    button.dataset.route = 'customer-service-centre';
+    button.dataset.permission = 'communications:read';
+    button.textContent = 'AI Customer Service Centre';
+    if (communications?.parentElement) communications.parentElement.insertBefore(button, communications);
+    else navigation.querySelector('.nav-group')?.append(button);
+    window.renderNavigation?.();
+  }
+
+  function ensureCustomerServiceAssets() {
+    if (!document.getElementById(CUSTOMER_SERVICE_STYLE_ID)) {
+      const stylesheet = document.createElement('link');
+      stylesheet.id = CUSTOMER_SERVICE_STYLE_ID;
+      stylesheet.rel = 'stylesheet';
+      stylesheet.href = '/customer-service-centre.css?v=20260802-csc-1';
+      document.head.append(stylesheet);
+    }
+    if (!document.querySelector(CUSTOMER_SERVICE_SCRIPT_SELECTOR)) {
+      const script = document.createElement('script');
+      script.src = '/js/customer-service-centre.js?v=20260802-csc-1';
+      script.async = false;
+      script.dataset.customerServiceCentre = 'true';
+      script.addEventListener('load', () => {
+        ensureCustomerServiceNavigation();
+        if (routeFromLocation() === 'customer-service-centre') window.renderCustomerServiceCentre?.();
+      }, { once: true });
+      script.addEventListener('error', () => {
+        console.error('The AI Customer Service Centre workspace could not be loaded.');
+      }, { once: true });
+      document.head.append(script);
+    }
+  }
+
   function sectionHeadingId(section, index) {
     const heading = section.querySelector(':scope > .panel-header h2, :scope > .enterprise-panel-header h2, h2');
     if (!heading) return null;
@@ -98,6 +140,7 @@
     document.body.dataset.route = route;
     document.body.dataset.pageType = type;
     setShellIdentity();
+    ensureCustomerServiceNavigation();
     const root = document.getElementById('viewRoot');
     if (!root) return;
     root.dataset.route = route;
@@ -107,6 +150,8 @@
 
   function start() {
     ensureAuthVisibilityGuard();
+    ensureCustomerServiceAssets();
+    ensureCustomerServiceNavigation();
     keepGovernedStylesLast();
     applyPageModel();
 
