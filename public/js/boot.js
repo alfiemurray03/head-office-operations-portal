@@ -260,6 +260,10 @@ async function initialiseOptionalModules(generation) {
 const directRoute = /^(?:control-room|dashboard|risk-intelligence|incidents-v7|central-operations|security-levels|security-procedures|customers(?:\/[^/?#]+)?|cases|complaints|data-protection|safeguarding|security|communications|payments|platforms|staff|audit|settings|my-profile|my-security|personalisation|notifications|customer-service-controls|customer-protection|redress-centre)$/;
 
 async function prepareRequestedRoute(route) {
+  if (String(route).startsWith('customer-service-centre/')) {
+    await window.ensureCustomerServiceAssets?.();
+    return route;
+  }
   if (directRoute.test(route)) {
     if (route === 'customer-service-controls') await window.ensureCustomerServiceAssets?.();
     if (route === 'settings') {

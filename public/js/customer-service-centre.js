@@ -29,6 +29,17 @@
     return String(location.hash || '').replace(/^#\/?/, '').split(/[/?]/)[0] || 'dashboard';
   }
 
+  function conversationRoute(id) {
+    return `${ROUTE}/${encodeURIComponent(id)}`;
+  }
+
+  function conversationIdFromRoute(route = String(location.hash || '').replace(/^#\/?/, '').split('?')[0]) {
+    const [root, encodedId] = String(route || '').split('/');
+    if (root !== ROUTE || !encodedId) return null;
+    try { return decodeURIComponent(encodedId); }
+    catch { return encodedId; }
+  }
+
   function optionRows(values, selected, blank = '') {
     const prefix = blank ? `<option value="">${escapeHtml(blank)}</option>` : '';
     return prefix + values.map(value => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(label(value))}</option>`).join('');
@@ -144,6 +155,9 @@
   }
 
   async function renderCustomerServiceCentre() {
+    const routedConversationId = conversationIdFromRoute();
+    if (routedConversationId) return openConversation(routedConversationId);
+    centre.selectedId = null;
     state.route = ROUTE;
     $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.route === ROUTE));
     $('#sidebar')?.classList.remove('open');
@@ -175,11 +189,17 @@
     return events.slice(0, 25).map(event => `<li><strong>${escapeHtml(label(String(event.eventType || '').replace(/^conversation\./, '')))}</strong><span>${formatDate(event.occurredAt)}</span></li>`).join('') || '<li><span>No conversation events recorded.</span></li>';
   }
 
-  async function openConversation(id) {
+  async function openConversation(id, { background = false } = {}) {
+    clearTimeout(centre.refreshTimer);
     centre.selectedId = id;
-    setLoading('Opening the customer conversation…');
+    state.route = ROUTE;
+    $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.route === ROUTE));
+    $('#sidebar')?.classList.remove('open');
+    const pagePosition = background ? { x: window.scrollX, y: window.scrollY } : null;
+    if (!background) setLoading('Opening the customer conversation…');
     try {
       const data = await api(`/api/support-centre/conversations/${encodeURIComponent(id)}`, { timeoutMs: 12_000 });
+      if (currentRoute() !== ROUTE || conversationIdFromRoute() !== String(id)) return;
       const record = data.conversation;
       const messages = data.messages || [];
       const permissions = data.permissions || {};
@@ -195,8 +215,8 @@
           <div class="panel-header"><div><h2>Conversation transcript</h2><p>${supportTag(record.status)} ${supportTag(record.handlingMode)} ${supportTag(record.category)} ${supportTag(record.priority)}</p></div><button type="button" class="button ghost small" data-support-open="${escapeHtml(record.id)}">Refresh</button></div>
           <div class="support-transcript" id="supportTranscript">${messages.length ? messages.map(transcriptMessage).join('') : emptyState('No messages yet', 'The conversation has been created but no message has been recorded.')}</div>
           ${permissions.can_reply ? `<div class="support-compose-stack">
-            <form data-support-form="reply" data-conversation-id="${escapeHtml(record.id)}" class="support-compose"><label><span>Reply to customer</span><textarea name="body" rows="3" maxlength="8000" placeholder="Write a customer-visible response…" required></textarea></label><button class="button primary">Send reply</button></form>
-            <form data-support-form="note" data-conversation-id="${escapeHtml(record.id)}" class="support-compose internal"><label><span>Internal note</span><textarea name="body" rows="2" maxlength="8000" placeholder="Add an internal operational note…" required></textarea></label><select name="visibility"><option value="branch_internal">Branch internal</option>${permissions.elevated ? '<option value="head_office">Head Office only</option>' : ''}</select><button class="button secondary">Add note</button></form>
+            <form data-support-form="reply" data-conversation-id="${escapeHtml(record.id)}" class="support-compose"><label><span>Reply to customer</span><textarea name="body" rows="3" maxlength="8000" placeholder="Write a customer-visible response…" required></textarea></label><button type="submit" class="button primary">Send reply</button></form>
+            <form data-support-form="note" data-conversation-id="${escapeHtml(record.id)}" class="support-compose internal"><label><span>Internal note</span><textarea name="body" rows="2" maxlength="8000" placeholder="Add an internal operational note…" required></textarea></label><select name="visibility"><option value="branch_internal">Branch internal</option>${permissions.elevated ? '<option value="head_office">Head Office only</option>' : ''}</select><button type="submit" class="button secondary">Add note</button></form>
           </div>` : ''}
         </section>
         <aside class="support-conversation-sidebar">
@@ -208,10 +228,11 @@
       </div>`;
       const transcript = $('#supportTranscript');
       if (transcript) transcript.scrollTop = transcript.scrollHeight;
+      if (pagePosition) window.requestAnimationFrame(() => window.scrollTo(pagePosition.x, pagePosition.y));
       scheduleRefresh(true);
     } catch (error) {
       toast('Conversation unavailable', error.message, 'error');
-      await renderCustomerServiceCentre();
+      if (currentRoute() === ROUTE) navigate(ROUTE, true);
     }
   }
 
@@ -263,7 +284,7 @@
           body: JSON.stringify({ body: data.body, visibility })
         });
         toast(type === 'reply' ? 'Reply sent' : 'Internal note added');
-        return await openConversation(form.dataset.conversationId);
+        return await openConversation(form.dataset.conversationId, { background: true });
       }
       if (type === 'status') {
         await api(`/api/support-centre/conversations/${encodeURIComponent(form.dataset.conversationId)}/status`, {
@@ -271,7 +292,7 @@
           body: JSON.stringify({ status: data.status, handlingMode: data.handlingMode })
         });
         toast('Conversation handling updated');
-        return await openConversation(form.dataset.conversationId);
+        return await openConversation(form.dataset.conversationId, { background: true });
       }
       if (type === 'branch') {
         const payload = {
@@ -310,7 +331,7 @@
     try {
       await api(`/api/support-centre/conversations/${encodeURIComponent(id)}/takeover`, { method: 'POST', body: '{}' });
       toast('Conversation assigned to you', 'AI replies are now in standby.');
-      await openConversation(id);
+      await openConversation(id, { background: true });
     } catch (error) {
       toast('Takeover could not be completed', error.message, 'error');
     } finally {
@@ -323,7 +344,11 @@
     if (currentRoute() !== ROUTE) return;
     centre.refreshTimer = setTimeout(() => {
       if (currentRoute() !== ROUTE || document.hidden || centre.busy) return scheduleRefresh(detail);
-      if (detail && centre.selectedId) openConversation(centre.selectedId);
+      const activeSupportForm = document.activeElement?.closest?.('[data-support-form]');
+      const unsentDraft = $$('[data-support-form="reply"] textarea, [data-support-form="note"] textarea')
+        .some(control => control.value.trim().length > 0);
+      if (detail && (activeSupportForm || unsentDraft)) return scheduleRefresh(true);
+      if (detail && centre.selectedId) openConversation(centre.selectedId, { background: true });
       else renderCustomerServiceCentre();
     }, detail ? 8_000 : 15_000);
   }
@@ -340,13 +365,13 @@
     const open = target.closest?.('[data-support-open]');
     if (open) {
       event.preventDefault();
-      return openConversation(open.dataset.supportOpen);
+      return navigate(conversationRoute(open.dataset.supportOpen));
     }
     const back = target.closest?.('[data-support-back]');
     if (back) {
       event.preventDefault();
       centre.selectedId = null;
-      return renderCustomerServiceCentre();
+      return navigate(ROUTE);
     }
     const takeover = target.closest?.('[data-support-takeover]');
     if (takeover) {
@@ -360,7 +385,7 @@
     }
     if (target.closest?.('[data-support-refresh]')) {
       event.preventDefault();
-      return centre.selectedId ? openConversation(centre.selectedId) : renderCustomerServiceCentre();
+      return centre.selectedId ? openConversation(centre.selectedId, { background: true }) : renderCustomerServiceCentre();
     }
   }, true);
 
@@ -368,7 +393,7 @@
     const row = event.target.closest?.('[data-support-open]');
     if (row && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
-      openConversation(row.dataset.supportOpen);
+      navigate(conversationRoute(row.dataset.supportOpen));
     }
   });
 
@@ -382,7 +407,10 @@
 
   window.renderCustomerServiceCentre = renderCustomerServiceCentre;
   window.renderRoute = async function governedRoute(route = window.routeFromHash?.() || currentRoute()) {
-    if (String(route).split('/')[0] === ROUTE) return renderCustomerServiceCentre();
+    if (String(route).split('/')[0] === ROUTE) {
+      const conversationId = conversationIdFromRoute(route);
+      return conversationId ? openConversation(conversationId) : renderCustomerServiceCentre();
+    }
     clearTimeout(centre.refreshTimer);
     return originalRenderRoute(route);
   };

@@ -33,6 +33,18 @@ assert.match(workspace, /\/api\/support-centre\/conversations/);
 assert.match(workspace, /\/api\/support-centre\/branches/);
 assert.match(workspace, /data-support-takeover/);
 assert.match(workspace, /const visibility = type === 'reply' \? 'customer'/);
+assert.match(workspace, /conversationRoute\(open\.dataset\.supportOpen\)/,
+  'Opening a conversation must use a stable deep route instead of volatile in-memory state.');
+assert.match(workspace, /conversationIdFromRoute\(route\)/,
+  'Route rerenders must restore the selected conversation instead of returning to the queue.');
+assert.match(workspace, /if \(routedConversationId\) return openConversation\(routedConversationId\)/,
+  'Any workspace rerender on a deep conversation route must preserve the selected conversation.');
+assert.match(workspace, /activeSupportForm \|\| unsentDraft/,
+  'Live refresh must not replace the reply editor while a staff member is composing.');
+assert.match(workspace, /openConversation\(form\.dataset\.conversationId, \{ background: true \}\)/,
+  'Sending a reply must refresh the same conversation without a full-page loading jump.');
+assert.match(workspace, /Reply to customer[\s\S]*button type="submit" class="button primary">Send reply/,
+  'The customer reply action must use an explicit submit control.');
 assert.match(workspace, /branch_internal/);
 assert.match(workspace, /head_office/);
 assert.match(workspace, /handlingMode/);

@@ -157,7 +157,7 @@
       script.addEventListener('error', failed, { once: true });
 
       if (!existing) {
-        script.src = '/js/customer-service-centre.js?v=20260802-csc-2';
+        script.src = '/js/customer-service-centre.js?v=20260802-conversation-stability-1';
         script.async = false;
         script.dataset.customerServiceCentre = 'true';
         document.head.append(script);
