@@ -2,7 +2,7 @@ import { cleanText, safeEqual, sha256 } from "./_shared.js";
 
 const encoder = new TextEncoder();
 const PIN_PATTERN = /^\d{4}$/;
-const PIN_ITERATIONS = 210_000;
+const PIN_ITERATIONS = 100_000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
