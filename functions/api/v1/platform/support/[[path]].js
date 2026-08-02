@@ -12,16 +12,13 @@ import {
   ensureBranchSettings,
   ensureSupportCentreSchema,
   jsonValue,
+  normaliseSupportCategory,
   resolveSupportCustomer,
   safeObject,
   supportReference
 } from "../../../../_support-centre-schema.js";
 import { allocateCaseReference, defaultDueDate, ensureOperationsReady } from "../../../../_operations.js";
 
-const CONVERSATION_STATUSES = new Set([
-  "ai_handling", "awaiting_customer", "human_assistance_requested", "assigned",
-  "under_investigation", "resolved", "closed", "escalated", "security_review_required"
-]);
 const PRIORITIES = new Set(["low", "normal", "high", "critical"]);
 const PLATFORM_SENDERS = new Set(["customer", "ai", "system"]);
 const EVENTS = new Set(["heartbeat", "close", "reopen", "request_human", "customer_typing", "page_changed", "consent_recorded"]);
@@ -189,8 +186,18 @@ async function startConversation(context, auth) {
   const id = crypto.randomUUID();
   const reference = supportReference();
   const visitorReference = cleanText(body.visitorReference, 200);
-  const verifiedEmail = validEmail(identity.verifiedEmail || identity.email) ? String(identity.verifiedEmail || identity.email).toLowerCase() : null;
-  const identityStatus = resolved.customer && authenticated ? "verified" : resolved.customer ? "linked" : authenticated ? "reconciliation_required" : "anonymous";
+  const category = normaliseSupportCategory(body.category);
+  const priorityValue = cleanText(body.priority, 20).toLowerCase();
+  const verifiedEmail = validEmail(identity.verifiedEmail || identity.email)
+    ? String(identity.verifiedEmail || identity.email).toLowerCase()
+    : null;
+  const identityStatus = resolved.customer && authenticated
+    ? "verified"
+    : resolved.customer
+      ? "linked"
+      : authenticated
+        ? "reconciliation_required"
+        : "anonymous";
   const status = settings.ai_enabled ? "ai_handling" : settings.human_takeover_enabled ? "human_assistance_requested" : "awaiting_customer";
   const handlingMode = settings.ai_enabled ? "ai" : settings.human_takeover_enabled ? "human_pending" : "paused";
 
@@ -204,8 +211,7 @@ async function startConversation(context, auth) {
       .bind(
         id, reference, auth.platform.id, resolved.customer?.id || null, resolved.platformAccountId || null,
         externalConversationId, visitorReference ? await sha256(visitorReference) : null, status, handlingMode,
-        cleanText(body.category || "general", 80).toLowerCase(),
-        PRIORITIES.has(cleanText(body.priority, 20).toLowerCase()) ? cleanText(body.priority, 20).toLowerCase() : "normal",
+        category, PRIORITIES.has(priorityValue) ? priorityValue : "normal",
         cleanText(body.pagePath, 500) || null, cleanText(body.pageTitle, 200) || null, authenticated ? 1 : 0,
         identityStatus, verifiedEmail, cleanText(identity.displayName || identity.name, 160) || resolved.customer?.display_name || null,
         resolved.customer?.customer_number || cleanText(identity.customerNumber || identity.ucn, 40) || null,
@@ -214,7 +220,7 @@ async function startConversation(context, auth) {
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.opened','platform',?,?,?)`)
-      .bind(crypto.randomUUID(), id, auth.platform.id, jsonValue({ authenticated, identityStatus, pagePath: cleanText(body.pagePath, 500) }), now)
+      .bind(crypto.randomUUID(), id, auth.platform.id, jsonValue({ authenticated, identityStatus, category, pagePath: cleanText(body.pagePath, 500) }), now)
   ]);
 
   await platformAudit(context.env, auth.platform, "support.conversation.open", "support_conversation", id, {
@@ -222,12 +228,12 @@ async function startConversation(context, auth) {
     reference,
     customerId: resolved.customer?.id || null,
     requestId: context.data?.requestId,
-    metadata: { identityStatus, authenticated }
+    metadata: { identityStatus, authenticated, category }
   });
 
   return json({
     created: true,
-    conversation: { id, reference, status, handlingMode, identityStatus },
+    conversation: { id, reference, status, handlingMode, identityStatus, category },
     branch: publicBranchConfig(settings)
   }, 201);
 }
@@ -306,12 +312,12 @@ async function recordEvent(context, auth, conversationReference) {
 }
 
 function caseTypeFor(category) {
-  const value = String(category || "").toLowerCase();
-  if (value.includes("complaint")) return "complaint";
-  if (value.includes("data") || value.includes("privacy") || value.includes("sar")) return "data_protection";
-  if (value.includes("safeguard") || value.includes("young person") || value.includes("child")) return "safeguarding";
-  if (value.includes("security") || value.includes("fraud") || value.includes("compromise")) return "security";
-  if (value.includes("account") || value.includes("sign-in") || value.includes("login")) return "account_recovery";
+  const value = normaliseSupportCategory(category);
+  if (value === "complaint" || value.includes("complaint")) return "complaint";
+  if (value === "data_protection") return "data_protection";
+  if (value === "safeguarding") return "safeguarding";
+  if (value === "security" || value.includes("security") || value.includes("fraud") || value.includes("compromise")) return "security";
+  if (value === "account_recovery" || value.includes("account") || value.includes("sign_in")) return "account_recovery";
   return "general";
 }
 
@@ -326,10 +332,10 @@ async function escalateConversation(context, auth, conversationReference) {
   try { body = await readJson(context.request, 48_000); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   await ensureOperationsReady(context.env);
-  const category = cleanText(body.category || conversation.category, 80);
+  const category = normaliseSupportCategory(body.category || conversation.category);
   const caseType = caseTypeFor(category);
-  const priority = PRIORITIES.has(cleanText(body.priority || conversation.priority, 20).toLowerCase())
-    ? cleanText(body.priority || conversation.priority, 20).toLowerCase() : "normal";
+  const priorityValue = cleanText(body.priority || conversation.priority, 20).toLowerCase();
+  const priority = PRIORITIES.has(priorityValue) ? priorityValue : "normal";
   const title = cleanText(body.title || `${auth.platform.name} customer support escalation`, 160);
   const summary = cleanText(body.summary || body.description || "Customer support requires Head Office assistance.", 4000);
   if (title.length < 3 || summary.length < 5) return error("INVALID_SUPPORT_ESCALATION", "A title and summary are required.");
@@ -341,27 +347,36 @@ async function escalateConversation(context, auth, conversationReference) {
   const transcript = await context.env.DB.prepare(`SELECT sender_type,sender_name,body,created_at
     FROM support_messages WHERE conversation_id=? AND visibility='customer' ORDER BY created_at,id LIMIT 500`)
     .bind(conversation.id).all();
-  const transcriptText = transcript.results.map(row =>
-    `[${row.created_at}] ${row.sender_name || row.sender_type}: ${row.body}`).join("\n").slice(0, 20000);
+  const transcriptText = transcript.results
+    .map(row => `[${row.created_at}] ${row.sender_name || row.sender_type}: ${row.body}`)
+    .join("\n")
+    .slice(0, 20000);
+
+  const description = [
+    summary,
+    `Conversation: ${conversation.conversation_reference}`,
+    `Current page: ${conversation.current_page || "Not supplied"}`,
+    "Transcript:",
+    transcriptText
+  ].join("\n\n").slice(0, 24000);
 
   const statements = [
     context.env.DB.prepare(`INSERT INTO cases
       (id,case_reference,customer_id,platform_id,case_type,title,description,priority,status,assigned_staff_id,due_at,opened_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?, 'open',NULL,?,?,?,?)`)
+      VALUES (?,?,?,?,?,?,?,?,'open',NULL,?,?,?,?)`)
       .bind(caseId, caseReference, conversation.customer_id, auth.platform.id, caseType, title,
-        `${summary}\n\nConversation: ${conversation.conversation_reference}\nCurrent page: ${conversation.current_page || "Not supplied"}\n\nTranscript:\n${transcriptText}`.slice(0, 24000),
-        priority, dueAt, now, now, now),
+        description, priority, dueAt, now, now, now),
     context.env.DB.prepare(`INSERT INTO case_notes
       (id,case_id,note_type,body,visibility,created_by,created_at)
-      VALUES (?,?,'system',?,'case_team',?,?)`)
-      .bind(crypto.randomUUID(), caseId, `Case created from ${auth.platform.name} support conversation ${conversation.conversation_reference}.`, auth.platform.id, now),
+      VALUES (?,?,'system',?,'case_team',NULL,?)`)
+      .bind(crypto.randomUUID(), caseId, `Case created from ${auth.platform.name} support conversation ${conversation.conversation_reference}.`, now),
     context.env.DB.prepare(`UPDATE support_conversations SET case_id=?,status='escalated',handling_mode='human_pending',
       category=?,priority=?,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(caseId, category.toLowerCase() || conversation.category, priority, now, now, conversation.id),
+      .bind(caseId, category, priority, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.escalated','platform',?,?,?)`)
-      .bind(crypto.randomUUID(), conversation.id, auth.platform.id, jsonValue({ caseId, caseReference, caseType, priority }), now)
+      .bind(crypto.randomUUID(), conversation.id, auth.platform.id, jsonValue({ caseId, caseReference, caseType, category, priority }), now)
   ];
   if (caseType === "complaint") {
     statements.push(context.env.DB.prepare(`INSERT INTO complaint_records
@@ -376,9 +391,9 @@ async function escalateConversation(context, auth, conversationReference) {
     reference: conversation.conversation_reference,
     customerId: conversation.customer_id,
     requestId: context.data?.requestId,
-    metadata: { caseId, caseReference, caseType, priority }
+    metadata: { caseId, caseReference, caseType, category, priority }
   });
-  return json({ created: true, caseId, caseReference, caseType, priority }, 201);
+  return json({ created: true, caseId, caseReference, caseType, category, priority }, 201);
 }
 
 export const onRequestGet = async context => {
