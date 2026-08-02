@@ -281,13 +281,22 @@ async function runBoot() {
     return showLogin(error.message || 'The staff session could not be checked. Please try again.');
   }
 
-  $('#configurationNote').textContent = 'Microsoft sign-in confirmed. Loading your authorised permissions…';
+  try {
+    if (typeof window.ensurePrincipalPin !== 'function') throw new Error('The personal Head Office PIN module did not load.');
+    await window.ensurePrincipalPin(state.session);
+    state.session = await loadSession();
+    if (!state.session.pin?.verified) throw new Error('The personal PIN was not confirmed for this browser session.');
+  } catch (error) {
+    return showLogin(error.message || 'The personal Head Office PIN could not be confirmed.');
+  }
+
+  $('#configurationNote').textContent = 'Microsoft sign-in and personal PIN confirmed. Loading your authorised permissions…';
   try {
     state.reference = await loadReference();
     const accountPreferences = await api('/api/account/preferences', { timeoutMs: 8_000 }).catch(() => null);
     applyPrincipalPreferences(accountPreferences?.preferences);
   } catch (error) {
-    return showLogin(`Microsoft sign-in succeeded, but Head Office permissions could not be loaded. ${error.message || 'Please try again.'}`);
+    return showLogin(`Your identity was confirmed, but Head Office permissions could not be loaded. ${error.message || 'Please try again.'}`);
   }
 
   if (generation !== bootGeneration) return;
