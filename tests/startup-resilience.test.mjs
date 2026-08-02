@@ -11,7 +11,16 @@ const [core, boot, reference] = await Promise.all([
 assert.match(core, /DEFAULT_API_TIMEOUT_MS/, 'Every portal API request must have a hard timeout.');
 assert.match(core, /AbortController/, 'Timed-out browser requests must be aborted rather than left pending forever.');
 assert.match(boot, /Promise\.allSettled/, 'Optional Head Office modules must not block the entire portal startup.');
-assert.match(boot, /navigate\('dashboard', true\)/, 'An authenticated user must receive a core workspace before optional modules finish loading.');
+assert.match(boot, /const coreRoute = \/\^/, 'The portal must explicitly identify routes that are safe before optional modules load.');
+assert.match(
+  boot,
+  /navigate\(coreRoute\.test\(requestedRoute\) \? requestedRoute : 'dashboard', true\)/,
+  'An authenticated user must receive the requested core workspace or the dashboard fallback before optional modules finish loading.'
+);
+const initialNavigationIndex = boot.indexOf("navigate(coreRoute.test(requestedRoute) ? requestedRoute : 'dashboard', true)");
+const optionalInitialisationIndex = boot.indexOf('initialiseOptionalModules(requestedRoute, generation)');
+assert.ok(initialNavigationIndex >= 0 && optionalInitialisationIndex > initialNavigationIndex,
+  'Core navigation must happen before optional specialist modules are initialised.');
 assert.match(boot, /initialiseOptionalModules\(requestedRoute, generation\)/,
   'Specialist tools must initialise separately after the core portal opens.');
 assert.doesNotMatch(boot, /showApp\(\);\s*setLoading\('Opening automated Head Office services/,
