@@ -28,6 +28,8 @@
     'redress-centre': 'queue'
   });
 
+  let customerServiceAssetsPromise = null;
+
   function ensureAuthVisibilityGuard() {
     if (document.getElementById(AUTH_VISIBILITY_STYLE_ID)) return;
     const style = document.createElement('style');
@@ -81,28 +83,70 @@
     window.renderNavigation?.();
   }
 
+  function ensureCustomerServiceStylesheet() {
+    if (document.getElementById(CUSTOMER_SERVICE_STYLE_ID)) return;
+    const stylesheet = document.createElement('link');
+    stylesheet.id = CUSTOMER_SERVICE_STYLE_ID;
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = '/customer-service-centre.css?v=20260802-csc-2';
+    document.head.append(stylesheet);
+  }
+
   function ensureCustomerServiceAssets() {
-    if (!document.getElementById(CUSTOMER_SERVICE_STYLE_ID)) {
-      const stylesheet = document.createElement('link');
-      stylesheet.id = CUSTOMER_SERVICE_STYLE_ID;
-      stylesheet.rel = 'stylesheet';
-      stylesheet.href = '/customer-service-centre.css?v=20260802-csc-1';
-      document.head.append(stylesheet);
+    if (typeof window.renderCustomerServiceCentre === 'function') {
+      ensureCustomerServiceNavigation();
+      return Promise.resolve();
     }
-    if (!document.querySelector(CUSTOMER_SERVICE_SCRIPT_SELECTOR)) {
-      const script = document.createElement('script');
-      script.src = '/js/customer-service-centre.js?v=20260802-csc-1';
-      script.async = false;
-      script.dataset.customerServiceCentre = 'true';
-      script.addEventListener('load', () => {
+    if (customerServiceAssetsPromise) return customerServiceAssetsPromise;
+
+    ensureCustomerServiceStylesheet();
+    customerServiceAssetsPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector(CUSTOMER_SERVICE_SCRIPT_SELECTOR);
+      const script = existing || document.createElement('script');
+
+      const loaded = () => {
         ensureCustomerServiceNavigation();
         if (routeFromLocation() === 'customer-service-centre') window.renderCustomerServiceCentre?.();
-      }, { once: true });
-      script.addEventListener('error', () => {
+        resolve();
+      };
+      const failed = () => {
+        customerServiceAssetsPromise = null;
         console.error('The AI Customer Service Centre workspace could not be loaded.');
-      }, { once: true });
-      document.head.append(script);
-    }
+        reject(new Error('The AI Customer Service Centre workspace could not be loaded.'));
+      };
+
+      if (typeof window.renderCustomerServiceCentre === 'function') return loaded();
+      script.addEventListener('load', loaded, { once: true });
+      script.addEventListener('error', failed, { once: true });
+
+      if (!existing) {
+        script.src = '/js/customer-service-centre.js?v=20260802-csc-2';
+        script.async = false;
+        script.dataset.customerServiceCentre = 'true';
+        document.head.append(script);
+      }
+    });
+    return customerServiceAssetsPromise;
+  }
+
+  function activateCustomerServiceAfterAuthentication() {
+    const appShell = document.getElementById('appShell');
+    if (!appShell) return;
+
+    const activate = () => {
+      if (appShell.hidden) return false;
+      ensureCustomerServiceAssets().catch(error => {
+        console.error('Customer Service Centre remains unavailable, but the core Head Office Portal is continuing.', error);
+      });
+      return true;
+    };
+
+    if (activate()) return;
+    const observer = new MutationObserver(() => {
+      if (!activate()) return;
+      observer.disconnect();
+    });
+    observer.observe(appShell, { attributes: true, attributeFilter: ['hidden'] });
   }
 
   function sectionHeadingId(section, index) {
@@ -140,7 +184,6 @@
     document.body.dataset.route = route;
     document.body.dataset.pageType = type;
     setShellIdentity();
-    ensureCustomerServiceNavigation();
     const root = document.getElementById('viewRoot');
     if (!root) return;
     root.dataset.route = route;
@@ -150,8 +193,7 @@
 
   function start() {
     ensureAuthVisibilityGuard();
-    ensureCustomerServiceAssets();
-    ensureCustomerServiceNavigation();
+    activateCustomerServiceAfterAuthentication();
     keepGovernedStylesLast();
     applyPageModel();
 
