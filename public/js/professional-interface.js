@@ -12,6 +12,8 @@
     customers: 'queue',
     'customer-directory': 'queue',
     'customer-service-centre': 'queue',
+    'customer-service-controls': 'administration',
+    notifications: 'administration',
     cases: 'queue',
     communications: 'queue',
     payments: 'queue',
@@ -23,6 +25,12 @@
     'data-protection': 'queue',
     safeguarding: 'queue',
     'security-levels': 'reference',
+    'security-procedures': 'reference',
+    'security-operations': 'overview',
+    'identity-verifications': 'queue',
+    'stripe-control': 'administration',
+    'automation-centre': 'administration',
+    'test-centre': 'administration',
     platforms: 'administration',
     staff: 'administration',
     audit: 'queue',
@@ -32,6 +40,10 @@
 
   let customerServiceAssetsPromise = null;
   let websiteControlAssetsPromise = null;
+
+  function insertBeforeGovernedInterface(node) {
+    document.head.insertBefore(node, document.getElementById(STYLE_ID) || null);
+  }
 
   function ensureAuthVisibilityGuard() {
     if (document.getElementById(AUTH_VISIBILITY_STYLE_ID)) return;
@@ -43,7 +55,7 @@
         display: none !important;
       }
     `;
-    document.head.append(style);
+    insertBeforeGovernedInterface(style);
   }
 
   function routeFromLocation() {
@@ -52,12 +64,6 @@
       .split(/[/?]/)[0]
       .trim();
     return route || 'control-room';
-  }
-
-  function keepGovernedStylesLast() {
-    const link = document.getElementById(STYLE_ID);
-    if (!link || link.parentElement !== document.head) return;
-    if (document.head.lastElementChild !== link) document.head.append(link);
   }
 
   function setShellIdentity() {
@@ -92,7 +98,7 @@
     stylesheet.id = CUSTOMER_SERVICE_STYLE_ID;
     stylesheet.rel = 'stylesheet';
     stylesheet.href = '/customer-service-centre.css?v=20260802-csc-2';
-    document.head.append(stylesheet);
+    insertBeforeGovernedInterface(stylesheet);
   }
 
   function ensureWebsiteControlAssets() {
@@ -103,7 +109,7 @@
         stylesheet.id = WEBSITE_CONTROLS_STYLE_ID;
         stylesheet.rel = 'stylesheet';
         stylesheet.href = '/customer-service-website-controls.css?v=20260802-four-sites-1';
-        document.head.append(stylesheet);
+        insertBeforeGovernedInterface(stylesheet);
       }
 
       const existing = document.querySelector(WEBSITE_CONTROLS_SCRIPT_SELECTOR);
@@ -159,6 +165,8 @@
     });
     return customerServiceAssetsPromise;
   }
+
+  window.ensureCustomerServiceAssets = ensureCustomerServiceAssets;
 
   function activateCustomerServiceAfterAuthentication() {
     const appShell = document.getElementById('appShell');
@@ -225,7 +233,6 @@
   function start() {
     ensureAuthVisibilityGuard();
     activateCustomerServiceAfterAuthentication();
-    keepGovernedStylesLast();
     applyPageModel();
 
     window.addEventListener('hashchange', () => queueMicrotask(applyPageModel));

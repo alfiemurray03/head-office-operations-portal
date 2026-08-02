@@ -1059,55 +1059,168 @@ body.ops-tailwind .system-footer strong {
   }
 }
 
-/* The desktop portal uses the same floating All admin tools drawer as the
-   responsive shell. These final rules supersede the retired permanent-sidebar
-   layout while keeping the professional interface presentation intact. */
-@media (min-width: 1024px) {
-  body.ops-tailwind .app-shell {
-    display: flex !important;
-    flex-direction: column !important;
-  }
+/* Entrance and post-Entra PIN step-up */
+html[data-ops-theme] body.ops-tailwind .login-screen {
+  color: #f8fafc !important;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(37, 99, 235, .24), transparent 32%),
+    radial-gradient(circle at 18% 88%, rgba(185, 28, 28, .13), transparent 31%),
+    linear-gradient(145deg, #050d1a 0%, #0a1830 52%, #101d35 100%) !important;
+}
+html[data-ops-theme] body.ops-tailwind .login-brand strong { color: #fff !important; }
+html[data-ops-theme] body.ops-tailwind .login-brand span,
+html[data-ops-theme] body.ops-tailwind .login-footer { color: #9fb0c7 !important; }
 
-  body.ops-tailwind .ops-header,
-  body.ops-tailwind .main-shell {
-    width: 100% !important;
-  }
+body.ops-tailwind .login-command-stage {
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 480px);
+  gap: clamp(36px, 7vw, 110px);
+  width: min(1320px, 100%);
+  margin: 0 auto;
+  place-items: center stretch;
+}
 
-  body.ops-tailwind #menuButton.all-tools-button,
-  body.ops-tailwind #drawerCloseButton.drawer-close {
-    display: inline-flex !important;
-  }
+body.ops-tailwind .login-brief { max-width: 720px; }
+html[data-ops-theme] body.ops-tailwind #loginScreen .login-brief .eyebrow { color: #7db1ff !important; }
+html[data-ops-theme] body.ops-tailwind #loginScreen .login-brief h1 {
+  max-width: 650px;
+  margin: 0;
+  color: #fff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: clamp(38px, 5vw, 66px);
+  line-height: 1.02;
+  letter-spacing: -.055em;
+}
+body.ops-tailwind .login-brief > p:not(.eyebrow) {
+  max-width: 680px;
+  margin: 22px 0 0;
+  color: #b9c8dc;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.entrance-capabilities { display: grid; gap: 2px; margin-top: 30px; border-block: 1px solid rgba(148, 163, 184, .2); }
+.entrance-capabilities article { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 15px 0; border-top: 1px solid rgba(148, 163, 184, .14); }
+.entrance-capabilities article:first-child { border-top: 0; }
+.entrance-capabilities article > span { color: #ef6b6b; font: 800 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.entrance-capabilities strong, .entrance-capabilities small { display: block; }
+.entrance-capabilities strong { color: #fff; font-size: 13px; }
+.entrance-capabilities small { margin-top: 4px; color: #93a5bd; font-size: 11px; line-height: 1.55; }
+.entrance-health { display: flex; align-items: center; gap: 11px; margin-top: 22px; color: #dce7f5; }
+.entrance-health-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #f0b429; box-shadow: 0 0 0 5px rgba(240, 180, 41, .12); }
+.entrance-health[data-state="operational"] .entrance-health-dot { background: #49c783; box-shadow: 0 0 0 5px rgba(73, 199, 131, .12); }
+.entrance-health[data-state="degraded"] .entrance-health-dot { background: #ef6b6b; box-shadow: 0 0 0 5px rgba(239, 107, 107, .12); }
+.entrance-health strong, .entrance-health small { display: block; }
+.entrance-health strong { font-size: 11px; }
+.entrance-health small { margin-top: 2px; color: #8294ac; font-size: 10px; }
+body.ops-tailwind .entrance-access-card { justify-self: end; border-radius: 8px; border-top: 4px solid #2563eb; }
+html[data-ops-theme] body.ops-tailwind .entrance-access-card {
+  width: min(440px, 100%);
+  max-width: 100%;
+  box-sizing: border-box;
+  border-color: #2563eb !important;
+  background: #fff !important;
+  color: #0f172a !important;
+}
+html[data-ops-theme] body.ops-tailwind #loginScreen .entrance-access-card .security-seal {
+  background: #eff6ff !important;
+  color: #155eef !important;
+}
+html[data-ops-theme] body.ops-tailwind #loginScreen .entrance-access-card .eyebrow { color: #155eef !important; }
+html[data-ops-theme] body.ops-tailwind #loginScreen .entrance-access-card h1 {
+  color: #0f172a !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+html[data-ops-theme] body.ops-tailwind .entrance-access-card .login-intro { color: #52637a !important; }
+html[data-ops-theme] body.ops-tailwind .entrance-access-card .login-assurance span {
+  border-color: #dbe3ed !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+}
+body.ops-tailwind .entrance-access-card::after { display: block; width: 54px; height: 3px; margin-top: 24px; background: #bd2929; content: ""; }
 
-  body.ops-tailwind #sidebar.tools-drawer {
-    position: fixed !important;
-    inset: 72px 24px auto auto !important;
-    z-index: 80 !important;
-    width: min(720px, calc(100vw - 48px)) !important;
-    min-height: 0 !important;
-    height: auto !important;
-    max-height: calc(100vh - 96px) !important;
-    display: block !important;
-    overflow: hidden !important;
-    border: 1px solid var(--ho-border) !important;
-    border-radius: 16px !important;
-    background: var(--ho-surface) !important;
-    box-shadow: 0 28px 80px rgba(15, 23, 42, .24) !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    transform: translateY(-8px) scale(.985) !important;
-  }
+/* Stable desktop control shell. All navigation is present before first paint;
+   specialist modules enhance routes without replacing this frame. */
+body.ops-tailwind .header-notification-button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--ho-border);
+  border-radius: var(--ho-radius);
+  background: var(--ho-surface);
+  color: var(--ho-text);
+  cursor: pointer;
+}
+body.ops-tailwind .header-notification-button svg { width: 15px; height: 15px; color: #b42318; }
+body.ops-tailwind .header-notification-button span { font-size: 11px; font-weight: 650; }
+body.ops-tailwind .header-notification-button:hover { border-color: var(--ho-border-strong); background: var(--ho-surface-subtle); }
 
-  body.ops-tailwind #sidebar.tools-drawer.open {
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-    transform: translateY(0) scale(1) !important;
-  }
+body.ops-tailwind .loading-state { min-height: clamp(420px, 58vh, 680px) !important; }
+body.ops-tailwind .content { min-height: calc(100vh - 145px); }
+body.ops-tailwind .table-wrap { scrollbar-gutter: stable; }
 
-  body.ops-tailwind #mainNavigation {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    max-height: calc(100vh - 230px) !important;
+/* Live Control Room */
+.control-room-livebar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: -8px 0 16px; padding: 10px 12px; border-block: 1px solid var(--ho-border); color: var(--ho-muted); }
+.control-room-live-state { display: inline-flex; align-items: center; gap: 9px; }
+.control-room-live-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--ho-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ho-success) 14%, transparent); }
+.control-room-live-state strong { color: var(--ho-text); font-size: 11px; }
+.control-room-livebar span, .control-room-livebar button { font-size: 10px; }
+.control-room-livebar button { border: 0; background: transparent; color: var(--ho-focus); font-weight: 700; cursor: pointer; }
+.control-room-action-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 18px; border: 1px solid var(--ho-border); background: var(--ho-surface); }
+.control-room-action-strip button { min-height: 66px; padding: 11px 13px; border: 0; border-right: 1px solid var(--ho-border); background: transparent; color: var(--ho-text); text-align: left; cursor: pointer; }
+.control-room-action-strip button:last-child { border-right: 0; }
+.control-room-action-strip button:hover { background: var(--ho-surface-subtle); }
+.control-room-action-strip strong, .control-room-action-strip small { display: block; }
+.control-room-action-strip strong { font-size: 11px; }
+.control-room-action-strip small { margin-top: 4px; color: var(--ho-muted); font-size: 9px; line-height: 1.4; }
+.live-table-wrap { height: min(38vh, 390px); min-height: 280px; overflow: auto !important; scrollbar-gutter: stable; }
+
+/* Notification administration and security procedure reference */
+.notification-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.notification-compose-grid { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); gap: 18px; align-items: start; }
+.notification-compose-grid .panel { min-width: 0; }
+.notification-severity { display: inline-flex; align-items: center; gap: 7px; }
+.notification-severity::before { width: 7px; height: 7px; border-radius: 50%; background: var(--ho-focus); content: ""; }
+.notification-severity.critical::before { background: var(--ho-danger); }
+.notification-severity.urgent::before { background: var(--ho-danger); }
+.notification-severity.important::before { background: var(--ho-warning); }
+.notification-status-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.procedure-command-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--ho-border); background: var(--ho-border); }
+.procedure-command-grid article { padding: 17px; background: var(--ho-surface); }
+.procedure-command-grid article.danger { border-top: 3px solid var(--ho-danger); }
+.procedure-command-grid article.control { border-top: 3px solid var(--ho-focus); }
+.procedure-command-grid article.recovery { border-top: 3px solid var(--ho-success); }
+.procedure-command-grid h3 { margin: 0 0 8px; font-size: 13px; }
+.procedure-command-grid p { margin: 0; color: var(--ho-muted); font-size: 11px; line-height: 1.55; }
+.procedure-steps { margin: 0; padding: 0; list-style: none; counter-reset: procedure; }
+.procedure-steps li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--ho-border); counter-increment: procedure; }
+.procedure-steps li::before { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--ho-border-strong); color: var(--ho-focus); content: counter(procedure, decimal-leading-zero); font: 800 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.procedure-steps strong, .procedure-steps span { display: block; }
+.procedure-steps span { margin-top: 4px; color: var(--ho-muted); font-size: 11px; line-height: 1.55; }
+
+@media (max-width: 1023px) {
+  body.ops-tailwind .login-command-stage { grid-template-columns: 1fr; width: min(720px, 100%); }
+  body.ops-tailwind .login-brief { padding-top: 30px; }
+  body.ops-tailwind .login-brief h1 { font-size: clamp(36px, 8vw, 54px); }
+  body.ops-tailwind .entrance-access-card { justify-self: stretch; width: 100%; }
+  .notification-compose-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  body.ops-tailwind .login-brief { display: none; }
+  body.ops-tailwind .login-command-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    padding: 18px 0;
   }
+  html[data-ops-theme] body.ops-tailwind .entrance-access-card { width: 100%; }
+  body.ops-tailwind .header-notification-button span { display: none; }
+  .control-room-action-strip, .procedure-command-grid { grid-template-columns: 1fr; }
+  .control-room-action-strip button { border-right: 0; border-bottom: 1px solid var(--ho-border); }
+  .control-room-action-strip button:last-child { border-bottom: 0; }
+  .control-room-livebar { align-items: flex-start; flex-direction: column; }
+  .notification-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }

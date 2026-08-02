@@ -11,6 +11,7 @@ let automationCentreModulePromise = null;
 let automationSettingsExtensionPromise = null;
 let bootPromise = null;
 let bootGeneration = 0;
+let entranceHealthPromise = null;
 
 function ensureModuleStylesheet(selector, href, datasetProperty) {
   if (document.querySelector(selector)) return;
@@ -18,7 +19,7 @@ function ensureModuleStylesheet(selector, href, datasetProperty) {
   style.rel = 'stylesheet';
   style.href = href;
   style.dataset[datasetProperty] = 'true';
-  document.head.append(style);
+  document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
 }
 
 function loadScriptOnce({ selector, src, datasetProperty, errorMessage }) {
@@ -102,7 +103,7 @@ function loadSecurityOperationsModule() {
   if (securityOperationsModulePromise) return securityOperationsModulePromise;
   securityOperationsModulePromise = loadScriptOnce({
     selector: 'script[data-security-operations-centre]',
-    src: '/js/security-operations-centre.js?v=20260729-soc-1',
+    src: '/js/security-operations-centre.js?v=20260802-control-centre-1',
     datasetProperty: 'securityOperationsCentre',
     errorMessage: 'The Head Office Security Operations Centre could not be loaded.'
   });
@@ -214,11 +215,7 @@ async function loadReference() {
   throw lastError;
 }
 
-function resultSucceeded(results, name) {
-  return results.some(result => result.status === 'fulfilled' && result.value === name);
-}
-
-async function initialiseOptionalModules(requestedRoute, generation) {
+async function initialiseOptionalModules(generation) {
   const namedLoad = async (name, loader) => {
     await loader();
     return name;
@@ -258,22 +255,63 @@ async function initialiseOptionalModules(requestedRoute, generation) {
   }
 
   if (generation !== bootGeneration || !state.session?.authenticated) return;
+}
 
-  const routeRequirements = {
-    'customer-directory': 'customer-directory',
-    'automation-centre': 'automation-centre',
-    'test-centre': 'system-control',
-    'didit-operations': 'didit-operations',
-    'security-operations': 'security-operations',
-    'stripe-reconciliation': 'stripe-reconciliation'
+const directRoute = /^(?:control-room|dashboard|risk-intelligence|incidents-v7|central-operations|security-levels|security-procedures|customers(?:\/[^/?#]+)?|cases|complaints|data-protection|safeguarding|security|communications|payments|platforms|staff|audit|settings|my-profile|my-security|personalisation|notifications|customer-service-controls|customer-protection|redress-centre)$/;
+
+async function prepareRequestedRoute(route) {
+  if (directRoute.test(route)) {
+    if (route === 'customer-service-controls') await window.ensureCustomerServiceAssets?.();
+    if (route === 'settings') {
+      await loadSystemControlModule();
+      await loadAutomationSettingsExtension();
+    }
+    if (route === 'customer-protection' || route === 'redress-centre' || route === 'central-operations') ensureWorkspaceStyles();
+    return route;
+  }
+  const loaders = {
+    'customer-directory': loadCustomerDirectoryModule,
+    'automation-centre': loadAutomationCentreModule,
+    'test-centre': loadSystemControlModule,
+    'identity-verifications': loadDiditOperationsModule,
+    'security-operations': loadSecurityOperationsModule,
+    'stripe-control': loadStripeReconciliationModule,
+    'customer-service-centre': () => window.ensureCustomerServiceAssets?.()
   };
-  const requiredModule = routeRequirements[requestedRoute];
-  if ((!requiredModule || resultSucceeded(results, requiredModule))
-    && (state.route !== requestedRoute || routeFromHash() !== requestedRoute)) navigate(requestedRoute, true);
+  const loader = loaders[route];
+  if (!loader) return 'control-room';
+  await loader();
+  if (route === 'automation-centre') ensureSystemControlNavigation();
+  if (route === 'identity-verifications') window.ensureDiditNavigation?.();
+  if (route === 'security-operations' || route === 'stripe-control') window.ensureSecurityOperationsNavigation?.();
+  return route;
+}
+
+function loadEntranceHealth() {
+  if (entranceHealthPromise) return entranceHealthPromise;
+  entranceHealthPromise = fetch('/api/health', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(async response => ({ response, data: await response.json().catch(() => ({})) }))
+    .then(({ response, data }) => {
+      const target = document.getElementById('entranceHealth');
+      if (!target) return;
+      const stateName = response.ok && data.status === 'operational' ? 'operational' : 'degraded';
+      target.dataset.state = stateName;
+      target.querySelector('strong').textContent = stateName === 'operational' ? 'Control Centre operational' : 'Control Centre requires attention';
+      target.querySelector('small').textContent = `${data.environment || 'Production'} · checked ${formatDate(data.checkedAt, 'just now')}`;
+    })
+    .catch(() => {
+      const target = document.getElementById('entranceHealth');
+      if (!target) return;
+      target.dataset.state = 'degraded';
+      target.querySelector('strong').textContent = 'Readiness check unavailable';
+      target.querySelector('small').textContent = 'Microsoft sign-in remains available; Head Office APIs will recheck after authentication.';
+    });
+  return entranceHealthPromise;
 }
 
 async function runBoot() {
   const generation = ++bootGeneration;
+  loadEntranceHealth();
   showLogin('Checking your authorised Head Office staff session…');
 
   const query = new URLSearchParams(location.search);
@@ -315,16 +353,21 @@ async function runBoot() {
 
   if (generation !== bootGeneration) return;
 
-  const requestedRoute = location.hash.startsWith('#/') ? routeFromHash() : (state.preferences?.defaultLandingPage || (hasPermission('risk:read') ? 'security-operations' : 'dashboard'));
+  const requestedRoute = location.hash.startsWith('#/') ? routeFromHash() : (state.preferences?.defaultLandingPage || (hasPermission('risk:read') ? 'control-room' : 'dashboard'));
   showApp();
   renderNavigation();
-
-  // Core routes, including full customer records, are already available at this
-  // point. Preserve the requested deep link instead of briefly replacing it with
-  // Control Room while optional specialist modules initialise.
-  const coreRoute = /^(?:dashboard|customers(?:\/[^/?#]+)?|cases|complaints|data-protection|safeguarding|security|communications|payments|platforms|staff|audit|settings|my-profile|my-security|personalisation)$/;
-  navigate(coreRoute.test(requestedRoute) ? requestedRoute : 'dashboard', true);
-  initialiseOptionalModules(requestedRoute, generation).catch(error => {
+  setLoading(`Opening ${requestedRoute.replaceAll('-', ' ')}…`);
+  let initialRoute = requestedRoute;
+  try {
+    initialRoute = await prepareRequestedRoute(requestedRoute);
+  } catch (error) {
+    console.error('The requested Head Office workspace could not be prepared.', error);
+    toast('Requested workspace unavailable', 'The live Control Room has opened instead.', 'error');
+    initialRoute = 'control-room';
+  }
+  if (generation !== bootGeneration || !state.session?.authenticated) return;
+  navigate(initialRoute, true);
+  initialiseOptionalModules(generation).catch(error => {
     console.error('Optional Head Office modules did not finish initialising.', error);
     toast('Specialist tools unavailable', error.message || 'The core portal remains available.', 'error');
   });
@@ -336,12 +379,14 @@ function boot() {
   return bootPromise;
 }
 
-$('#signOutButton').addEventListener('click', async () => {
+async function signOut() {
   const result = await api('/api/auth/logout', { method: 'POST', body: '{}', timeoutMs: 8_000 }).catch(() => ({}));
   bootGeneration += 1;
   clearSession();
   if (result.redirect) location.assign(result.redirect); else location.reload();
-});
+}
+
+$('#signOutButton').addEventListener('click', signOut);
 $('#globalSearch').addEventListener('keydown', event => {
   if (event.key === 'Enter') { state.customerFilters.q = event.currentTarget.value.trim(); navigate('customers'); }
 });

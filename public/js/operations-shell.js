@@ -16,6 +16,15 @@ const OPS_ROUTE_LABELS = {
   "data-protection": "Data Protection Cases",
   safeguarding: "Safeguarding Cases",
   "security-levels": "Security Control Taxonomy",
+  "security-procedures": "Security Codes & Procedures",
+  "security-operations": "Security Operations Centre",
+  "identity-verifications": "Identity Verification",
+  "customer-service-centre": "Live Customer Conversations",
+  "customer-service-controls": "Website Customer Service Controls",
+  notifications: "Customer Notification Panel",
+  "stripe-control": "Stripe Control & Webhooks",
+  "automation-centre": "Automation & Scheduling Centre",
+  "test-centre": "System Test Centre",
   platforms: "Connected Systems",
   staff: "Staff Identity & Authority",
   audit: "Audit & Evidence History",
@@ -47,7 +56,9 @@ const HEAD_OFFICE_WORKSPACES = {
       ["customers", "Customer register", "customers:read"],
       ["customer-directory", "External ID directory", "platforms:read"],
       ["cases", "Cases & investigations", "cases:read"],
-      ["communications", "Communications", "communications:read"]
+      ["communications", "Communications", "communications:read"],
+      ["customer-service-centre", "Live conversations", "communications:read"],
+      ["notifications", "Customer notifications", "communications:read"]
     ]
   },
   security: {
@@ -62,6 +73,8 @@ const HEAD_OFFICE_WORKSPACES = {
       ["risk-intelligence", "Risk intelligence", "risk:read"],
       ["security", "Markers & restrictions", "security:read"],
       ["security-levels", "Control taxonomy", "risk:read"],
+      ["security-procedures", "Codes & procedures", "risk:read"],
+      ["security-operations", "Security operations", "risk:read"],
       ["data-protection", "Data protection", "data_protection:*"],
       ["safeguarding", "Safeguarding", "safeguarding:*"]
     ]
@@ -117,20 +130,29 @@ const ROUTE_WORKSPACE = {
   "customer-directory": "customer",
   cases: "customer",
   communications: "customer",
+  "customer-service-centre": "customer",
+  "customer-service-controls": "customer",
+  notifications: "customer",
   "customer-protection": "security",
   "risk-intelligence": "security",
   security: "security",
   "security-levels": "security",
+  "security-procedures": "security",
+  "security-operations": "security",
+  "identity-verifications": "security",
   "data-protection": "security",
   safeguarding: "security",
   "incidents-v7": "incident",
   "redress-centre": "redress",
   complaints: "redress",
   payments: "redress",
+  "stripe-control": "redress",
   platforms: "assurance",
   staff: "assurance",
   audit: "assurance",
-  settings: "assurance"
+  settings: "assurance",
+  "automation-centre": "assurance",
+  "test-centre": "assurance"
 };
 
 let customerProtectionModulePromise = null;

@@ -17,23 +17,6 @@
     document.head.append(link);
   }
 
-  function replaceTerminology() {
-    const substitutions = [
-      ['Universal Customer Register', 'Unique Customer Register'],
-      ['Universal Customer Number', 'Unique Customer Number'],
-      ['universal customer', 'unique customer'],
-      ['Universal customer', 'Unique customer']
-    ];
-    document.querySelectorAll('button,span,strong,p,h1,h2,h3,label,option').forEach(element => {
-      if (element.children.length) return;
-      let text = element.textContent;
-      for (const [from, to] of substitutions) text = text.replaceAll(from, to);
-      if (text !== element.textContent) element.textContent = text;
-    });
-    const search = document.querySelector('#globalSearch');
-    if (search) search.placeholder = 'Search UCN, customer, marker code, case, payment or incident…';
-  }
-
   function ensureSocNavigation() {
     if (!document.querySelector('[data-route="security-operations"]')) {
       const firstControl = document.querySelector('#mainNavigation [data-route="control-room"]');
@@ -53,7 +36,9 @@
       button.textContent = 'Stripe control & webhooks';
       payments?.parentElement?.insertBefore(button, payments.nextSibling);
     }
-    replaceTerminology();
+    const search = document.querySelector('#globalSearch');
+    const placeholder = 'Search UCN, customer, marker code, case, payment or incident…';
+    if (search && search.placeholder !== placeholder) search.placeholder = placeholder;
   }
 
   async function safeApi(path, fallback) {

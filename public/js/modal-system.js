@@ -7,20 +7,19 @@
   const CUSTOMER_PICKER_SCRIPT_SRC = '/js/customer-picker.js?v=20260730-customer-picker-1';
   const originalOpenModal = openModal;
   const originalCloseModal = closeModal;
-  let relinkQueued = false;
   let customerPickerPromise = null;
 
-  function ensureParityStyleLast() {
+  function ensureParityStyle() {
     let link = document.querySelector('link[data-planyx-admin-parity]');
     if (!link) {
       link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = PARITY_HREF;
       link.dataset.planyxAdminParity = 'true';
-      document.head.append(link);
+      const governed = document.getElementById('professionalInterfaceStyles');
+      document.head.insertBefore(link, governed || null);
       return link;
     }
-    if (link !== document.head.lastElementChild) document.head.append(link);
     return link;
   }
 
@@ -30,7 +29,7 @@
       style.rel = 'stylesheet';
       style.href = CUSTOMER_PICKER_STYLE_HREF;
       style.dataset.customerPickerStyle = 'true';
-      document.head.append(style);
+      document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
     }
     if (window.enhanceCustomerPickers) return Promise.resolve();
     if (customerPickerPromise) return customerPickerPromise;
@@ -79,17 +78,7 @@
       @media(max-width:980px){body.ops-tailwind .head-office-footer-links{display:none}}
       @media(max-width:820px){body.ops-tailwind .head-office-footer-session{text-align:left}}
     `;
-    document.head.append(style);
-  }
-
-  function queueParityRelink() {
-    if (relinkQueued) return;
-    relinkQueued = true;
-    queueMicrotask(() => {
-      relinkQueued = false;
-      ensureParityStyleLast();
-      ensureParityRuntimeStyle();
-    });
+    document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
   }
 
   function synchroniseTheme() {
@@ -176,7 +165,7 @@
 
   openModal = function(...args) {
     originalOpenModal(...args);
-    ensureParityStyleLast();
+    ensureParityStyle();
     ensureParityRuntimeStyle();
     synchroniseTheme();
     enforceAutomaticDiditDelivery();
@@ -198,20 +187,11 @@
     return result;
   };
 
-  ensureParityStyleLast();
+  ensureParityStyle();
   ensureParityRuntimeStyle();
   synchroniseTheme();
   enhanceFooter();
   enhanceCustomerReferences(document);
-
-  new MutationObserver(mutations => {
-    const laterStylesheetAdded = mutations.some(mutation => [...mutation.addedNodes].some(node => (
-      node instanceof HTMLLinkElement
-      && node.rel === 'stylesheet'
-      && !node.dataset.planyxAdminParity
-    )));
-    if (laterStylesheetAdded) queueParityRelink();
-  }).observe(document.head, { childList: true });
 
   new MutationObserver(() => synchroniseTheme()).observe(document.documentElement, {
     attributes: true,

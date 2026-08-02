@@ -134,8 +134,8 @@ assert.match(socCss, /max-height:\s*min\(54vh, 520px\)/, 'Large data tables must
 assert.match(socCss, /position:\s*sticky/, 'Dense operational tables must retain visible headings while scrolling.');
 assert.match(socCss, /grid-template-columns:\s*repeat\(6/, 'The command centre must use a compact desktop metric grid.');
 assert.match(boot, /loadSecurityOperationsModule/, 'The Security Operations Centre module must load during boot.');
-assert.match(boot, /hasPermission\('risk:read'\) \? 'security-operations'/,
-  'Authorised risk staff must land in the Security Operations Centre by default.');
+assert.match(boot, /hasPermission\('risk:read'\) \? 'control-room'/,
+  'Authorised risk staff must land in the consolidated live Control Room by default.');
 
 assert.match(portalIndex, /professional-interface\.css/, 'The governed professional interface stylesheet must load in the portal.');
 assert.match(portalIndex, /professional-interface\.js/, 'The governed page-archetype enhancer must load in the portal.');
@@ -148,7 +148,8 @@ assert.match(professionalCss, /text-transform:\s*none/, 'Operational table headi
 assert.match(professionalCss, /modal-shell[\s\S]*border-left:\s*1px solid/, 'Controlled actions must use an operational side sheet on desktop.');
 assert.match(professionalJs, /ROUTE_TYPES/, 'Every route must be assigned a governed page archetype.');
 assert.match(professionalJs, /queue-surface/, 'Operational queue surfaces must be classified consistently.');
-assert.match(professionalJs, /keepGovernedStylesLast/, 'The governed interface must remain authoritative over dynamically loaded legacy styles.');
+assert.match(professionalJs, /insertBeforeGovernedInterface/, 'Fallback module styles must be inserted before the final governed interface layer.');
+assert.doesNotMatch(professionalJs, /observe\(document\.head/, 'The interface must never watch and reorder document.head after first paint.');
 assert.match(professionalJs, /#appShell\.app-shell\[hidden\]/,
   'The professional desktop shell must never override the unauthenticated hidden application state.');
 assert.match(professionalJs, /#loginScreen\.login-screen\[hidden\]/,

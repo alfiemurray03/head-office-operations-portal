@@ -92,6 +92,7 @@ assert.match(migration, /launch_gate_enabled INTEGER NOT NULL DEFAULT 0/, 'The L
 assert.doesNotMatch(migration, /launch_gate_enabled[^\n]*DEFAULT 1/, 'The migration must never open with a gate active.');
 assert.match(index, /customer-service-controls\.css/);
 assert.match(index, /customer-service-controls\.js/);
-assert.ok(index.indexOf('boot.js') < index.indexOf('customer-service-controls.js'), 'Full controls must load after the secure portal boot script.');
+assert.ok(index.indexOf('customer-service-controls.js') < index.indexOf('boot.js'),
+  'Full controls must register their stable routes before the secure boot selects the requested workspace.');
 
 console.log('Four registered website controls, stable routes, scoped key generation and prominent JA Group Services Launch Gate checks passed.');

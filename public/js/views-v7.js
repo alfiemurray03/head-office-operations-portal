@@ -8,16 +8,101 @@ function levelChip(code) {
   return `<span class="level-chip ${escapeHtml(value.toLowerCase().replaceAll('-',''))}">${escapeHtml(value)}</span>`;
 }
 
+let controlRoomRefreshTimer = null;
+let controlRoomRefreshController = null;
+
+function controlRoomAlertRows(rows = []) {
+  return rows.length ? rows.map(item => `<tr><td class="mono">${escapeHtml(item.alert_reference)}</td><td><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.customer_name || item.customer_number || 'No linked customer')}</small></td><td>${riskScore(item.risk_score)}</td><td>${levelChip(item.risk_level)} ${levelChip(item.enforcement_level)}</td><td>${levelChip(item.severity)}</td><td>${tag(item.status)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No active alerts','The risk engine has not raised any active alerts.')}</td></tr>`;
+}
+
+function controlRoomIncidentRows(rows = []) {
+  return rows.length ? rows.map(item => `<tr><td class="mono">${escapeHtml(item.incident_reference)}</td><td><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(label(item.category))}</small></td><td>${levelChip(item.severity)}</td><td>${tag(item.status)}</td><td>${tag(item.data_breach_status)}</td><td class="${item.ico_deadline_at && new Date(item.ico_deadline_at) < new Date() ? 'overdue-text' : ''}">${formatDate(item.ico_deadline_at)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No open incidents','No cyber, fraud or personal-data incident currently requires response.')}</td></tr>`;
+}
+
+function controlRoomEventRows(rows = []) {
+  return rows.length ? rows.map(item => `<tr><td>${formatDate(item.received_at)}</td><td class="mono">${escapeHtml(item.event_reference)}</td><td>${escapeHtml(item.event_type)}</td><td>${escapeHtml(item.customer_name || item.customer_number || item.platform_name || 'System')}</td><td>${riskScore(item.risk_score)}</td><td>${levelChip(item.risk_level)} ${levelChip(item.enforcement_level)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No security events','Connected websites have not submitted security telemetry yet.')}</td></tr>`;
+}
+
+function liveMetric(id, labelText, value, detail, tone = 'blue') {
+  return `<article class="metric-card"><div class="metric-icon ${tone}"></div><div><span>${escapeHtml(labelText)}</span><strong data-live-metric="${escapeHtml(id)}">${Number(value || 0).toLocaleString('en-GB')}</strong><small>${escapeHtml(detail)}</small></div></article>`;
+}
+
+function updateControlRoomLiveData(data) {
+  if (state.route !== 'control-room') return;
+  const metrics = data.metrics || {};
+  document.querySelectorAll('[data-live-metric]').forEach(element => {
+    const value = Number(metrics[element.dataset.liveMetric] || 0).toLocaleString('en-GB');
+    if (element.textContent !== value) element.textContent = value;
+  });
+  const alertBody = document.querySelector('[data-live-alerts]');
+  const incidentBody = document.querySelector('[data-live-incidents]');
+  const eventBody = document.querySelector('[data-live-events]');
+  if (alertBody) alertBody.innerHTML = controlRoomAlertRows(data.alerts || []);
+  if (incidentBody) incidentBody.innerHTML = controlRoomIncidentRows(data.incidents || []);
+  if (eventBody) eventBody.innerHTML = controlRoomEventRows(data.events || []);
+  const status = document.querySelector('[data-control-room-sync]');
+  if (status) status.textContent = `Last live sync ${formatDate(data.generatedAt || new Date().toISOString())}`;
+}
+
+function stopControlRoomPolling() {
+  clearTimeout(controlRoomRefreshTimer);
+  controlRoomRefreshTimer = null;
+  controlRoomRefreshController?.abort();
+  controlRoomRefreshController = null;
+}
+
+function scheduleControlRoomPolling(seconds = 15) {
+  stopControlRoomPolling();
+  if (state.route !== 'control-room') return;
+  controlRoomRefreshTimer = setTimeout(async () => {
+    if (state.route !== 'control-room') return stopControlRoomPolling();
+    if (document.hidden) return scheduleControlRoomPolling(seconds);
+    controlRoomRefreshController = new AbortController();
+    try {
+      const data = await api('/api/v7/overview', { signal: controlRoomRefreshController.signal, timeoutMs: 10_000 });
+      updateControlRoomLiveData(data);
+      scheduleControlRoomPolling(Number(data.refreshAfterSeconds || seconds));
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        const status = document.querySelector('[data-control-room-sync]');
+        if (status) status.textContent = 'Live sync delayed · retrying in 30 seconds';
+        scheduleControlRoomPolling(30);
+      }
+    }
+  }, Math.max(10, Number(seconds || 15)) * 1000);
+}
+
+async function refreshControlRoomNow() {
+  const data = await api('/api/v7/overview', { timeoutMs: 10_000 });
+  updateControlRoomLiveData(data);
+  scheduleControlRoomPolling(Number(data.refreshAfterSeconds || 15));
+}
+
 async function renderControlRoomV7() {
   const data = await api('/api/v7/overview');
   const m = data.metrics || {};
-  const alertRows = data.alerts.length ? data.alerts.map(item => `<tr><td class="mono">${escapeHtml(item.alert_reference)}</td><td><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.customer_name || item.customer_number || 'No linked customer')}</small></td><td>${riskScore(item.risk_score)}</td><td>${levelChip(item.risk_level)} ${levelChip(item.enforcement_level)}</td><td>${levelChip(item.severity)}</td><td>${tag(item.status)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No active alerts','The risk engine has not raised any active alerts.')}</td></tr>`;
-  const incidentRows = data.incidents.length ? data.incidents.map(item => `<tr><td class="mono">${escapeHtml(item.incident_reference)}</td><td><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(label(item.category))}</small></td><td>${levelChip(item.severity)}</td><td>${tag(item.status)}</td><td>${tag(item.data_breach_status)}</td><td class="${item.ico_deadline_at && new Date(item.ico_deadline_at) < new Date() ? 'overdue-text' : ''}">${formatDate(item.ico_deadline_at)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No open incidents','No cyber, fraud or personal-data incident currently requires response.')}</td></tr>`;
-  const eventRows = data.events.length ? data.events.map(item => `<tr><td>${formatDate(item.received_at)}</td><td class="mono">${escapeHtml(item.event_reference)}</td><td>${escapeHtml(item.event_type)}</td><td>${escapeHtml(item.customer_name || item.customer_number || item.platform_name || 'System')}</td><td>${riskScore(item.risk_score)}</td><td>${levelChip(item.risk_level)} ${levelChip(item.enforcement_level)}</td></tr>`).join('') : `<tr><td colspan="6">${emptyState('No security events','Connected divisions have not submitted any security telemetry yet.')}</td></tr>`;
-  $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">Version ${escapeHtml(data.version)}</p><h1>Head Office Control Room</h1><p>One operational picture across fraud, cyber security, data breaches, complaints, refunds, disputes and general customer operations.</p></div><div class="heading-actions"><button class="button secondary" data-route="security-levels">Security levels</button>${hasPermission('risk:write') ? '<button class="button primary" data-action="new-security-event">＋ Record event</button>' : ''}</div></div>
-  <div class="metrics v7-metrics"><article class="metric-card"><div class="metric-icon blue">⌁</div><div><span>Events in 24 hours</span><strong>${Number(m.events24h || 0)}</strong><small>Authentication, payments and system activity</small></div></article><article class="metric-card"><div class="metric-icon amber">!</div><div><span>Open alerts</span><strong>${Number(m.openAlerts || 0)}</strong><small>${Number(m.criticalAlerts || 0)} critical</small></div></article><article class="metric-card"><div class="metric-icon red">◆</div><div><span>Open incidents</span><strong>${Number(m.openIncidents || 0)}</strong><small>${Number(m.breachAssessments || 0)} breach assessments</small></div></article><article class="metric-card"><div class="metric-icon blue">✓</div><div><span>Head Office tasks</span><strong>${Number(m.openTasks || 0)}</strong><small>${Number(m.openComplaints || 0)} complaints · ${Number(m.openFinancialCases || 0)} financial cases</small></div></article></div>
-  <div class="split-grid"><section class="panel"><div class="panel-header"><div><h2>Priority risk alerts</h2><p>Explainable signals requiring Head Office review.</p></div><button class="button secondary small" data-route="risk-intelligence">Open intelligence</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Alert</th><th>Reason</th><th>Score</th><th>Control</th><th>Severity</th><th>Status</th></tr></thead><tbody>${alertRows}</tbody></table></div></section><section class="panel"><div class="panel-header"><div><h2>Incident response</h2><p>Containment, investigation, recovery and breach deadlines.</p></div><button class="button secondary small" data-route="incidents-v7">Open incidents</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Incident</th><th>Summary</th><th>Severity</th><th>Status</th><th>Breach</th><th>ICO deadline</th></tr></thead><tbody>${incidentRows}</tbody></table></div></section></div>
-  <section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2>Latest event stream</h2><p>Normalised telemetry received from staff, divisions and approved providers.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Received</th><th>Event</th><th>Type</th><th>Subject</th><th>Score</th><th>Decision</th></tr></thead><tbody>${eventRows}</tbody></table></div></section>`;
+  $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">Head Office live command · Version ${escapeHtml(data.version)}</p><h1>Customer Operations &amp; Security Control Centre</h1><p>Live, D1-backed command data across customer identity, authenticated sessions, fraud, incidents, conversations and connected JA Group Services websites.</p></div><div class="heading-actions"><button class="button secondary" data-route="security-procedures">Codes &amp; procedures</button>${hasPermission('risk:write') ? '<button class="button danger" data-action="new-security-event">Record security event</button>' : ''}</div></div>
+    <div class="control-room-livebar"><div class="control-room-live-state"><i></i><div><strong>Live operational feed</strong><span> · 15-second visibility-aware refresh</span></div></div><div><span data-control-room-sync>Last live sync ${formatDate(data.generatedAt)}</span><button type="button" data-control-room-refresh>Refresh now</button></div></div>
+    <div class="metrics v7-metrics">
+      ${liveMetric('events24h','Security events · 24h',m.events24h,'Authentication, payment and system telemetry')}
+      ${liveMetric('criticalAlerts','Critical alerts',m.criticalAlerts,`${Number(m.openAlerts || 0)} total alerts`,'amber')}
+      ${liveMetric('openIncidents','Open incidents',m.openIncidents,`${Number(m.breachAssessments || 0)} breach assessments`,'red')}
+      ${liveMetric('highRiskCustomers','Customers under review',m.highRiskCustomers,`${Number(m.activeRestrictions || 0)} active restrictions`,'red')}
+      ${liveMetric('activeCustomerSessions','Active customer sessions',m.activeCustomerSessions,'Reported by connected websites')}
+      ${liveMetric('connectedPlatforms','Connected websites',m.connectedPlatforms,'Health contact in the last 15 minutes')}
+      ${liveMetric('openConversations','Live conversations',m.openConversations,'AI, hybrid and human-assisted queues')}
+      ${liveMetric('failedAuthentication24h','Denied staff sign-ins · 24h',m.failedAuthentication24h,'Failure and access-denied evidence','amber')}
+    </div>
+    <nav class="control-room-action-strip" aria-label="Control Centre priority workspaces">
+      <button data-route="security-operations"><strong>Security Operations Centre</strong><small>Markers, website lockdowns, platform health and Stripe security.</small></button>
+      <button data-route="customer-service-centre"><strong>Conversation command</strong><small>Live queue, human takeover, customer replies and case escalation.</small></button>
+      <button data-route="notifications"><strong>Customer notification panel</strong><small>Publish persistent signed-in customer notices across brand websites.</small></button>
+      <button data-route="customers"><strong>Customer control room</strong><small>Sessions, devices, fraud signals, markers, restrictions and full timeline.</small></button>
+    </nav>
+    <section class="panel"><div class="panel-header"><div><h2>Priority risk alerts</h2><p>Explainable signals requiring an authorised Head Office decision.</p></div><button class="button secondary small" data-route="risk-intelligence">Open intelligence register</button></div><div class="table-wrap live-table-wrap"><table class="data-table"><thead><tr><th>Alert</th><th>Reason</th><th>Score</th><th>Control</th><th>Severity</th><th>Status</th></tr></thead><tbody data-live-alerts>${controlRoomAlertRows(data.alerts || [])}</tbody></table></div></section>
+    <section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2>Incident &amp; breach command</h2><p>Containment, investigation, recovery and personal-data breach deadlines.</p></div><button class="button secondary small" data-route="incidents-v7">Open incident command</button></div><div class="table-wrap live-table-wrap"><table class="data-table"><thead><tr><th>Incident</th><th>Summary</th><th>Severity</th><th>Status</th><th>Breach</th><th>ICO deadline</th></tr></thead><tbody data-live-incidents>${controlRoomIncidentRows(data.incidents || [])}</tbody></table></div></section>
+    <section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2>Live security event ledger</h2><p>Normalised telemetry received from Head Office, connected websites and approved providers.</p></div></div><div class="table-wrap live-table-wrap"><table class="data-table"><thead><tr><th>Received</th><th>Event</th><th>Type</th><th>Subject</th><th>Score</th><th>Decision</th></tr></thead><tbody data-live-events>${controlRoomEventRows(data.events || [])}</tbody></table></div></section>`;
+  scheduleControlRoomPolling(Number(data.refreshAfterSeconds || 15));
 }
 
 async function renderRiskIntelligenceV7() {
@@ -53,6 +138,46 @@ async function renderSecurityLevelsV7() {
   $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">Governed security model</p><h1>Security levels & detection rules</h1><p>Separate classifications prevent risk, authority, confidentiality and enforcement from being confused with one another.</p></div></div><div class="level-grid">${cards}</div><section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2>Detection rule catalogue</h2><p>Versioned, explainable rules used by the Head Office risk engine.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Rule</th><th>Detection</th><th>Event type</th><th>Score</th><th>Threshold</th><th>Minimum response</th></tr></thead><tbody>${rules}</tbody></table></div></section>`;
 }
 
+async function renderSecurityProceduresV7() {
+  const data = await api('/api/v7/security-levels');
+  const dimensions = [
+    ['risk', 'R', 'Customer and event risk'],
+    ['enforcement', 'A', 'Permitted protective action'],
+    ['data', 'D', 'Data handling classification'],
+    ['authority', 'P', 'Staff decision authority'],
+    ['confidentiality', 'K', 'Case need-to-know'],
+    ['severity', 'SEV', 'Incident response urgency']
+  ];
+  const codeRows = dimensions.map(([dimension, prefix, title]) => {
+    const codes = (data.levels || []).filter(item => item.dimension === dimension);
+    return `<tr><td class="mono">${escapeHtml(prefix)}</td><td><strong>${escapeHtml(title)}</strong><br><small>${escapeHtml(label(dimension))} dimension</small></td><td>${codes.map(item => levelChip(item.code)).join(' ')}</td><td>${escapeHtml(codes[0]?.description || 'Open the governed catalogue for the current definitions.')}</td></tr>`;
+  }).join('');
+  $('#viewRoot').innerHTML = `<div class="page-heading"><div><p class="eyebrow">Governed response reference</p><h1>Security codes, lockdown &amp; response procedures</h1><p>Operational guidance for authorised Head Office principals. Codes describe different security dimensions and must never be collapsed into one generic score.</p></div><div class="heading-actions"><button class="button secondary" data-route="security-levels">Full code catalogue</button><button class="button danger" data-route="security-operations">Open lockdown controls</button></div></div>
+    <div class="notice danger"><span>!</span><div><strong>Lockdown remains a manual security decision</strong><br>No score or automated rule may place a customer website into critical lockdown. Confirm a genuine incident, scope the affected website, record the reason and retain the acknowledgement evidence.</div></div>
+    <section class="procedure-command-grid" aria-label="Security operating states">
+      <article class="control"><h3>Observe &amp; verify</h3><p>Correlate event evidence, identity, sessions, customer impact and connected-site health. Do not treat a score as proof of fraud.</p></article>
+      <article class="danger"><h3>Contain &amp; control</h3><p>Open an incident, preserve evidence and use the narrowest proportionate marker, restriction or website lockdown.</p></article>
+      <article class="recovery"><h3>Recover &amp; review</h3><p>Confirm acknowledgements, restore service deliberately, document residual risk and retain the complete decision history.</p></article>
+    </section>
+    <div class="notification-compose-grid" style="margin-top:18px">
+      <section class="panel record-surface"><div class="panel-header"><div><h2>Critical website lockdown procedure</h2><p>Required operator sequence for a connected JA Group Services website.</p></div></div><div class="panel-body"><ol class="procedure-steps">
+        <li><div><strong>Validate the incident</strong><span>Open or confirm the incident record, affected website, security impact and accountable decision owner.</span></div></li>
+        <li><div><strong>Preserve and classify evidence</strong><span>Record event references, customer impact, R/A/D/K/SEV codes and any personal-data breach assessment requirement.</span></div></li>
+        <li><div><strong>Select the narrowest containment</strong><span>Prefer targeted customer restrictions where possible. Use a website lockdown only for a critical site-wide security need.</span></div></li>
+        <li><div><strong>Type the platform confirmation</strong><span>Use the platform-specific confirmation shown by the Security Operations Centre. Never reuse or automate it.</span></div></li>
+        <li><div><strong>Monitor acknowledgement</strong><span>Verify the connected website received the command; record degraded or unavailable connections as incident actions.</span></div></li>
+        <li><div><strong>Recover deliberately</strong><span>Lift the lockdown only after containment and service-owner confirmation. Local maintenance and launch gates remain separate.</span></div></li>
+      </ol></div></section>
+      <section class="panel queue-surface"><div class="panel-header"><div><h2>Security code quick reference</h2><p>Current definitions are loaded from the live governed catalogue.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Prefix</th><th>Dimension</th><th>Codes</th><th>Operating meaning</th></tr></thead><tbody>${codeRows}</tbody></table></div></section>
+    </div>
+    <section class="panel" style="margin-top:18px"><div class="panel-header"><div><h2>Escalation and communication controls</h2><p>Use the existing auditable workspaces for each response action.</p></div></div><div class="control-room-action-strip" style="margin:0;border:0">
+      <button data-route="incidents-v7"><strong>Incident &amp; breach command</strong><small>Containment, recovery and ICO decision support.</small></button>
+      <button data-route="customer-service-centre"><strong>Customer conversation command</strong><small>Human takeover and controlled customer replies.</small></button>
+      <button data-route="notifications"><strong>Customer notifications</strong><small>Persistent signed-in customer notices by website or UCN.</small></button>
+      <button data-route="audit"><strong>Audit &amp; evidence</strong><small>Append-only staff, platform and system activity.</small></button>
+    </div></section>`;
+}
+
 function newSecurityEventV7Modal() {
   return modalForm('Record security or fraud event','Use this for manual reports and controlled testing. Live divisions should use the scoped event API.',{form:'v7-security-event',html:`<div class="form-grid"><label class="field"><span>Event type</span><select name="eventType" required>${['auth.failed','auth.succeeded','identity.verification_failed','payment.failed','payment.succeeded','refund.requested','chargeback.created','account.takeover_suspected','data.unauthorised_access','data.exfiltration_suspected','data.loss_reported','system.ransomware_detected','admin.security_override'].map(v=>`<option value="${v}">${v}</option>`).join('')}</select></label><label class="field"><span>Universal customer number</span><input name="customerNumber" maxlength="10" inputmode="numeric"></label><label class="field"><span>Amount</span><input name="amount" type="number" min="0" step="0.01"></label><label class="field"><span>Currency</span><input name="currency" value="GBP" maxlength="3"></label><label class="field"><span>Country code</span><input name="countryCode" maxlength="2" placeholder="GB"></label><label class="field"><span>Payment fingerprint hash</span><input name="paymentFingerprintHash" maxlength="128"></label></div><label class="check-row"><input type="checkbox" name="newDevice"> Event occurred from a newly observed device</label><label class="field"><span>Operational note</span><textarea name="note" maxlength="500"></textarea></label>`},'Process event','Risk intelligence');
 }
@@ -79,11 +204,13 @@ function updateTaskV7Modal(element) {
 
 const baseRenderRouteV7 = renderRoute;
 renderRoute = async function(route = routeFromHash()) {
+  if (route !== 'control-room') stopControlRoomPolling();
   if (route === 'control-room') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderControlRoomV7();}catch(error){return showV7RouteError(error);} }
   if (route === 'risk-intelligence') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderRiskIntelligenceV7();}catch(error){return showV7RouteError(error);} }
   if (route === 'incidents-v7') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderIncidentsV7();}catch(error){return showV7RouteError(error);} }
   if (route === 'central-operations') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderCentralOperationsV7();}catch(error){return showV7RouteError(error);} }
   if (route === 'security-levels') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderSecurityLevelsV7();}catch(error){return showV7RouteError(error);} }
+  if (route === 'security-procedures') { state.route=route; $$('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.route===route)); $('#sidebar').classList.remove('open'); setLoading(); try{return await renderSecurityProceduresV7();}catch(error){return showV7RouteError(error);} }
   return baseRenderRouteV7(route);
 };
 
@@ -108,6 +235,10 @@ handleForm = async function(form) {
 
 const baseHandleClickV7 = handleClick;
 handleClick = async function(target) {
+  if (target.closest('[data-control-room-refresh]')) {
+    try { return await refreshControlRoomNow(); }
+    catch (error) { return toast('Live refresh delayed', error.message, 'error'); }
+  }
   const element=target.closest('[data-action]');
   const action=element?.dataset.action;
   if(action==='new-security-event')return newSecurityEventV7Modal();
@@ -118,3 +249,7 @@ handleClick = async function(target) {
   if(action==='update-v7-task')return updateTaskV7Modal(element);
   return baseHandleClickV7(target);
 };
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.route === 'control-room') scheduleControlRoomPolling(1);
+});

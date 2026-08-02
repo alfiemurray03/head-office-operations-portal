@@ -208,14 +208,16 @@ function renderNavigation() {
 
 function routeFromHash() {
   const raw = location.hash.startsWith("#/") ? location.hash.slice(2) : "dashboard";
-  return raw.split("?")[0] || "dashboard";
+  const route = raw.split("?")[0] || "control-room";
+  return route === "dashboard" ? "control-room" : route;
 }
 
 function navigate(route, replace = false) {
-  const destination = `#/${route}`;
-  if (replace) { history.replaceState({}, "", destination); return renderRoute(route); }
+  const resolvedRoute = route === "dashboard" ? "control-room" : route;
+  const destination = `#/${resolvedRoute}`;
+  if (replace) { history.replaceState({}, "", destination); return renderRoute(resolvedRoute); }
   if (location.hash !== destination) location.hash = destination;
-  else return renderRoute(route);
+  else return renderRoute(resolvedRoute);
 }
 
 async function renderRoute(route = routeFromHash()) {

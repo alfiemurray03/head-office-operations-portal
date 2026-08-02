@@ -4,6 +4,7 @@ import { requirePermission } from "../_operations.js";
 const CATEGORIES = new Set(["service","account","security","billing","complaint","data_protection","safeguarding","general"]);
 const SEVERITIES = new Set(["information","important","urgent","critical"]);
 const STATUSES = new Set(["draft","published","withdrawn","expired"]);
+const CREATABLE_STATUSES = new Set(["draft","published"]);
 
 function noticeReference() {
   const bytes = new Uint8Array(5);
@@ -51,7 +52,9 @@ export const onRequestGet = async context => {
   if (customerId) { conditions.push("n.customer_id=?"); values.push(customerId); }
   if (customerNumber) { conditions.push("c.customer_number=?"); values.push(customerNumber); }
   if (STATUSES.has(status)) { conditions.push("n.status=?"); values.push(status); }
-  const result = await context.env.DB.prepare(`SELECT n.*,c.customer_number,c.display_name customer_name,p.code platform_code,p.name platform_name
+  const result = await context.env.DB.prepare(`SELECT n.*,c.customer_number,c.display_name customer_name,p.code platform_code,p.name platform_name,
+    (SELECT COUNT(*) FROM customer_notice_receipts r WHERE r.notice_id=n.id) receipt_count,
+    (SELECT COUNT(*) FROM customer_notice_receipts r WHERE r.notice_id=n.id AND r.status='dismissed') dismissal_count
     FROM customer_notices n JOIN customers c ON c.id=n.customer_id
     LEFT JOIN platforms p ON p.id=n.platform_id
     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
@@ -70,14 +73,16 @@ export const onRequestPost = async context => {
     if (body.platformCode && !platform) return error("PLATFORM_NOT_FOUND", "The selected website or service was not found.", 404);
     const category = CATEGORIES.has(body.category) ? body.category : "service";
     const severity = SEVERITIES.has(body.severity) ? body.severity : "information";
-    const status = STATUSES.has(body.status) ? body.status : "published";
+    const status = CREATABLE_STATUSES.has(body.status) ? body.status : "published";
     const title = cleanText(body.title, 180);
     const message = cleanText(body.message, 4_000);
     const actionLabel = cleanText(body.actionLabel, 100) || null;
     const actionHref = safeActionHref(body.actionHref);
     if (title.length < 3 || message.length < 5) return error("INVALID_CUSTOMER_NOTICE", "Enter a clear notice title and message.", 400);
     if (body.actionHref && !actionHref) return error("INVALID_NOTICE_ACTION", "Notice actions must use a secure HTTPS, same-site or email link.", 400);
-    const expiresAt = body.expiresAt ? new Date(body.expiresAt).toISOString() : null;
+    const expiry = body.expiresAt ? new Date(body.expiresAt) : null;
+    if (expiry && Number.isNaN(expiry.getTime())) return error("INVALID_NOTICE_EXPIRY", "Enter a valid notice expiry date and time.", 400);
+    const expiresAt = expiry?.toISOString() || null;
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
     const reference = noticeReference();
@@ -97,5 +102,43 @@ export const onRequestPost = async context => {
     return json({ notice: { id, reference, customerId: customer.id, customerNumber: customer.customer_number, platformCode: platform?.code || null, category, severity, title, message, actionLabel, actionHref, status, publishedAt: status === "published" ? now : null, expiresAt } }, 201);
   } catch (cause) {
     return error(cause.code || "CUSTOMER_NOTICE_CREATE_FAILED", cause.message || "The customer notice could not be created.", cause.status || 500, cause.details);
+  }
+};
+
+export const onRequestPut = async context => {
+  const auth = await requirePermission(context, "communications:write");
+  if (auth.response) return auth.response;
+  try {
+    const body = await readJson(context.request, 8_192);
+    const id = cleanText(body.id, 100);
+    const action = cleanText(body.action, 20).toLowerCase();
+    if (!id || !new Set(["publish", "withdraw"]).has(action)) {
+      return error("INVALID_NOTICE_ACTION", "Provide a notice ID and choose publish or withdraw.", 400);
+    }
+    const notice = await context.env.DB.prepare(`SELECT id,notice_reference,customer_id,status,expires_at
+      FROM customer_notices WHERE id=? LIMIT 1`).bind(id).first();
+    if (!notice) return error("CUSTOMER_NOTICE_NOT_FOUND", "The customer notice was not found.", 404);
+    if (action === "publish" && notice.status !== "draft") {
+      return error("INVALID_NOTICE_TRANSITION", "Only a draft notice can be published.", 409);
+    }
+    if (action === "withdraw" && notice.status !== "published") {
+      return error("INVALID_NOTICE_TRANSITION", "Only a published notice can be withdrawn.", 409);
+    }
+    if (action === "publish" && notice.expires_at && Date.parse(notice.expires_at) <= Date.now()) {
+      return error("NOTICE_ALREADY_EXPIRED", "This notice has already passed its expiry time.", 409);
+    }
+    const status = action === "publish" ? "published" : "withdrawn";
+    const now = new Date().toISOString();
+    await context.env.DB.prepare(`UPDATE customer_notices SET status=?,published_at=CASE WHEN ?='published' THEN ? ELSE published_at END,
+      updated_at=? WHERE id=?`).bind(status, status, now, now, id).run();
+    await audit(context.env, auth.session, `customer.notice.${action}`, "customer_notice", id, {
+      label: action === "publish" ? "Customer notice published" : "Customer notice withdrawn",
+      reference: notice.notice_reference,
+      customerId: notice.customer_id,
+      requestId: context.data.requestId
+    });
+    return json({ notice: { id, reference: notice.notice_reference, status, updatedAt: now } });
+  } catch (cause) {
+    return error(cause.code || "CUSTOMER_NOTICE_UPDATE_FAILED", cause.message || "The customer notice could not be updated.", cause.status || 500, cause.details);
   }
 };

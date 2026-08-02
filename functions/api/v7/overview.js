@@ -7,7 +7,10 @@ export const onRequestGet = async context => {
   if (auth.response) return auth.response;
   await ensureV7Schema(context.env);
   const since = new Date(Date.now()-24*60*60_000).toISOString();
-  const [events,alerts,critical,incidents,breaches,tasks,complaints,financial,latestAlerts,latestIncidents,latestEvents] = await context.env.DB.batch([
+  const activeSince = new Date(Date.now()-30*60_000).toISOString();
+  const connectedSince = new Date(Date.now()-15*60_000).toISOString();
+  const [events,alerts,critical,incidents,breaches,tasks,complaints,financial,highRiskCustomers,activeRestrictions,
+    activeSessions,connectedPlatforms,openConversations,failedAuthentication,latestAlerts,latestIncidents,latestEvents] = await context.env.DB.batch([
     context.env.DB.prepare("SELECT COUNT(*) count FROM security_events WHERE received_at>=?").bind(since),
     context.env.DB.prepare("SELECT COUNT(*) count FROM security_alerts WHERE status NOT IN ('false_positive','closed')"),
     context.env.DB.prepare("SELECT COUNT(*) count FROM security_alerts WHERE status NOT IN ('false_positive','closed') AND (risk_level='R4' OR severity='SEV-1')"),
@@ -16,6 +19,12 @@ export const onRequestGet = async context => {
     context.env.DB.prepare("SELECT COUNT(*) count FROM operations_tasks WHERE status NOT IN ('completed','cancelled')"),
     context.env.DB.prepare("SELECT COUNT(*) count FROM cases WHERE case_type='complaint' AND status NOT IN ('closed','cancelled')"),
     context.env.DB.prepare("SELECT COUNT(*) count FROM cases WHERE case_type IN ('refund','payment_dispute') AND status NOT IN ('closed','cancelled')"),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM customers WHERE security_status IN ('review','high','critical')"),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM restrictions WHERE status='active' AND (expires_at IS NULL OR expires_at>?)").bind(new Date().toISOString()),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM customer_sessions WHERE status='active' AND last_seen_at>=?").bind(activeSince),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM platforms WHERE status='active' AND last_health_check_at>=?").bind(connectedSince),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM support_conversations WHERE status NOT IN ('closed','resolved')"),
+    context.env.DB.prepare("SELECT COUNT(*) count FROM portal_authentication_events WHERE event_type IN ('failure','access_denied') AND occurred_at>=?").bind(since),
     context.env.DB.prepare(`SELECT a.id,a.alert_reference,a.title,a.category,a.risk_score,a.risk_level,a.enforcement_level,a.severity,a.status,
       a.last_detected_at,c.customer_number,c.display_name customer_name FROM security_alerts a
       LEFT JOIN customers c ON c.id=a.customer_id WHERE a.status NOT IN ('false_positive','closed')
@@ -28,10 +37,15 @@ export const onRequestGet = async context => {
       ORDER BY e.received_at DESC LIMIT 12`)
   ]);
   return json({
-    version:"7.0.0",
+    version:"7.1.0",
+    generatedAt:new Date().toISOString(),
+    refreshAfterSeconds:15,
     metrics:{ events24h:events.results[0].count,openAlerts:alerts.results[0].count,criticalAlerts:critical.results[0].count,
       openIncidents:incidents.results[0].count,breachAssessments:breaches.results[0].count,openTasks:tasks.results[0].count,
-      openComplaints:complaints.results[0].count,openFinancialCases:financial.results[0].count },
+      openComplaints:complaints.results[0].count,openFinancialCases:financial.results[0].count,
+      highRiskCustomers:highRiskCustomers.results[0].count,activeRestrictions:activeRestrictions.results[0].count,
+      activeCustomerSessions:activeSessions.results[0].count,connectedPlatforms:connectedPlatforms.results[0].count,
+      openConversations:openConversations.results[0].count,failedAuthentication24h:failedAuthentication.results[0].count },
     alerts:latestAlerts.results,incidents:latestIncidents.results,events:latestEvents.results
   });
 };

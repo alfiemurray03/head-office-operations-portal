@@ -70,7 +70,7 @@ assert.match(boot, /loadDiditOperationsModule/, 'The governed startup must retai
 assert.match(boot, /namedLoad\('didit-operations', loadDiditOperationsModule\)/,
   'Didit must remain part of the governed specialist-module startup set.');
 assert.match(boot, /Promise\.allSettled/, 'A temporary Didit asset failure must not freeze the entire Head Office portal.');
-assert.match(boot, /routeRequirements[\s\S]*'didit-operations': 'didit-operations'/,
+assert.match(boot, /prepareRequestedRoute[\s\S]*'identity-verifications': loadDiditOperationsModule/,
   'The Didit route must not open until its specialist module has loaded successfully.');
 assert.match(webhook, /verified\.status === "Approved"/, 'Only an approved signed provider result may automatically lift a linked restriction.');
 assert.match(webhook, /verified\.status === "Declined"/, 'A declined signed provider result must create central risk activity.');

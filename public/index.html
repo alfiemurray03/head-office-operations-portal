@@ -15,9 +15,25 @@
   <link rel="stylesheet" href="/planyx-shell.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-components.css?v=20260728-central-1">
   <link rel="stylesheet" href="/planyx-layout-fixes.css?v=20260728-central-2" data-planyx-layout-fixes>
-  <link rel="stylesheet" href="/professional-interface.css?v=20260802-admin-tools-fix-1" id="professionalInterfaceStyles">
   <link rel="stylesheet" href="/principal-account.css?v=20260731-principal-1">
   <link rel="stylesheet" href="/customer-service-controls.css?v=20260802-controls-1">
+  <link rel="stylesheet" href="/workspace-shell.css?v=20260802-control-centre-1" data-workspace-shell>
+  <link rel="stylesheet" href="/workspace-views.css?v=20260802-control-centre-1" data-workspace-views>
+  <link rel="stylesheet" href="/customer-protection.css?v=20260802-control-centre-1" data-customer-protection>
+  <link rel="stylesheet" href="/customer-directory.css?v=20260802-control-centre-1" data-customer-directory>
+  <link rel="stylesheet" href="/customer-automation.css?v=20260802-control-centre-1" data-customer-automation>
+  <link rel="stylesheet" href="/didit-operations.css?v=20260802-control-centre-1" data-didit-operations>
+  <link rel="stylesheet" href="/staff-directory.css?v=20260802-control-centre-1" data-staff-directory-style>
+  <link rel="stylesheet" href="/system-control.css?v=20260802-control-centre-1" data-system-control>
+  <link rel="stylesheet" href="/automation-centre.css?v=20260802-control-centre-1" data-automation-centre>
+  <link rel="stylesheet" href="/security-operations-centre.css?v=20260802-control-centre-1" data-security-operations-centre>
+  <link rel="stylesheet" href="/stripe-reconciliation.css?v=20260802-control-centre-1" data-stripe-reconciliation>
+  <link rel="stylesheet" href="/customer-service-centre.css?v=20260802-control-centre-1" id="customerServiceCentreStyles">
+  <link rel="stylesheet" href="/customer-service-website-controls.css?v=20260802-control-centre-1" id="customerServiceWebsiteControlsStyles">
+  <link rel="stylesheet" href="/customer-picker.css?v=20260802-control-centre-1" data-customer-picker-style>
+  <link rel="stylesheet" href="/planyx-admin-parity.css?v=20260802-control-centre-1" data-planyx-admin-parity>
+  <link rel="stylesheet" href="/principal-pin.css?v=20260802-control-centre-1" data-principal-pin>
+  <link rel="stylesheet" href="/professional-interface.css?v=20260802-control-centre-1" id="professionalInterfaceStyles">
   <style id="authVisibilityGuard">
     #appShell[hidden],
     #loginScreen[hidden] {
@@ -49,6 +65,7 @@
       z-index: 2147483647 !important;
       cursor: pointer !important;
     }
+
   </style>
   <script id="criticalLoginRecovery">
     (() => {
@@ -81,17 +98,31 @@
       <span class="version-badge">CENTRAL</span>
     </div>
 
-    <div class="login-stage">
-      <div class="login-card">
+    <div class="login-stage login-command-stage">
+      <section class="login-brief" aria-labelledby="entranceTitle">
+        <p class="eyebrow">Customer Operations &amp; Security Control Centre</p>
+        <h1 id="entranceTitle">Head Office command starts here.</h1>
+        <p>One controlled environment for JA Group Services and its brand websites: customer identity, conversations, fraud intelligence, incidents, access controls, website lockdowns and audit evidence.</p>
+        <div class="entrance-capabilities" aria-label="Control Centre capabilities">
+          <article><span>01</span><div><strong>Customer control room</strong><small>UCN, active sessions, fraud signals, markers, cases and the complete cross-brand timeline.</small></div></article>
+          <article><span>02</span><div><strong>Security command</strong><small>Live telemetry, response codes, manual lockdown procedures and connected-site acknowledgements.</small></div></article>
+          <article><span>03</span><div><strong>Website operations</strong><small>Independent controls for JA Group Services, JA Domain Hub, Planyx and Profile Centre.</small></div></article>
+        </div>
+        <div class="entrance-health" id="entranceHealth" data-state="checking" role="status" aria-live="polite">
+          <span class="entrance-health-dot"></span>
+          <div><strong>Checking Control Centre readiness</strong><small>Live service status will appear here.</small></div>
+        </div>
+      </section>
+      <div class="login-card entrance-access-card">
         <div class="security-seal" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M12 3 5.5 5.7v5.6c0 4.3 2.6 7.8 6.5 9.7 3.9-1.9 6.5-5.4 6.5-9.7V5.7L12 3Z"/>
             <path d="m9.3 12 1.8 1.8 3.8-4"/>
           </svg>
         </div>
-        <p class="eyebrow">Authorised Head Office personnel</p>
-        <h1>Head Office Operations</h1>
-        <p class="login-intro">Protect customer identities, accounts and data; prevent and investigate fraud; manage the Universal Customer Register; and control customer operations across every connected JA Group Services website.</p>
+        <p class="eyebrow">Secure access gateway</p>
+        <h1>Enter the Control Centre</h1>
+        <p class="login-intro">Microsoft Entra verifies your individual Head Office identity. Your private four-digit Head Office PIN then unlocks this browser session.</p>
         <a class="button primary microsoft-login" id="microsoftLogin" href="/api/auth/microsoft/start">
           <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           Continue with Microsoft
@@ -99,7 +130,7 @@
         <p class="configuration-note" id="configurationNote" role="alert"></p>
         <div class="login-assurance" aria-label="Access controls">
           <span>Microsoft Entra</span>
-          <span>Role enforced</span>
+          <span>PIN step-up</span>
           <span>Audit recorded</span>
         </div>
       </div>
@@ -140,6 +171,9 @@
             <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
             <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>
           </button>
+          <button class="header-notification-button" id="notificationCentreButton" type="button" data-route="notifications" data-permission="communications:read" aria-label="Open customer notification panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>Notices</span>
+          </button>
 
           <details class="account-menu">
             <summary>
@@ -175,7 +209,7 @@
         </div>
         <div class="global-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
-          <input id="globalSearch" type="search" placeholder="Search UCN, customer, case, fraud signal or payment…" aria-label="Search central customer records">
+          <input id="globalSearch" type="search" placeholder="Search UCN, customer, marker code, case, payment or incident…" aria-label="Search central customer records">
           <kbd>Ctrl K</kbd>
         </div>
       </div>
@@ -192,9 +226,11 @@
       <nav id="mainNavigation" aria-label="All Head Office tools">
         <section class="nav-group">
           <p class="nav-label">Command and intelligence</p>
+          <button class="nav-item" data-route="security-operations" data-permission="risk:read">Security Operations Centre</button>
           <button class="nav-item" data-route="control-room" data-permission="risk:read">Central control room</button>
           <button class="nav-item" data-route="risk-intelligence" data-permission="risk:read">Fraud &amp; risk intelligence</button>
           <button class="nav-item" data-route="incidents-v7" data-permission="incidents:read">Incident &amp; breach command</button>
+          <button class="nav-item" data-route="security-procedures" data-permission="risk:read">Security codes &amp; procedures</button>
           <button class="nav-item" data-route="central-operations" data-permission="operations:read">Customer operations centre</button>
         </section>
         <section class="nav-group">
@@ -202,13 +238,18 @@
           <button class="nav-item" data-route="customers" data-permission="customers:read">Universal Customer Register</button>
           <button class="nav-item" data-route="customer-directory" data-permission="platforms:read">JA Group Services ID directory</button>
           <button class="nav-item" data-route="cases" data-permission="cases:read">Cases &amp; investigations</button>
+          <button class="nav-item" data-route="customer-service-centre" data-permission="communications:read">Live conversations</button>
+          <button class="nav-item" data-route="customer-service-controls" data-permission="configuration:read">Website Customer Service Controls</button>
+          <button class="nav-item" data-route="notifications" data-permission="communications:read">Customer notification panel</button>
           <button class="nav-item" data-route="communications" data-permission="communications:read">Communications history</button>
           <button class="nav-item" data-route="payments" data-permission="payments:read">Subscriptions, payments &amp; refunds</button>
+          <button class="nav-item" data-route="stripe-control" data-permission="payments:read">Stripe control &amp; webhooks</button>
           <button class="nav-item" data-route="complaints" data-permission="complaints:read">Complaints &amp; redress</button>
         </section>
         <section class="nav-group">
           <p class="nav-label">Customer protection</p>
           <button class="nav-item" data-route="customer-protection" data-permission="risk:read">Customer protection operations</button>
+          <button class="nav-item" data-route="identity-verifications" data-permission="security:read">Identity verification</button>
           <button class="nav-item" data-route="security" data-permission="security:read">Markers, restrictions &amp; access</button>
           <button class="nav-item" data-route="data-protection" data-permission="data_protection:*">Data protection cases</button>
           <button class="nav-item" data-route="safeguarding" data-permission="safeguarding:*">Safeguarding cases</button>
@@ -219,6 +260,8 @@
           <button class="nav-item" data-route="platforms" data-permission="platforms:read">Connected websites &amp; services</button>
           <button class="nav-item" data-route="staff" data-permission="administration:read">Staff identity &amp; authority</button>
           <button class="nav-item" data-route="audit" data-permission="audit:read">Audit &amp; evidence history</button>
+          <button class="nav-item" data-route="automation-centre" data-permission="configuration:read">Automation &amp; Scheduling Centre</button>
+          <button class="nav-item" data-route="test-centre" data-permission="configuration:read">System Test Centre</button>
           <button class="nav-item" data-route="settings" data-permission="configuration:read">Governed configuration</button>
         </section>
       </nav>
@@ -255,23 +298,24 @@
   </dialog>
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
-  <script src="/js/core.js?v=20260802-login-recovery-1" defer></script>
+  <script src="/js/core.js?v=20260802-control-centre-1" defer></script>
   <script src="/js/views-operations.js?v=20260728-v7-4" defer></script>
   <script src="/js/views-control.js?v=20260728-v7-4" defer></script>
   <script src="/js/modals.js?v=20260728-v7-4" defer></script>
   <script src="/js/actions.js?v=20260728-central-2" defer></script>
-  <script src="/js/views-v7.js?v=20260728-v7-4" defer></script>
+  <script src="/js/views-v7.js?v=20260802-control-centre-1" defer></script>
   <script src="/js/views-enterprise.js?v=20260728-enterprise-1" defer></script>
   <script src="/js/v7-overrides.js?v=20260728-v7-4" defer></script>
-  <script src="/js/head-office-context.js?v=20260728-central-2" defer></script>
-  <script src="/js/principal-account.js?v=20260731-principal-1" defer></script>
-  <script src="/js/operations-shell.js?v=20260802-admin-tools-fix-2" defer></script>
+  <script src="/js/head-office-context.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/principal-account.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/operations-shell.js?v=20260802-control-centre-1" defer></script>
   <script src="/js/customer-record-workspace.js?v=20260728-central-1" defer></script>
   <script src="/js/central-platform-ui.js?v=20260728-central-2" defer></script>
   <script src="/js/central-router.js?v=20260728-central-1" defer></script>
-  <script src="/js/modal-system.js?v=20260728-modal-1" defer></script>
-  <script src="/js/professional-interface.js?v=20260802-head-observer-fix-1" defer></script>
-  <script src="/js/boot.js?v=20260802-admin-tools-fix-2" defer></script>
-  <script src="/js/customer-service-controls.js?v=20260802-controls-1" defer></script>
+  <script src="/js/modal-system.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/professional-interface.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/customer-service-controls.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/notification-centre.js?v=20260802-control-centre-1" defer></script>
+  <script src="/js/boot.js?v=20260802-control-centre-1" defer></script>
 </body>
 </html>

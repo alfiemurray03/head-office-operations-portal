@@ -7,23 +7,13 @@
     link.rel = 'stylesheet';
     link.href = '/planyx-layout-fixes.css?v=20260728-central-2';
     link.dataset.planyxLayoutFixes = 'true';
-    document.head.append(link);
+    document.head.insertBefore(link, document.getElementById('professionalInterfaceStyles') || null);
   }
 })();
 
-(function loadHeadOfficeShellBehaviour() {
-  // The transferred Planyx design now owns the entire visual shell. Retain only
-  // the compatibility behaviour from clean-shell.js; loading clean-shell.css
-  // here would place the old visual layer after and override the new design.
-  document.addEventListener('DOMContentLoaded', () => {
-    if (document.querySelector('script[data-clean-shell]')) return;
-    const script = document.createElement('script');
-    script.src = '/js/clean-shell.js?v=20260728-central-2';
-    script.async = false;
-    script.dataset.cleanShell = 'true';
-    document.body.append(script);
-  }, { once: true });
-})();
+// The stable shell is now part of index.html before authentication. Legacy
+// clean-shell.js is deliberately not injected after first paint because it
+// wrapped the router and rewrote visible navigation during startup.
 
 renderNavigation = function renderHeadOfficeNavigation() {
   $$('[data-permission]').forEach(item => {
