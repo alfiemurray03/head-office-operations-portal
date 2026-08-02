@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS website_control_settings (
   updated_at TEXT NOT NULL
 );
 
+-- Correct the former general-support alias only inside Customer Service branch
+-- configuration. No Microsoft 365, directory or website account is changed.
+UPDATE support_branch_settings
+SET contact_options_json = replace(
+      contact_options_json,
+      'hello@jagroupservices.co.uk',
+      'contact@jagroupservices.co.uk'
+    ),
+    updated_at = datetime('now')
+WHERE contact_options_json LIKE '%hello@jagroupservices.co.uk%';
+
 -- Create disabled-by-default website-control records for the four approved branches.
 -- No website is placed behind a gate by this migration.
 INSERT INTO website_control_settings (
