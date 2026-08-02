@@ -75,23 +75,61 @@ const STATEMENTS = [
 ];
 
 const ready = new WeakMap();
+const FORBIDDEN_METADATA_KEY = /secret|token|password|credential|authorization|cookie|marker[ _-]?reason|safeguarding[ _-]?detail/i;
 
 export function jsonValue(value, fallback = {}) {
   try { return JSON.stringify(value ?? fallback); }
   catch { return JSON.stringify(fallback); }
 }
 
-export function safeObject(value, maximumEntries = 40) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+function safeJsonValue(value, maximumEntries, depth) {
+  if (depth > 3) return undefined;
+  if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "string") return cleanText(value, 1000);
+  if (Array.isArray(value)) {
+    return value.slice(0, 30)
+      .map(item => safeJsonValue(item, maximumEntries, depth + 1))
+      .filter(item => item !== undefined);
+  }
+  if (!value || typeof value !== "object") return undefined;
+
   const output = {};
   for (const [rawKey, rawValue] of Object.entries(value).slice(0, maximumEntries)) {
     const key = cleanText(rawKey, 80);
-    if (!key || /secret|token|password|credential|authorization|cookie|marker_reason/i.test(key)) continue;
-    if (rawValue === null || ["string", "number", "boolean"].includes(typeof rawValue)) {
-      output[key] = typeof rawValue === "string" ? cleanText(rawValue, 500) : rawValue;
-    }
+    if (!key || FORBIDDEN_METADATA_KEY.test(key)) continue;
+    const safeValue = safeJsonValue(rawValue, maximumEntries, depth + 1);
+    if (safeValue !== undefined) output[key] = safeValue;
   }
   return output;
+}
+
+export function safeObject(value, maximumEntries = 40) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return safeJsonValue(value, Math.max(1, Math.min(100, Number(maximumEntries) || 40)), 0) || {};
+}
+
+export function normaliseSupportCategory(value) {
+  const raw = cleanText(String(value || ""), 80).toLowerCase();
+  const category = raw
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const aliases = {
+    privacy: "data_protection",
+    data_subject_rights: "data_protection",
+    subject_access_request: "data_protection",
+    sar: "data_protection",
+    child_safety: "safeguarding",
+    young_person: "safeguarding",
+    vulnerable_person: "safeguarding",
+    fraud: "security",
+    account_compromise: "security",
+    suspected_account_compromise: "security",
+    login: "account_recovery",
+    sign_in: "account_recovery",
+    signin: "account_recovery"
+  };
+  return aliases[category] || category || "general";
 }
 
 export async function ensureSupportCentreSchema(env) {
