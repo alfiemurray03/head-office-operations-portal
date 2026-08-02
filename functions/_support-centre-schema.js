@@ -8,13 +8,13 @@ const STATEMENTS = [
     maintenance_enabled INTEGER NOT NULL DEFAULT 0, maintenance_message TEXT, emergency_notice TEXT,
     greeting TEXT, away_message TEXT, operating_hours_json TEXT NOT NULL DEFAULT '{}',
     appearance_json TEXT NOT NULL DEFAULT '{}', escalation_rules_json TEXT NOT NULL DEFAULT '{}',
-    contact_options_json TEXT NOT NULL DEFAULT '{}', retention_days INTEGER NOT NULL DEFAULT 365,
+    contact_options_json TEXT NOT NULL DEFAULT '{}', retention_days INTEGER NOT NULL DEFAULT 180,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS support_conversations (
     id TEXT PRIMARY KEY, conversation_reference TEXT NOT NULL UNIQUE,
     platform_id TEXT NOT NULL REFERENCES platforms(id), customer_id TEXT REFERENCES customers(id),
     platform_account_id TEXT REFERENCES customer_platform_accounts(id), external_conversation_id TEXT NOT NULL,
-    visitor_reference_hash TEXT, status TEXT NOT NULL DEFAULT 'ai_handling', handling_mode TEXT NOT NULL DEFAULT 'ai',
+    visitor_reference_hash TEXT, status TEXT NOT NULL DEFAULT 'human_assistance_requested', handling_mode TEXT NOT NULL DEFAULT 'human_pending',
     category TEXT NOT NULL DEFAULT 'general', priority TEXT NOT NULL DEFAULT 'normal', current_page TEXT, page_title TEXT,
     authenticated INTEGER NOT NULL DEFAULT 0, identity_status TEXT NOT NULL DEFAULT 'anonymous',
     verified_email_snapshot TEXT, display_name_snapshot TEXT, customer_number_snapshot TEXT,
@@ -76,6 +76,7 @@ const STATEMENTS = [
 
 const ready = new WeakMap();
 const FORBIDDEN_METADATA_KEY = /secret|token|password|credential|authorization|cookie|marker[ _-]?reason|safeguarding[ _-]?detail/i;
+const LIVE_PLATFORM = /planyx|profile[ _-]?centre|ja[ _-]?domain[ _-]?hub|ja[ _-]?group[ _-]?services/i;
 
 export function jsonValue(value, fallback = {}) {
   try { return JSON.stringify(value ?? fallback); }
@@ -151,17 +152,93 @@ export function supportReference() {
   return `CSC-${new Date().getUTCFullYear()}-${suffix}`;
 }
 
+function platformDescriptor(platform) {
+  return `${cleanText(platform?.code, 100)} ${cleanText(platform?.name, 160)}`.trim();
+}
+
+function isPlanyx(platform) {
+  return /planyx/i.test(platformDescriptor(platform));
+}
+
+export function isLiveSupportPlatform(platform) {
+  return LIVE_PLATFORM.test(platformDescriptor(platform));
+}
+
+export async function ensureSupportCredentialScopes(env, platform) {
+  if (!isLiveSupportPlatform(platform)) return [];
+  const required = ["support:read", "support:write", ...(isPlanyx(platform) ? ["support:ai"] : [])];
+  const rows = await env.DB.prepare(`SELECT id,scopes_json FROM platform_api_credentials
+    WHERE platform_id=? AND status='active'`).bind(platform.id).all();
+  for (const row of rows.results || []) {
+    let scopes = [];
+    try { scopes = JSON.parse(row.scopes_json || "[]"); } catch {}
+    if (!Array.isArray(scopes)) scopes = [];
+    const updated = [...new Set([...scopes.map(value => cleanText(String(value), 100)).filter(Boolean), ...required])];
+    if (JSON.stringify(updated) !== JSON.stringify(scopes)) {
+      await env.DB.prepare("UPDATE platform_api_credentials SET scopes_json=? WHERE id=?")
+        .bind(JSON.stringify(updated), row.id).run();
+    }
+  }
+  return required;
+}
+
+function branchDefaults(platform) {
+  const descriptor = platformDescriptor(platform);
+  const planyx = /planyx/i.test(descriptor);
+  const profile = /profile[ _-]?centre/i.test(descriptor);
+  const domain = /domain[ _-]?hub/i.test(descriptor);
+  const assistantName = planyx
+    ? "Planyx Support Assistant"
+    : profile
+      ? "Profile Centre Support Assistant"
+      : domain
+        ? "JA Domain Hub Support Assistant"
+        : "JA Group Services Support Assistant";
+  const greeting = planyx
+    ? "Hello. I can help with Planyx planning tools and account questions, or connect you with a Head Office Customer Adviser."
+    : profile
+      ? "Hello. I can help with Profile Centre accounts, profiles and sharing, or connect you with a Head Office Customer Adviser."
+      : domain
+        ? "Hello. Start with guided domain troubleshooting. A Head Office Customer Adviser can help if the issue is not resolved."
+        : "Hello. How can Head Office Customer Service help you today?";
+  return {
+    assistantName,
+    greeting,
+    aiEnabled: planyx ? 1 : 0,
+    contactOptions: {
+      email: "hello@jagroupservices.co.uk",
+      complaintsEmail: "complaints@jagroupservices.co.uk",
+      dataProtectionEmail: "dataprotection@jagroupservices.co.uk",
+      phone: "020 3834 2790"
+    }
+  };
+}
+
 export async function ensureBranchSettings(env, platform) {
   await ensureSupportCentreSchema(env);
+  await ensureSupportCredentialScopes(env, platform);
   const now = new Date().toISOString();
-  const defaultName = `${cleanText(platform?.name, 80) || "Customer"} Support Assistant`;
+  const defaults = branchDefaults(platform);
   await env.DB.prepare(`INSERT INTO support_branch_settings
     (platform_id,assistant_name,assistant_enabled,ai_enabled,human_takeover_enabled,anonymous_enabled,
      maintenance_enabled,greeting,operating_hours_json,appearance_json,escalation_rules_json,
      contact_options_json,retention_days,created_at,updated_at)
-    VALUES (?,?,0,0,1,1,0,?,'{}','{}','{}','{}',365,?,?)
+    VALUES (?,?,1,?,1,1,0,?,'{}','{}','{}',?,180,?,?)
     ON CONFLICT(platform_id) DO NOTHING`)
-    .bind(platform.id, defaultName, `Hello. You are speaking with the ${defaultName}. How can we help?`, now, now).run();
+    .bind(platform.id, defaults.assistantName, defaults.aiEnabled, defaults.greeting,
+      JSON.stringify(defaults.contactOptions), now, now).run();
+
+  await env.DB.prepare(`UPDATE support_branch_settings SET
+      assistant_enabled=1,
+      ai_enabled=?,
+      assistant_name=CASE WHEN assistant_name='Support Assistant' OR assistant_name LIKE '% Support Assistant' THEN ? ELSE assistant_name END,
+      greeting=COALESCE(NULLIF(greeting,''),?),
+      contact_options_json=CASE WHEN contact_options_json='{}' OR contact_options_json='' THEN ? ELSE contact_options_json END,
+      retention_days=CASE WHEN retention_days=365 THEN 180 ELSE retention_days END,
+      updated_at=?
+    WHERE platform_id=? AND assistant_enabled=0 AND created_at=updated_at`)
+    .bind(defaults.aiEnabled, defaults.assistantName, defaults.greeting, JSON.stringify(defaults.contactOptions), now, platform.id).run();
+
   return env.DB.prepare("SELECT * FROM support_branch_settings WHERE platform_id=?").bind(platform.id).first();
 }
 
