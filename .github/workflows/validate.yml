@@ -87,6 +87,9 @@ jobs:
       - name: Validate central age assurance deployments
         run: node tests/age-assurance-deployments.test.mjs
 
+      - name: Validate AI Customer Service Centre
+        run: node tests/ai-customer-service-centre.test.mjs
+
       - name: Validate Security Operations Centre
         run: node tests/security-operations-centre.test.mjs
 
@@ -147,6 +150,16 @@ jobs:
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM service_test_runs;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_schedules;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM automation_runs;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_branch_settings;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_conversations;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_messages;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_conversation_events;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_knowledge_articles;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_knowledge_assignments;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_provider_escalations;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_consents;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_attachments;"
+          sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM support_staff_branch_access;"
           sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM system_settings WHERE setting_group='age_assurance';"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT COUNT(*) FROM pragma_table_info('identity_verification_sessions') WHERE name IN ('verification_purpose','required_age');")" = "2"
           test "$(sqlite3 /tmp/head-office-central.db "SELECT json_extract(value_json,'$') FROM system_settings WHERE setting_key='age_assurance.enforcement_master_enabled';")" = "0"
