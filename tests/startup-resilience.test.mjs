@@ -23,8 +23,8 @@ assert.match(index, /professional-interface\.css\?v=20260802-control-centre-2/,
   'The stable Control Centre layout must use a fresh cache-busting URL.');
 assert.match(index, /core\.js\?v=20260802-control-centre-1/,
   'The corrected core login code must use a fresh cache-busting URL.');
-assert.match(index, /boot\.js\?v=20260802-control-centre-1/,
-  'The corrected boot process must use a fresh cache-busting URL.');
+assert.match(index, /boot\.js\?v=20260802-conversation-stability-2/,
+  'The deep-link-aware boot process must use a fresh cache-busting URL.');
 assert.match(index, /operations-shell\.js\?v=20260802-control-centre-1/,
   'The corrected stable navigation handler must use a fresh cache-busting URL.');
 
@@ -36,6 +36,11 @@ assert.match(
   boot,
   /initialRoute = await prepareRequestedRoute\(requestedRoute\)/,
   'Only the requested specialist workspace may be prepared before the initial render.'
+);
+assert.match(
+  boot,
+  /startsWith\('customer-service-centre\/'\)[\s\S]*ensureCustomerServiceAssets[\s\S]*return route/,
+  'A refreshed conversation deep link must load its specialist workspace instead of falling back to the Control Room.'
 );
 const initialNavigationIndex = boot.indexOf('navigate(initialRoute, true)');
 const optionalInitialisationIndex = boot.indexOf(
