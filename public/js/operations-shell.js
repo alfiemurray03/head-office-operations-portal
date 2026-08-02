@@ -312,6 +312,16 @@ function updateOperationsRouteChrome(route = routeFromHash()) {
 function closeOperationsTools() {
   const drawer = document.querySelector("#sidebar");
   if (drawer) drawer.classList.remove("open");
+  document.querySelector("#menuButton")?.setAttribute("aria-expanded", "false");
+}
+
+function toggleOperationsTools() {
+  const drawer = document.querySelector("#sidebar");
+  const menuButton = document.querySelector("#menuButton");
+  if (!drawer || !menuButton) return;
+  const open = !drawer.classList.contains("open");
+  drawer.classList.toggle("open", open);
+  menuButton.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
 function applyOperationsTheme(theme) {
@@ -355,6 +365,13 @@ async function renderWorkspaceRoute(route, loader, renderer, failureTitle) {
 
   document.querySelector("#drawerCloseButton")?.addEventListener("click", closeOperationsTools);
   document.querySelector("#menuBackdrop")?.addEventListener("click", closeOperationsTools);
+
+  document.addEventListener("click", event => {
+    if (!event.target.closest("#menuButton")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toggleOperationsTools();
+  }, true);
 
   document.addEventListener("keydown", event => {
     if (event.key === "Escape") closeOperationsTools();

@@ -313,7 +313,6 @@ function boot() {
   return bootPromise;
 }
 
-$('#menuButton').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 $('#signOutButton').addEventListener('click', async () => {
   const result = await api('/api/auth/logout', { method: 'POST', body: '{}', timeoutMs: 8_000 }).catch(() => ({}));
   bootGeneration += 1;

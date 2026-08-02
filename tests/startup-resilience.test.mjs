@@ -23,8 +23,10 @@ assert.match(index, /professional-interface\.css\?v=20260802-admin-tools-fix-1/,
   'The corrected All admin tools layout must use a fresh cache-busting URL.');
 assert.match(index, /core\.js\?v=20260802-login-recovery-1/,
   'The corrected core login code must use a fresh cache-busting URL.');
-assert.match(index, /boot\.js\?v=20260802-login-recovery-1/,
+assert.match(index, /boot\.js\?v=20260802-admin-tools-fix-2/,
   'The corrected boot process must use a fresh cache-busting URL.');
+assert.match(index, /operations-shell\.js\?v=20260802-admin-tools-fix-2/,
+  'The corrected All admin tools handler must use a fresh cache-busting URL.');
 
 assert.match(core, /DEFAULT_API_TIMEOUT_MS/, 'Every portal API request must have a hard timeout.');
 assert.match(core, /AbortController/, 'Timed-out browser requests must be aborted rather than left pending forever.');
