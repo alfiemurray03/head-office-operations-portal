@@ -1,7 +1,17 @@
 import { audit, cleanText, error, json, readJson, sha256 } from "../../../_shared.js";
 import { requirePermission } from "../../../_operations.js";
 
-const permittedScopes = new Set(["customers:read", "customers:write", "security:read", "cases:write", "events:write", "platform:write"]);
+const permittedScopes = new Set([
+  "customers:read",
+  "customers:write",
+  "security:read",
+  "cases:write",
+  "events:write",
+  "platform:write",
+  "support:read",
+  "support:write",
+  "support:ai",
+]);
 
 function randomSecret(bytes = 32) {
   const value = new Uint8Array(bytes);
@@ -19,7 +29,9 @@ export const onRequestPost = async context => {
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   const name = cleanText(body.name, 100);
-  const scopes = Array.isArray(body.scopes) ? [...new Set(body.scopes.map(value => cleanText(value, 40)).filter(value => permittedScopes.has(value)))] : [];
+  const scopes = Array.isArray(body.scopes)
+    ? [...new Set(body.scopes.map(value => cleanText(value, 40)).filter(value => permittedScopes.has(value)))]
+    : [];
   if (name.length < 2 || scopes.length === 0) return error("INVALID_CREDENTIAL", "Enter a credential name and select at least one permitted scope.");
   const id = crypto.randomUUID();
   const keyPrefix = `${platform.code.toLowerCase().replace(/[^a-z0-9]/g, "")}_${randomSecret(6)}`;
