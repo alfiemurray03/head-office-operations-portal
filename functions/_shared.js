@@ -76,9 +76,12 @@ export async function getSession(request, env) {
   return getMicrosoftSession(canonicalRequest, env);
 }
 
-export async function requireSession(context) {
+export async function requireSession(context, options = {}) {
   const session = await getSession(context.request, context.env);
   if (!session) return { response: error("AUTHENTICATION_REQUIRED", "Your staff session is not valid.", 401) };
+  if (options.requirePin !== false && !session.pinVerifiedAt) {
+    return { response: error("PRINCIPAL_PIN_REQUIRED", "Enter your personal Head Office PIN to continue.", 428) };
+  }
   return { session };
 }
 

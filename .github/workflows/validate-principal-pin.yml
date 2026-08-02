@@ -1,0 +1,48 @@
+name: Validate Principal PIN and Customer Notices
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Parse changed security modules
+        run: |
+          node --check functions/_principal-pin.js
+          node --check functions/api/auth/pin.js
+          node --check functions/api/customer-notices.js
+          node --check functions/api/platform/customer-notices.js
+          node --check public/js/principal-pin.js
+          node --check public/js/boot.js
+
+      - name: Run focused security contract checks
+        run: node --test tests/principal-pin-and-customer-notices.test.mjs
+
+      - name: Apply all migrations and verify 0026
+        run: |
+          rm -f /tmp/head-office-pin.db
+          for migration in migrations/*.sql; do
+            echo "Applying ${migration}"
+            sqlite3 /tmp/head-office-pin.db < "${migration}"
+          done
+          test "$(sqlite3 /tmp/head-office-pin.db "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('principal_pin_credentials','principal_pin_events','customer_notices','customer_notice_receipts');")" = "4"
+          test "$(sqlite3 /tmp/head-office-pin.db "SELECT COUNT(*) FROM pragma_table_info('portal_sessions') WHERE name='pin_verified_at';")" = "1"
+          test "$(sqlite3 /tmp/head-office-pin.db "SELECT COUNT(*) FROM portal_users WHERE id IN ('HOP-USER-001','HOP-USER-002');")" = "2"
+          test "$(sqlite3 /tmp/head-office-pin.db "SELECT COUNT(*) FROM portal_sessions;")" = "0"
+          test -z "$(sqlite3 /tmp/head-office-pin.db "PRAGMA foreign_key_check;")"
