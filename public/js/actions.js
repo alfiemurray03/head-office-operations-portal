@@ -123,7 +123,7 @@ async function handleForm(form) {
 }
 
 async function handleClick(target) {
-  const route = target.closest('[data-route]')?.dataset.route;
+  const route = target.closest?.('button[data-route], a[data-route], [role="button"][data-route]')?.dataset.route;
   if (route) return navigate(route);
   if (target.closest('[data-close-modal]')) return closeModal();
   const row = target.closest('[data-open]');

@@ -4,11 +4,20 @@ import fs from 'node:fs';
 const workspace = fs.readFileSync('public/js/customer-service-centre.js', 'utf8');
 const stylesheet = fs.readFileSync('public/customer-service-centre.css', 'utf8');
 const interfaceScript = fs.readFileSync('public/js/professional-interface.js', 'utf8');
+const actions = fs.readFileSync('public/js/actions.js', 'utf8');
 const websiteControls = fs.readFileSync('public/js/customer-service-website-controls.js', 'utf8');
 const websiteControlsCss = fs.readFileSync('public/customer-service-website-controls.css', 'utf8');
 const websiteControlsApi = fs.readFileSync('functions/api/support-centre/website-controls/[[path]].js', 'utf8');
 
 assert.match(interfaceScript, /customer-service-centre/);
+assert.match(interfaceScript, /root\.dataset\.currentRoute = route/,
+  'The view container may expose its current route only through non-actionable page metadata.');
+assert.doesNotMatch(interfaceScript, /root\.dataset\.route = route/,
+  'The view container must not masquerade as a data-route navigation control and intercept all nested clicks.');
+assert.match(actions, /button\[data-route\], a\[data-route\], \[role="button"\]\[data-route\]/,
+  'Global routing must react only to actionable navigation controls, never route metadata on page containers.');
+assert.doesNotMatch(actions, /target\.closest\('\[data-route\]'\)/,
+  'A click inside route-labelled page chrome must not be mistaken for navigation.');
 assert.match(interfaceScript, /AI Customer Service Centre/);
 assert.match(interfaceScript, /customer-service-centre\.js/);
 assert.match(interfaceScript, /customer-service-centre\.css/);

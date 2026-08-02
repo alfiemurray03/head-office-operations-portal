@@ -225,7 +225,11 @@
     setShellIdentity();
     const root = document.getElementById('viewRoot');
     if (!root) return;
-    root.dataset.route = route;
+    // `data-route` is reserved for actionable navigation controls. Applying it
+    // to the view container makes every click inside the page look like a
+    // request to navigate back to the current route.
+    root.removeAttribute('data-route');
+    root.dataset.currentRoute = route;
     root.dataset.pageType = type;
     classifySurfaces(root);
   }
