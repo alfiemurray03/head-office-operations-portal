@@ -19,6 +19,8 @@ assert.match(index, /#microsoftLogin[\s\S]*z-index: 2147483647 !important/,
   'The Microsoft sign-in control must remain above any stale application overlay.');
 assert.match(index, /professional-interface\.js\?v=20260802-head-observer-fix-1/,
   'The corrected global interface loader must use a fresh cache-busting URL.');
+assert.match(index, /professional-interface\.css\?v=20260802-admin-tools-fix-1/,
+  'The corrected All admin tools layout must use a fresh cache-busting URL.');
 assert.match(index, /core\.js\?v=20260802-login-recovery-1/,
   'The corrected core login code must use a fresh cache-busting URL.');
 assert.match(index, /boot\.js\?v=20260802-login-recovery-1/,

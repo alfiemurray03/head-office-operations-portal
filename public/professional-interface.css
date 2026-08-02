@@ -1058,3 +1058,56 @@ body.ops-tailwind .system-footer strong {
     flex-wrap: wrap !important;
   }
 }
+
+/* The desktop portal uses the same floating All admin tools drawer as the
+   responsive shell. These final rules supersede the retired permanent-sidebar
+   layout while keeping the professional interface presentation intact. */
+@media (min-width: 1024px) {
+  body.ops-tailwind .app-shell {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  body.ops-tailwind .ops-header,
+  body.ops-tailwind .main-shell {
+    width: 100% !important;
+  }
+
+  body.ops-tailwind #menuButton.all-tools-button,
+  body.ops-tailwind #drawerCloseButton.drawer-close {
+    display: inline-flex !important;
+  }
+
+  body.ops-tailwind #sidebar.tools-drawer {
+    position: fixed !important;
+    inset: 72px 24px auto auto !important;
+    z-index: 80 !important;
+    width: min(720px, calc(100vw - 48px)) !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: calc(100vh - 96px) !important;
+    display: block !important;
+    overflow: hidden !important;
+    border: 1px solid var(--ho-border) !important;
+    border-radius: 16px !important;
+    background: var(--ho-surface) !important;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, .24) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(-8px) scale(.985) !important;
+  }
+
+  body.ops-tailwind #sidebar.tools-drawer.open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateY(0) scale(1) !important;
+  }
+
+  body.ops-tailwind #mainNavigation {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    max-height: calc(100vh - 230px) !important;
+  }
+}
