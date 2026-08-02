@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { normaliseSupportCategory, safeObject } from "../functions/_support-centre-schema.js";
 
 const migration = fs.readFileSync("migrations/0023_ai_customer_service_centre.sql", "utf8");
 const schema = fs.readFileSync("functions/_support-centre-schema.js", "utf8");
 const platformApi = fs.readFileSync("functions/api/v1/platform/support/[[path]].js", "utf8");
 const staffApi = fs.readFileSync("functions/api/support-centre/[[path]].js", "utf8");
+const portal = fs.readFileSync("public/index.html", "utf8");
 
 for (const table of [
   "support_branch_settings",
@@ -22,10 +24,28 @@ for (const table of [
   assert.match(schema, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
 }
 
+assert.equal(normaliseSupportCategory("Data Protection"), "data_protection");
+assert.equal(normaliseSupportCategory("subject access request"), "data_protection");
+assert.equal(normaliseSupportCategory("Young Person"), "safeguarding");
+assert.equal(normaliseSupportCategory("suspected account compromise"), "security");
+assert.equal(normaliseSupportCategory("Sign-in"), "account_recovery");
+
+const safeMetadata = safeObject({
+  appearance: { theme: "navy", layout: { density: "compact" }, secret: "must-not-survive" },
+  operatingHours: { monday: ["09:00", "17:00"] },
+  markerReason: "restricted",
+  authorisationToken: "restricted"
+});
+assert.deepEqual(safeMetadata.appearance, { theme: "navy", layout: { density: "compact" } });
+assert.deepEqual(safeMetadata.operatingHours, { monday: ["09:00", "17:00"] });
+assert.equal("markerReason" in safeMetadata, false);
+assert.equal("authorisationToken" in safeMetadata, false);
+
 assert.match(platformApi, /support:\*/);
 assert.match(platformApi, /support:read/);
 assert.match(platformApi, /support:write/);
 assert.match(platformApi, /resolveSupportCustomer/);
+assert.match(platformApi, /normaliseSupportCategory/);
 assert.match(platformApi, /central_customer_not_found/);
 assert.match(platformApi, /ucn_not_found/);
 assert.doesNotMatch(platformApi, /SELECT \* FROM customers WHERE verified_email=/);
@@ -35,14 +55,24 @@ assert.match(platformApi, /allocateCaseReference/);
 assert.match(platformApi, /data_protection/);
 assert.match(platformApi, /safeguarding/);
 assert.match(platformApi, /complaint_records/);
-assert.match(platformApi, /marker_reason/);
+assert.match(platformApi, /created_by,created_at\)[\s\S]*NULL/);
+
+assert.match(schema, /marker\[ _-\]\?reason/);
+assert.match(schema, /safeguarding\[ _-\]\?detail/);
+assert.match(schema, /depth > 3/);
 
 assert.match(staffApi, /support_staff_branch_access/);
 assert.match(staffApi, /SUPPORT_BRANCH_ACCESS_DENIED/);
+assert.match(staffApi, /DPO_RESTRICTED/);
+assert.match(staffApi, /SAFEGUARDING_RESTRICTED/);
+assert.match(staffApi, /SECURITY_OFFICER/);
 assert.match(staffApi, /support\.conversation\.read/);
 assert.match(staffApi, /support\.conversation\.takeover/);
 assert.match(staffApi, /visibility === "internal"/);
 assert.match(staffApi, /WHERE conversation_id=\? ORDER BY created_at,id/);
 assert.match(staffApi, /configuration:write/);
+assert.match(staffApi, /escalationRules/);
+
+assert.match(portal, /professional-interface\.js/);
 
 console.log("AI Customer Service Centre foundation contract checks passed.");
