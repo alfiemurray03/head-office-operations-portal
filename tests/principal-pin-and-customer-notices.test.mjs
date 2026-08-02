@@ -20,7 +20,8 @@ test('personal PINs use a separate Cloudflare pepper and controlled lockout', as
   assert.match(source, /PORTAL_PIN_PEPPER/);
   assert.match(source, /PBKDF2/);
   assert.match(source, /SHA-256/);
-  assert.match(source, /210_000/);
+  assert.match(source, /PIN_ITERATIONS = 100_000/);
+  assert.doesNotMatch(source, /PIN_ITERATIONS = 210_000/);
   assert.match(source, /MAX_FAILED_ATTEMPTS = 5/);
   assert.match(source, /LOCKOUT_MS = 15 \* 60 \* 1000/);
   assert.match(source, /pinVerifiedAt/);
