@@ -1,5 +1,6 @@
 import { json } from "../../_shared.js";
 import { inspectMicrosoftSession, microsoftConfiguration } from "../../_microsoft-auth.js";
+import { getPrincipalPinStatus } from "../../_principal-pin.js";
 
 export const onRequestGet = async ({ request, env }) => {
   const microsoft = microsoftConfiguration(env);
@@ -8,8 +9,9 @@ export const onRequestGet = async ({ request, env }) => {
     ? await inspectMicrosoftSession(requestWithPreferredHostCookies(request), env)
     : { session: null, status: "microsoft_not_configured" };
   const session = microsoftInspection.session;
+  const pin = await getPrincipalPinStatus(env, session);
   return json({
-    authRevision: "host-only-cookie-v6",
+    authRevision: "host-only-cookie-v7-principal-pin",
     configured,
     authentication: microsoft.configured ? "microsoft_entra" : "unconfigured",
     microsoft: {
@@ -20,6 +22,7 @@ export const onRequestGet = async ({ request, env }) => {
     },
     authenticated: Boolean(session),
     sessionStatus: session ? "authenticated" : microsoftInspection.status,
+    pin,
     user: session ? {
       id: session.sub, displayName: session.displayName, fullName: session.fullName, preferredName: session.preferredName,
       roleName: session.roleName, roleCode: session.roleCode, email: session.username, jobTitles: session.jobTitles,
