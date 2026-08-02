@@ -11,6 +11,7 @@ import {
 import {
   ensureBranchSettings,
   ensureSupportCentreSchema,
+  ensureSupportCredentialScopes,
   jsonValue,
   normaliseSupportCategory,
   resolveSupportCustomer,
@@ -20,7 +21,7 @@ import {
 import { allocateCaseReference, defaultDueDate, ensureOperationsReady } from "../../../../_operations.js";
 
 const PRIORITIES = new Set(["low", "normal", "high", "critical"]);
-const PLATFORM_SENDERS = new Set(["customer", "ai", "system"]);
+const PLATFORM_SENDERS = new Set(["customer", "ai"]);
 const EVENTS = new Set(["heartbeat", "close", "reopen", "request_human", "customer_typing", "page_changed", "consent_recorded"]);
 const HUMAN_ONLY_CATEGORIES = new Set(["data_protection", "safeguarding", "security"]);
 
@@ -39,10 +40,11 @@ function parseJson(value, fallback) {
 }
 
 function publicBranchConfig(row) {
+  const assistantEnabled = Boolean(row.assistant_enabled);
   return {
     platformId: row.platform_id,
-    assistantName: row.assistant_name,
-    enabled: Boolean(row.assistant_enabled),
+    assistantEnabled,
+    enabled: assistantEnabled,
     aiEnabled: Boolean(row.ai_enabled),
     humanTakeoverEnabled: Boolean(row.human_takeover_enabled),
     anonymousEnabled: Boolean(row.anonymous_enabled),
@@ -54,17 +56,19 @@ function publicBranchConfig(row) {
     operatingHours: parseJson(row.operating_hours_json, {}),
     appearance: parseJson(row.appearance_json, {}),
     contactOptions: parseJson(row.contact_options_json, {}),
-    retentionDays: Number(row.retention_days || 365)
+    retentionDays: Number(row.retention_days || 180)
   };
 }
 
 async function authenticate(context, requiredScope) {
   const auth = await requirePlatform(context, []);
   if (auth.response) return auth;
+  await ensureSupportCentreSchema(context.env);
+  const granted = await ensureSupportCredentialScopes(context.env, auth.platform);
+  auth.platform.scopes = [...new Set([...(auth.platform.scopes || []), ...granted])];
   if (!hasScope(auth.platform, requiredScope)) {
     return { response: error("INSUFFICIENT_PLATFORM_SCOPE", `The credential requires ${requiredScope}.`, 403) };
   }
-  await ensureSupportCentreSchema(context.env);
   return auth;
 }
 
@@ -78,10 +82,11 @@ async function findConversation(env, platformId, reference) {
 
 async function getConfig(context, auth) {
   const settings = await ensureBranchSettings(context.env, auth.platform);
-  return json({ branch: publicBranchConfig(settings) });
+  return json({ branch: publicBranchConfig(settings), config: publicBranchConfig(settings) });
 }
 
 async function getKnowledge(context, auth) {
+  await ensureBranchSettings(context.env, auth.platform);
   const url = new URL(context.request.url);
   const serviceCode = cleanText(url.searchParams.get("service") || "", 80);
   const accountType = cleanText(url.searchParams.get("accountType") || "", 80);
@@ -245,6 +250,40 @@ async function startConversation(context, auth) {
   }, 201);
 }
 
+function acknowledgementFor(conversation) {
+  const category = normaliseSupportCategory(conversation.category);
+  if (category === "security") {
+    return "Thank you. Your security concern has been placed into restricted Head Office review. Do not send passwords, one-time codes, private keys or payment card details.";
+  }
+  if (category === "data_protection") {
+    return "Thank you. Your data protection enquiry has been securely passed to the authorised Head Office team. Please avoid sending unnecessary identity documents in this chat.";
+  }
+  if (category === "safeguarding") {
+    return "Thank you. Your safeguarding message has been placed into restricted Head Office handling. A suitably authorised person will review it.";
+  }
+  return "Thank you. Your message has been received by Head Office Customer Service. A Customer Adviser will reply in this conversation as soon as possible.";
+}
+
+async function addHumanAcknowledgement(env, conversation, customerMessageId, now) {
+  const externalMessageId = `head-office-ack:${customerMessageId}`;
+  const id = crypto.randomUUID();
+  const body = acknowledgementFor(conversation);
+  const result = await env.DB.prepare(`INSERT INTO support_messages
+    (id,conversation_id,external_message_id,sender_type,sender_id,sender_name,body,visibility,delivery_status,metadata_json,created_at)
+    VALUES (?,?,?,'system',NULL,'Head Office Customer Service',?,'customer','accepted','{}',?)
+    ON CONFLICT(conversation_id,external_message_id) DO NOTHING`)
+    .bind(id, conversation.id, externalMessageId, body, now).run();
+  if (Number(result.meta?.changes || 0) === 0) return null;
+  return {
+    id,
+    externalMessageId,
+    senderType: "system",
+    senderName: "Head Office Customer Service",
+    body,
+    createdAt: now
+  };
+}
+
 async function addMessage(context, auth, conversationReference) {
   const conversation = await findConversation(context.env, auth.platform.id, conversationReference);
   if (!conversation) return error("SUPPORT_CONVERSATION_NOT_FOUND", "The conversation was not found.", 404);
@@ -255,7 +294,10 @@ async function addMessage(context, auth, conversationReference) {
   const messageBody = cleanText(body.body || body.message, 8000);
   const externalMessageId = cleanText(body.externalMessageId, 180) || null;
   if (!PLATFORM_SENDERS.has(senderType) || !messageBody) {
-    return error("INVALID_SUPPORT_MESSAGE", "A valid customer, AI or system message is required.");
+    return error("INVALID_SUPPORT_MESSAGE", "A valid customer or authorised assistant message is required.");
+  }
+  if (senderType === "ai" && !hasScope(auth.platform, "support:ai")) {
+    return error("SUPPORT_AI_SENDER_NOT_AUTHORISED", "This platform credential cannot submit assistant messages.", 403);
   }
   if (senderType === "ai" && !["ai", "hybrid"].includes(conversation.handling_mode)) {
     return error("SUPPORT_AI_STANDBY", "AI replies are paused because this conversation requires or is receiving human assistance.", 409);
@@ -270,15 +312,22 @@ async function addMessage(context, auth, conversationReference) {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   const reopened = senderType === "customer" && conversation.status === "closed";
-  const nextStatus = reopened ? "human_assistance_requested" : conversation.status;
-  const nextHandlingMode = reopened ? "human_pending" : conversation.handling_mode;
+  const restricted = HUMAN_ONLY_CATEGORIES.has(normaliseSupportCategory(conversation.category));
+  const humanHandling = senderType === "customer" && (reopened || restricted || !["ai", "hybrid"].includes(conversation.handling_mode));
+  const nextStatus = humanHandling
+    ? normaliseSupportCategory(conversation.category) === "security" ? "security_review_required" : "human_assistance_requested"
+    : conversation.status;
+  const nextHandlingMode = humanHandling ? "human_pending" : conversation.handling_mode;
+  const senderName = senderType === "customer"
+    ? cleanText(conversation.display_name_snapshot, 120) || (conversation.authenticated ? "Verified customer" : "Website visitor")
+    : cleanText(body.senderName, 120) || "Support Assistant";
+  const senderId = senderType === "customer" ? conversation.customer_id : auth.platform.id;
   const insert = await context.env.DB.prepare(`INSERT INTO support_messages
     (id,conversation_id,external_message_id,sender_type,sender_id,sender_name,body,visibility,delivery_status,metadata_json,created_at)
     VALUES (?,?,?,?,?,?,?,'customer','accepted',?,?)
     ON CONFLICT(conversation_id,external_message_id) DO NOTHING`)
-    .bind(id, conversation.id, externalMessageId, senderType, auth.platform.id,
-      cleanText(body.senderName, 120) || (senderType === "ai" ? "Support Assistant" : null),
-      messageBody, jsonValue(safeObject(body.metadata)), now).run();
+    .bind(id, conversation.id, externalMessageId, senderType, senderId,
+      senderName, messageBody, jsonValue(safeObject(body.metadata)), now).run();
 
   if (externalMessageId && Number(insert.meta?.changes || 0) === 0) {
     const duplicate = await context.env.DB.prepare(`SELECT id,created_at FROM support_messages
@@ -287,17 +336,26 @@ async function addMessage(context, auth, conversationReference) {
     return json({ accepted: true, duplicate: true, messageId: duplicate?.id || null, conversationId: conversation.id }, 200);
   }
 
-  const timeColumn = senderType === "customer" ? "last_customer_message_at" : senderType === "ai" ? "last_ai_message_at" : null;
-  if (timeColumn) {
-    await context.env.DB.prepare(`UPDATE support_conversations SET ${timeColumn}=?,status=?,handling_mode=?,
-      closed_at=CASE WHEN ? THEN NULL ELSE closed_at END,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(now, nextStatus, nextHandlingMode, reopened ? 1 : 0, now, now, conversation.id).run();
-  } else {
-    await context.env.DB.prepare("UPDATE support_conversations SET last_activity_at=?,updated_at=? WHERE id=?")
-      .bind(now, now, conversation.id).run();
+  const timeColumn = senderType === "customer" ? "last_customer_message_at" : "last_ai_message_at";
+  await context.env.DB.prepare(`UPDATE support_conversations SET ${timeColumn}=?,status=?,handling_mode=?,
+    closed_at=CASE WHEN ? THEN NULL ELSE closed_at END,last_activity_at=?,updated_at=? WHERE id=?`)
+    .bind(now, nextStatus, nextHandlingMode, reopened ? 1 : 0, now, now, conversation.id).run();
+
+  let assistantMessage = null;
+  if (humanHandling) {
+    assistantMessage = await addHumanAcknowledgement(context.env, conversation, id, now);
   }
 
-  return json({ accepted: true, duplicate: false, messageId: id, conversationId: conversation.id, reopened }, 202);
+  return json({
+    accepted: true,
+    duplicate: false,
+    messageId: id,
+    conversationId: conversation.id,
+    reopened,
+    status: nextStatus,
+    handlingMode: nextHandlingMode,
+    assistantMessage
+  }, 202);
 }
 
 async function recordEvent(context, auth, conversationReference) {
