@@ -1,0 +1,143 @@
+.principal-pin-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, .16), transparent 36rem),
+    linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+.principal-pin-gate[hidden] { display: none !important; }
+body.principal-pin-required { overflow: hidden; }
+body.principal-pin-required #loginScreen,
+body.principal-pin-required #appShell { visibility: hidden !important; pointer-events: none !important; }
+
+.principal-pin-topbar,
+.principal-pin-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+  border-color: #dbe3ee;
+  background: rgba(255, 255, 255, .86);
+  backdrop-filter: blur(18px);
+}
+.principal-pin-topbar { border-bottom: 1px solid #dbe3ee; }
+.principal-pin-footer { border-top: 1px solid #dbe3ee; color: #475569; font-size: .85rem; }
+
+.principal-pin-brand { display: flex; align-items: center; gap: .8rem; }
+.principal-pin-brand > div { display: grid; gap: .12rem; }
+.principal-pin-brand strong { font-size: .95rem; }
+.principal-pin-brand span:not(.brand-mark) { color: #64748b; font-size: .8rem; }
+
+.principal-pin-stage {
+  display: grid;
+  place-items: center;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+}
+
+.principal-pin-card {
+  width: min(100%, 31rem);
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.35rem, 5vw, 2.5rem);
+  border: 1px solid #dbe3ee;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1.5rem 4rem rgba(15, 23, 42, .12);
+}
+
+.principal-pin-card h1 { margin: 0; font-size: clamp(1.65rem, 5vw, 2.25rem); line-height: 1.1; }
+.principal-pin-card p { margin: 0; line-height: 1.55; }
+.principal-pin-card .eyebrow { color: #1d4ed8; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; font-size: .75rem; }
+
+.principal-pin-seal {
+  width: 4.6rem;
+  height: 4.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 1.1rem;
+  letter-spacing: .25em;
+  padding-left: .25em;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+}
+
+.principal-pin-field { display: grid; gap: .5rem; font-weight: 700; }
+.principal-pin-field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #94a3b8;
+  border-radius: .65rem;
+  padding: .85rem 1rem;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 1.6rem;
+  letter-spacing: .45em;
+  text-align: center;
+}
+.principal-pin-field input:focus { outline: 3px solid rgba(37, 99, 235, .22); border-color: #2563eb; }
+.principal-pin-guidance { color: #475569; font-size: .9rem; }
+.principal-pin-error { min-height: 1.4em; color: #b91c1c; font-weight: 700; }
+
+.principal-pin-card .button { width: 100%; justify-content: center; min-height: 2.9rem; }
+.principal-pin-assurance { display: flex; flex-wrap: wrap; gap: .45rem; padding-top: .35rem; }
+.principal-pin-assurance span {
+  padding: .35rem .55rem;
+  border: 1px solid #dbe3ee;
+  border-radius: .4rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: .78rem;
+}
+
+:root[data-ops-theme="dark"] .principal-pin-gate,
+:root[data-theme="dark"] .principal-pin-gate {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(59, 130, 246, .2), transparent 36rem),
+    linear-gradient(145deg, #07111f 0%, #0b1628 100%);
+  color: #e5edf7;
+}
+:root[data-ops-theme="dark"] .principal-pin-topbar,
+:root[data-ops-theme="dark"] .principal-pin-footer,
+:root[data-theme="dark"] .principal-pin-topbar,
+:root[data-theme="dark"] .principal-pin-footer {
+  border-color: #24344a;
+  background: rgba(7, 17, 31, .9);
+}
+:root[data-ops-theme="dark"] .principal-pin-card,
+:root[data-theme="dark"] .principal-pin-card {
+  border-color: #2b3c54;
+  background: #101d2f;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .35);
+}
+:root[data-ops-theme="dark"] .principal-pin-field input,
+:root[data-theme="dark"] .principal-pin-field input {
+  border-color: #52647c;
+  background: #07111f;
+  color: #f8fafc;
+}
+:root[data-ops-theme="dark"] .principal-pin-guidance,
+:root[data-ops-theme="dark"] .principal-pin-footer,
+:root[data-ops-theme="dark"] .principal-pin-brand span:not(.brand-mark),
+:root[data-theme="dark"] .principal-pin-guidance,
+:root[data-theme="dark"] .principal-pin-footer,
+:root[data-theme="dark"] .principal-pin-brand span:not(.brand-mark) { color: #a9b8cb; }
+:root[data-ops-theme="dark"] .principal-pin-assurance span,
+:root[data-theme="dark"] .principal-pin-assurance span { border-color: #2b3c54; background: #0b1628; color: #b9c7d8; }
+
+@media (max-width: 640px) {
+  .principal-pin-topbar { align-items: flex-start; }
+  .principal-pin-topbar .version-badge { display: none; }
+  .principal-pin-footer { display: grid; justify-content: start; }
+  .principal-pin-stage { align-items: start; padding: 1rem; }
+  .principal-pin-card { border-radius: .8rem; padding: 1.25rem; }
+}
