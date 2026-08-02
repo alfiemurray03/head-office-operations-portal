@@ -27,6 +27,10 @@ function isPrincipal(auth) {
   return hasPermission(auth.authorisation, "*") || roles.has("HEAD_OFFICE_PRINCIPAL") || roles.has("SYSTEM_ADMINISTRATOR");
 }
 
+function hasHeadOfficeOverride(auth) {
+  return isPrincipal(auth) || rolesOf(auth).has("HEAD_OFFICE_OPERATIONS");
+}
+
 function categoryPermitted(auth, category) {
   const value = normaliseSupportCategory(category);
   if (isPrincipal(auth)) return true;
@@ -34,17 +38,23 @@ function categoryPermitted(auth, category) {
   if (roles.has("HEAD_OFFICE_OPERATIONS")) return true;
   if (roles.has("DPO_RESTRICTED")) return value === "data_protection";
   if (roles.has("SAFEGUARDING_RESTRICTED")) return value === "safeguarding";
-  if (roles.has("SECURITY_OFFICER")) return value === "security" || value === "account_recovery";
+  if (roles.has("SECURITY_OFFICER") || roles.has("FRAUD_OPERATIONS") || roles.has("INCIDENT_MANAGER")) {
+    return value === "security" || value === "account_recovery";
+  }
+  if (roles.has("COMPLAINTS_MANAGER")) return value === "complaint";
   if (value === "data_protection") return hasPermission(auth.authorisation, "data_protection:*");
   if (value === "safeguarding") return hasPermission(auth.authorisation, "safeguarding:*");
+  if (value === "complaint") return hasPermission(auth.authorisation, "complaints:*");
+  if (value === "security") return hasPermission(auth.authorisation, "security:*");
   return hasPermission(auth.authorisation, "communications:read") || hasPermission(auth.authorisation, "communications:write");
 }
 
 async function branchAccess(env, auth, platformId) {
   if (isPrincipal(auth)) return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 1, elevated: true };
   const roles = rolesOf(auth);
-  if (roles.has("HEAD_OFFICE_OPERATIONS") || roles.has("SECURITY_OFFICER") ||
-      roles.has("DPO_RESTRICTED") || roles.has("SAFEGUARDING_RESTRICTED")) {
+  if (roles.has("HEAD_OFFICE_OPERATIONS") || roles.has("SECURITY_OFFICER") || roles.has("FRAUD_OPERATIONS") ||
+      roles.has("INCIDENT_MANAGER") || roles.has("COMPLAINTS_MANAGER") || roles.has("DPO_RESTRICTED") ||
+      roles.has("SAFEGUARDING_RESTRICTED")) {
     return { can_read: 1, can_reply: 1, can_takeover: 1, can_configure: 0, elevated: true };
   }
   const row = await env.DB.prepare(`SELECT can_read,can_reply,can_takeover,can_configure
@@ -76,6 +86,10 @@ async function authoriseConversation(env, auth, conversation, capability = "can_
     return { response: error("SUPPORT_BRANCH_ACCESS_DENIED", "You are not authorised for this support branch.", 403) };
   }
   return { access };
+}
+
+function assignmentConflict(auth, conversation) {
+  return Boolean(conversation.assigned_staff_id && conversation.assigned_staff_id !== auth.session.sub && !hasHeadOfficeOverride(auth));
 }
 
 function parseJson(value) {
@@ -150,9 +164,13 @@ async function getConversation(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_read");
   if (authorised.response) return authorised.response;
+  const messageVisibility = authorised.access.elevated
+    ? ""
+    : " AND visibility IN ('customer','branch_internal')";
   const [messages, events, providerEscalations] = await context.env.DB.batch([
     context.env.DB.prepare(`SELECT id,external_message_id,sender_type,sender_id,sender_name,body,visibility,
-      delivery_status,metadata_json,created_at FROM support_messages WHERE conversation_id=? ORDER BY created_at,id LIMIT 1000`)
+      delivery_status,metadata_json,created_at FROM support_messages
+      WHERE conversation_id=?${messageVisibility} ORDER BY created_at,id LIMIT 1000`)
       .bind(conversation.id),
     context.env.DB.prepare(`SELECT id,event_type,actor_type,actor_id,metadata_json,occurred_at
       FROM support_conversation_events WHERE conversation_id=? ORDER BY occurred_at DESC LIMIT 250`).bind(conversation.id),
@@ -197,16 +215,28 @@ async function getConversation(context, auth, reference) {
   });
 }
 
+function resolveMessageVisibility(body, access) {
+  const requested = cleanText(body.visibility || "customer", 30).toLowerCase();
+  if (requested === "branch_internal") return "branch_internal";
+  if (requested === "head_office") return access.elevated ? "head_office" : null;
+  if (requested === "internal") return access.elevated ? "head_office" : "branch_internal";
+  return "customer";
+}
+
 async function addStaffMessage(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_reply");
   if (authorised.response) return authorised.response;
+  if (assignmentConflict(auth, conversation)) {
+    return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
+  }
   let body;
   try { body = await readJson(context.request, 40_000); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   const messageBody = cleanText(body.body || body.message, 8000);
-  const visibility = body.visibility === "internal" ? "internal" : "customer";
+  const visibility = resolveMessageVisibility(body, authorised.access);
   if (!messageBody) return error("INVALID_SUPPORT_MESSAGE", "Enter a message.");
+  if (!visibility) return error("SUPPORT_NOTE_VISIBILITY_DENIED", "Only authorised Head Office roles may create Head Office-only notes.", 403);
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   await context.env.DB.batch([
@@ -225,9 +255,14 @@ async function addStaffMessage(context, auth, reference) {
       VALUES (?,?,'conversation.staff_message','staff',?,?,?)`)
       .bind(crypto.randomUUID(), conversation.id, auth.session.sub, jsonValue({ visibility }), now)
   ]);
-  await audit(context.env, auth.session, visibility === "internal" ? "support.note.create" : "support.message.send",
+  const noteLabel = visibility === "head_office"
+    ? "Head Office-only support note added"
+    : visibility === "branch_internal"
+      ? "Branch internal support note added"
+      : "Customer support reply sent";
+  await audit(context.env, auth.session, visibility === "customer" ? "support.message.send" : "support.note.create",
     "support_conversation", conversation.id, {
-      label: visibility === "internal" ? "Restricted support note added" : "Customer support reply sent",
+      label: noteLabel,
       reference: conversation.conversation_reference,
       customerId: conversation.customer_id,
       caseId: conversation.case_id,
@@ -241,21 +276,29 @@ async function takeOver(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_takeover");
   if (authorised.response) return authorised.response;
+  if (assignmentConflict(auth, conversation)) {
+    return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
+  }
   const now = new Date().toISOString();
+  const previousAssignedStaffId = conversation.assigned_staff_id || null;
   await context.env.DB.batch([
     context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=?,status='assigned',handling_mode='human',
       last_activity_at=?,updated_at=? WHERE id=?`).bind(auth.session.sub, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
-      VALUES (?,?,'conversation.taken_over','staff',?,'{}',?)`)
-      .bind(crypto.randomUUID(), conversation.id, auth.session.sub, now)
+      VALUES (?,?,'conversation.taken_over','staff',?,?,?)`)
+      .bind(crypto.randomUUID(), conversation.id, auth.session.sub, jsonValue({ previousAssignedStaffId }), now)
   ]);
   await audit(context.env, auth.session, "support.conversation.takeover", "support_conversation", conversation.id, {
-    label: "Support conversation taken over",
+    label: previousAssignedStaffId && previousAssignedStaffId !== auth.session.sub
+      ? "Head Office override reassigned support conversation"
+      : "Support conversation taken over",
     reference: conversation.conversation_reference,
     customerId: conversation.customer_id,
     caseId: conversation.case_id,
     requestId: context.data?.requestId,
+    before: { assignedStaffId: previousAssignedStaffId, handlingMode: conversation.handling_mode },
+    after: { assignedStaffId: auth.session.sub, handlingMode: "human" },
     metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
   });
   return json({ assigned: true, assignedStaffId: auth.session.sub, handlingMode: "human", status: "assigned", updatedAt: now });
@@ -265,6 +308,9 @@ async function updateStatus(context, auth, reference) {
   const conversation = await findConversation(context.env, reference);
   const authorised = await authoriseConversation(context.env, auth, conversation, "can_reply");
   if (authorised.response) return authorised.response;
+  if (assignmentConflict(auth, conversation)) {
+    return error("SUPPORT_CONVERSATION_ALREADY_ASSIGNED", "This conversation is assigned to another authorised staff member.", 409);
+  }
   let body;
   try { body = await readJson(context.request, 20_000); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
@@ -273,11 +319,16 @@ async function updateStatus(context, auth, reference) {
   if (!STATUSES.has(status) || !HANDLING_MODES.has(handlingMode)) {
     return error("INVALID_SUPPORT_STATUS", "Select a valid conversation status and handling mode.");
   }
+  const category = normaliseSupportCategory(conversation.category);
+  if (["data_protection", "safeguarding", "security"].includes(category) && ["ai", "hybrid"].includes(handlingMode)) {
+    return error("SUPPORT_AI_RESTRICTED_CATEGORY", "AI handling cannot be resumed for this restricted conversation category.", 409);
+  }
   const now = new Date().toISOString();
   const closedAt = status === "closed" ? now : null;
   await context.env.DB.batch([
-    context.env.DB.prepare(`UPDATE support_conversations SET status=?,handling_mode=?,closed_at=?,last_activity_at=?,updated_at=? WHERE id=?`)
-      .bind(status, handlingMode, closedAt, now, now, conversation.id),
+    context.env.DB.prepare(`UPDATE support_conversations SET assigned_staff_id=COALESCE(assigned_staff_id,?),
+      status=?,handling_mode=?,closed_at=?,last_activity_at=?,updated_at=? WHERE id=?`)
+      .bind(auth.session.sub, status, handlingMode, closedAt, now, now, conversation.id),
     context.env.DB.prepare(`INSERT INTO support_conversation_events
       (id,conversation_id,event_type,actor_type,actor_id,metadata_json,occurred_at)
       VALUES (?,?,'conversation.status_changed','staff',?,?,?)`)
@@ -291,7 +342,7 @@ async function updateStatus(context, auth, reference) {
     requestId: context.data?.requestId,
     before: { status: conversation.status, handlingMode: conversation.handling_mode },
     after: { status, handlingMode },
-    metadata: { platformId: conversation.platform_id, category: normaliseSupportCategory(conversation.category) }
+    metadata: { platformId: conversation.platform_id, category }
   });
   return json({ status, handlingMode, updatedAt: now });
 }
