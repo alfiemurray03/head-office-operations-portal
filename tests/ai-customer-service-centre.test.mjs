@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { normaliseSupportCategory, safeObject } from "../functions/_support-centre-schema.js";
+import {
+  normaliseSupportCategory,
+  safeObject,
+  isLiveSupportPlatform
+} from "../functions/_support-centre-schema.js";
 
 const migration = fs.readFileSync("migrations/0023_ai_customer_service_centre.sql", "utf8");
 const schema = fs.readFileSync("functions/_support-centre-schema.js", "utf8");
@@ -29,6 +33,9 @@ assert.equal(normaliseSupportCategory("subject access request"), "data_protectio
 assert.equal(normaliseSupportCategory("Young Person"), "safeguarding");
 assert.equal(normaliseSupportCategory("suspected account compromise"), "security");
 assert.equal(normaliseSupportCategory("Sign-in"), "account_recovery");
+assert.equal(isLiveSupportPlatform({ code: "PLANYX", name: "Planyx" }), true);
+assert.equal(isLiveSupportPlatform({ code: "PROFILE_CENTRE", name: "Profile Centre" }), true);
+assert.equal(isLiveSupportPlatform({ code: "UNRELATED", name: "Unrelated integration" }), false);
 
 const safeMetadata = safeObject({
   appearance: { theme: "navy", layout: { density: "compact" }, secret: "must-not-survive" },
@@ -44,6 +51,11 @@ assert.equal("authorisationToken" in safeMetadata, false);
 assert.match(platformApi, /support:\*/);
 assert.match(platformApi, /support:read/);
 assert.match(platformApi, /support:write/);
+assert.match(platformApi, /support:ai/);
+assert.match(platformApi, /SUPPORT_AI_SENDER_NOT_AUTHORISED/);
+assert.match(platformApi, /assistantEnabled/);
+assert.match(platformApi, /Head Office Customer Service/);
+assert.match(platformApi, /addHumanAcknowledgement/);
 assert.match(platformApi, /resolveSupportCustomer/);
 assert.match(platformApi, /normaliseSupportCategory/);
 assert.match(platformApi, /central_customer_not_found/);
@@ -60,7 +72,15 @@ assert.match(platformApi, /safeguarding/);
 assert.match(platformApi, /complaint_records/);
 assert.match(platformApi, /created_by,created_at\)[\s\S]*NULL/);
 assert.match(platformApi, /duplicate: true/);
+assert.match(platformApi, /PLATFORM_SENDERS = new Set\(\["customer", "ai"\]\)/);
+assert.doesNotMatch(platformApi, /PLATFORM_SENDERS = new Set\([^\n]*"system"/);
 
+assert.match(schema, /ensureSupportCredentialScopes/);
+assert.match(schema, /support:read/);
+assert.match(schema, /support:write/);
+assert.match(schema, /support:ai/);
+assert.match(schema, /assistant_enabled,ai_enabled[\s\S]*VALUES \(\?,\?,1,\?/);
+assert.match(schema, /retention_days INTEGER NOT NULL DEFAULT 180/);
 assert.match(schema, /marker\[ _-\]\?reason/);
 assert.match(schema, /safeguarding\[ _-\]\?detail/);
 assert.match(schema, /depth > 3/);
@@ -84,4 +104,4 @@ assert.match(staffApi, /escalationRules/);
 
 assert.match(portal, /professional-interface\.js/);
 
-console.log("AI Customer Service Centre foundation contract checks passed.");
+console.log("Customer Service Centre foundation and live activation contract checks passed.");
