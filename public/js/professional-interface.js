@@ -3,6 +3,8 @@
   const AUTH_VISIBILITY_STYLE_ID = 'headOfficeAuthVisibilityGuard';
   const CUSTOMER_SERVICE_STYLE_ID = 'customerServiceCentreStyles';
   const CUSTOMER_SERVICE_SCRIPT_SELECTOR = 'script[data-customer-service-centre]';
+  const WEBSITE_CONTROLS_STYLE_ID = 'customerServiceWebsiteControlsStyles';
+  const WEBSITE_CONTROLS_SCRIPT_SELECTOR = 'script[data-customer-service-website-controls]';
   const ROUTE_TYPES = Object.freeze({
     'control-room': 'overview',
     dashboard: 'overview',
@@ -29,6 +31,7 @@
   });
 
   let customerServiceAssetsPromise = null;
+  let websiteControlAssetsPromise = null;
 
   function ensureAuthVisibilityGuard() {
     if (document.getElementById(AUTH_VISIBILITY_STYLE_ID)) return;
@@ -92,10 +95,37 @@
     document.head.append(stylesheet);
   }
 
+  function ensureWebsiteControlAssets() {
+    if (websiteControlAssetsPromise) return websiteControlAssetsPromise;
+    websiteControlAssetsPromise = new Promise((resolve, reject) => {
+      if (!document.getElementById(WEBSITE_CONTROLS_STYLE_ID)) {
+        const stylesheet = document.createElement('link');
+        stylesheet.id = WEBSITE_CONTROLS_STYLE_ID;
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = '/customer-service-website-controls.css?v=20260802-four-sites-1';
+        document.head.append(stylesheet);
+      }
+
+      const existing = document.querySelector(WEBSITE_CONTROLS_SCRIPT_SELECTOR);
+      if (existing) return resolve();
+      const script = document.createElement('script');
+      script.src = '/js/customer-service-website-controls.js?v=20260802-four-sites-1';
+      script.async = false;
+      script.dataset.customerServiceWebsiteControls = 'true';
+      script.addEventListener('load', resolve, { once: true });
+      script.addEventListener('error', () => {
+        websiteControlAssetsPromise = null;
+        reject(new Error('The four-website customer-service controls could not be loaded.'));
+      }, { once: true });
+      document.head.append(script);
+    });
+    return websiteControlAssetsPromise;
+  }
+
   function ensureCustomerServiceAssets() {
     if (typeof window.renderCustomerServiceCentre === 'function') {
       ensureCustomerServiceNavigation();
-      return Promise.resolve();
+      return ensureWebsiteControlAssets();
     }
     if (customerServiceAssetsPromise) return customerServiceAssetsPromise;
 
@@ -106,6 +136,7 @@
 
       const loaded = () => {
         ensureCustomerServiceNavigation();
+        ensureWebsiteControlAssets().catch(error => console.error('Full website controls remain unavailable.', error));
         if (routeFromLocation() === 'customer-service-centre') window.renderCustomerServiceCentre?.();
         resolve();
       };
@@ -204,7 +235,6 @@
       new MutationObserver(() => queueMicrotask(applyPageModel))
         .observe(viewRoot, { childList: true, subtree: true });
     }
-
   }
 
   ensureAuthVisibilityGuard();
