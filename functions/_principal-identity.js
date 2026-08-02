@@ -108,7 +108,7 @@ export async function inspectPrincipalSession(request, env) {
   const token = cookieValue(request);
   if (!token || !env.DB) return { session: null, status: "session_cookie_missing" };
   const row = await env.DB.prepare(`SELECT s.id session_id,s.portal_user_id,s.status session_status,s.expires_at,s.authentication_method,
-      s.authentication_strength,s.created_at,s.last_seen_at,s.last_mfa_at,u.full_name,u.preferred_name,u.email,u.job_titles_json,
+      s.authentication_strength,s.created_at,s.last_seen_at,s.last_mfa_at,s.pin_verified_at,u.full_name,u.preferred_name,u.email,u.job_titles_json,
       u.profile_image_reference,u.status user_status,u.role_code,r.name role_name,r.security_level,r.access_level,r.authority_label,
       p.entra_object_id
     FROM portal_sessions s JOIN portal_users u ON u.id=s.portal_user_id
@@ -128,7 +128,7 @@ export async function inspectPrincipalSession(request, env) {
     preferredName: row.preferred_name, jobTitles: JSON.parse(row.job_titles_json || "[]"), profileImage: row.profile_image_reference,
     roleName: row.role_name, roleCode: row.role_code, securityLevel: row.security_level, accessLevel: row.access_level,
     authority: row.authority_label, authSource: row.authentication_method, authenticationStrength: row.authentication_strength,
-    createdAt: row.created_at, lastSeenAt: row.last_seen_at, lastMfaAt: row.last_mfa_at
+    createdAt: row.created_at, lastSeenAt: row.last_seen_at, lastMfaAt: row.last_mfa_at, pinVerifiedAt: row.pin_verified_at
   }};
 }
 
