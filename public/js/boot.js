@@ -1,5 +1,6 @@
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const MODULE_LOAD_TIMEOUT_MS = 8_000;
+let principalPinModulePromise = null;
 let customerDirectoryModulePromise = null;
 let customerAutomationModulePromise = null;
 let diditOperationsModulePromise = null;
@@ -47,6 +48,18 @@ function loadScriptOnce({ selector, src, datasetProperty, errorMessage }) {
     script.addEventListener('error', finish(() => reject(new Error(errorMessage))), { once: true });
     document.head.append(script);
   });
+}
+
+function loadPrincipalPinModule() {
+  if (principalPinModulePromise) return principalPinModulePromise;
+  ensureModuleStylesheet('link[data-principal-pin]', '/principal-pin.css?v=20260802-pin-1', 'principalPin');
+  principalPinModulePromise = loadScriptOnce({
+    selector: 'script[data-principal-pin]',
+    src: '/js/principal-pin.js?v=20260802-pin-1',
+    datasetProperty: 'principalPin',
+    errorMessage: 'The personal Head Office PIN module could not be loaded.'
+  });
+  return principalPinModulePromise;
 }
 
 function loadCustomerDirectoryModule() {
@@ -282,6 +295,7 @@ async function runBoot() {
   }
 
   try {
+    await loadPrincipalPinModule();
     if (typeof window.ensurePrincipalPin !== 'function') throw new Error('The personal Head Office PIN module did not load.');
     await window.ensurePrincipalPin(state.session);
     state.session = await loadSession();
