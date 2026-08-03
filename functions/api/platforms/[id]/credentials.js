@@ -19,6 +19,30 @@ function randomSecret(bytes = 32) {
   return btoa(String.fromCharCode(...value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
+function requestedScopes(body) {
+  return Array.isArray(body.scopes)
+    ? [...new Set(body.scopes.map(value => cleanText(value, 40)).filter(value => permittedScopes.has(value)))]
+    : [];
+}
+
+function governedScopes(platform, requested) {
+  const scopes = [...requested];
+
+  // The JA Group Services production website uses one server-side platform
+  // credential for both Customer Service and the central JA Group Services ID
+  // Dashboard. A normal full website connection key therefore needs customer
+  // record read/write authority as well as support read/write authority.
+  if (
+    platform.code === "JA_GROUP_SERVICES"
+    && requested.includes("support:read")
+    && requested.includes("support:write")
+  ) {
+    scopes.push("customers:read", "customers:write");
+  }
+
+  return [...new Set(scopes)];
+}
+
 export const onRequestPost = async context => {
   const auth = await requirePermission(context, "platforms:write");
   if (auth.response) return auth.response;
@@ -29,14 +53,14 @@ export const onRequestPost = async context => {
   try { body = await readJson(context.request); }
   catch (cause) { return error(cause.code || "INVALID_REQUEST", cause.message, cause.status || 400); }
   const name = cleanText(body.name, 100);
-  const scopes = Array.isArray(body.scopes)
-    ? [...new Set(body.scopes.map(value => cleanText(value, 40)).filter(value => permittedScopes.has(value)))]
-    : [];
+  const requested = requestedScopes(body);
+  const scopes = governedScopes(platform, requested);
   if (name.length < 2 || scopes.length === 0) return error("INVALID_CREDENTIAL", "Enter a credential name and select at least one permitted scope.");
   const id = crypto.randomUUID();
   const keyPrefix = `${platform.code.toLowerCase().replace(/[^a-z0-9]/g, "")}_${randomSecret(6)}`;
   const token = `ho_live_${keyPrefix}_${randomSecret(32)}`;
   const now = new Date().toISOString();
+  const policyAddedScopes = scopes.filter(scope => !requested.includes(scope));
   await context.env.DB.batch([
     context.env.DB.prepare(`INSERT INTO platform_api_credentials
       (id,platform_id,key_prefix,name,secret_hash,scopes_json,status,created_by,created_at)
@@ -48,7 +72,7 @@ export const onRequestPost = async context => {
     label: "Platform API credential generated",
     reference: keyPrefix,
     requestId: context.data.requestId,
-    metadata: { platformId, scopes }
+    metadata: { platformId, requestedScopes: requested, scopes, policyAddedScopes }
   });
   return json({ credential: { id, keyPrefix, token, name, scopes, createdAt: now } }, 201);
 };
