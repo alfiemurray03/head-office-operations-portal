@@ -12,6 +12,18 @@ function governedStaffWrite(pathname, method) {
   ].some(prefix => pathname.startsWith(prefix));
 }
 
+function appendConnectedSessionControls(response, pathname) {
+  const contentType = response.headers.get("Content-Type") || "";
+  if (pathname !== "/" || !contentType.includes("text/html")) return response;
+  return new HTMLRewriter()
+    .on("body", {
+      element(element) {
+        element.append('<script src="/js/connected-session-controls.js?v=20260803-sessions-1" defer></script>', { html: true });
+      }
+    })
+    .transform(response);
+}
+
 export const onRequest = async context => {
   const requestId = crypto.randomUUID();
   context.data.requestId = requestId;
@@ -45,7 +57,7 @@ export const onRequest = async context => {
       headers
     });
     for (const value of setCookies) secured.headers.append("Set-Cookie", value);
-    return secured;
+    return appendConnectedSessionControls(secured, pathname);
   } catch (cause) {
     console.error(JSON.stringify({
       event: "request_failed",
