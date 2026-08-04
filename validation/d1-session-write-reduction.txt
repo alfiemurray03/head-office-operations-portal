@@ -1,0 +1,1 @@
+Validates Head Office D1 write reduction: deduplicated connected-session registration, no repeated audit event for known sessions, and read-only session status polling.
