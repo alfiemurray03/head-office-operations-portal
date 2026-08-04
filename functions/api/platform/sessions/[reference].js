@@ -23,8 +23,12 @@ async function authorise(context) {
 export const onRequestGet = async context => {
   const auth = await authorise(context);
   if (auth.response) return auth.response;
-  const session = await getPlatformSession(context.env, auth.platform.id, reference(context), true);
-  return json(platformSessionDecision(session), session ? 200 : 404);
+  // A status poll must not update last_seen_at. Session activity is persisted
+  // through the deliberately throttled registration/heartbeat endpoint.
+  const session = await getPlatformSession(context.env, auth.platform.id, reference(context), false);
+  return json(platformSessionDecision(session), session ? 200 : 404, {
+    'X-Head-Office-Session-Check': 'read-only',
+  });
 };
 
 export const onRequestPut = async context => {
