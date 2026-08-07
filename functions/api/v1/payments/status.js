@@ -17,18 +17,18 @@ export const onRequestGet = async context => {
 
     const wildcard = reference || orderReference || customerNumber;
     const [checkout, transactions, subscriptions] = await context.env.DB.batch([
-      context.env.DB.prepare(`SELECT id,brand_code,product_code,price_code,customer_number,stripe_checkout_session_id,
+      context.env.DB.prepare(`SELECT id,brand_code,product_code,price_code,customer_number,stripe_customer_id,stripe_checkout_session_id,
         order_reference,service_reference,mode,status,amount_minor,currency,created_at,updated_at,completed_at
         FROM central_payment_checkout_requests
         WHERE platform_id=? AND (id=? OR order_reference=? OR customer_number=?)
         ORDER BY created_at DESC LIMIT 25`).bind(auth.platform.id, reference || wildcard, orderReference || wildcard, customerNumber || wildcard),
       context.env.DB.prepare(`SELECT stripe_object_id,object_type,event_type,brand_code,product_code,price_code,customer_number,
-        stripe_payment_intent_id,stripe_subscription_id,stripe_invoice_id,order_reference,service_reference,status,amount_minor,
+        stripe_customer_id,stripe_payment_intent_id,stripe_subscription_id,stripe_invoice_id,order_reference,service_reference,status,amount_minor,
         currency,occurred_at,updated_at
         FROM central_payment_transactions
         WHERE platform_id=? AND (stripe_object_id=? OR order_reference=? OR customer_number=?)
         ORDER BY occurred_at DESC LIMIT 50`).bind(auth.platform.id, reference || wildcard, orderReference || wildcard, customerNumber || wildcard),
-      context.env.DB.prepare(`SELECT stripe_subscription_id,brand_code,product_code,price_code,customer_number,status,quantity,
+      context.env.DB.prepare(`SELECT stripe_subscription_id,brand_code,product_code,price_code,customer_number,stripe_customer_id,status,quantity,
         current_period_start,current_period_end,cancel_at_period_end,cancelled_at,order_reference,service_reference,created_at,updated_at
         FROM central_payment_subscriptions
         WHERE platform_id=? AND (stripe_subscription_id=? OR order_reference=? OR customer_number=?)
