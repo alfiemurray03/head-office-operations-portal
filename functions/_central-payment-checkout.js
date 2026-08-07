@@ -78,14 +78,14 @@ export async function createGovernedCentralCheckout(env, input) {
     billing_address_collection: "auto",
     "customer_update[address]": "auto",
     allow_promotion_codes: policy.allowPromotionCodes ? "true" : undefined,
-    payment_method_collection: noCostPayment ? "if_required" : undefined,
   };
 
   for (const [key, value] of Object.entries(metadata)) fields[`metadata[${key}]`] = value;
 
-  // Free Checkout orders do not create a PaymentIntent, so payment_intent_data
-  // must not be used for a £0.00 order. Checkout-session metadata remains the
-  // authoritative routing metadata for no-cost fulfilment.
+  // Stripe one-time no-cost Checkout orders automatically skip payment-method
+  // collection. They also do not create a PaymentIntent, so payment_intent_data
+  // must not be sent for a £0.00 payment-mode order. Checkout Session metadata
+  // remains the authoritative routing metadata for fulfilment.
   if (mode === "subscription") {
     for (const [key, value] of Object.entries(metadata)) fields[`subscription_data[metadata][${key}]`] = value;
   } else if (!noCostPayment) {
