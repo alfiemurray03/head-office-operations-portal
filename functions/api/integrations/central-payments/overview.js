@@ -2,6 +2,12 @@ import { json } from "../../../_shared.js";
 import { requirePermission } from "../../../_operations.js";
 import { centralPaymentError, centralPaymentsConfiguration, ensureCentralPaymentsSchema } from "../../../_central-payments.js";
 
+function liveConfiguration(env, origin) {
+  const configuration = centralPaymentsConfiguration(env, origin);
+  configuration.enabled = String(env.CENTRAL_PAYMENTS_ENABLED || "").trim().toLowerCase() !== "false";
+  return configuration;
+}
+
 export const onRequestGet = async context => {
   const auth = await requirePermission(context, "payments:read");
   if (auth.response) return auth.response;
@@ -26,7 +32,7 @@ export const onRequestGet = async context => {
       context.env.DB.prepare(`SELECT processing_status,COUNT(*) count FROM central_payment_webhook_events GROUP BY processing_status`),
     ]);
     return json({
-      configuration: centralPaymentsConfiguration(context.env, origin),
+      configuration: liveConfiguration(context.env, origin),
       metrics: counts.results?.[0] || {},
       webhookStatus: Object.fromEntries((eventStatus.results || []).map(row => [row.processing_status, Number(row.count || 0)])),
       recentCheckoutRequests: recentCheckout.results || [],
