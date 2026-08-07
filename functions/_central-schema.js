@@ -76,6 +76,49 @@ const STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_customer_timeline ON customer_timeline_events(customer_id,occurred_at DESC)"
 ];
 
+export const CURRENT_PLATFORM_FAMILIES = Object.freeze([
+  Object.freeze({
+    key: "JA_GROUP_SERVICES",
+    name: "JA Group Services Ltd",
+    canonicalCode: "JA_GROUP_SERVICES",
+    canonicalId: "platform-ja-group-services",
+    aliases: Object.freeze(["JA_GROUP_SERVICES"]),
+    publicUrl: "https://jagroupservices.co.uk",
+  }),
+  Object.freeze({
+    key: "SOUSA_MURRAY_DOMAINS",
+    name: "Sousa Murray Domains",
+    canonicalCode: "SOUSA_MURRAY_DOMAINS",
+    canonicalId: "platform-sousa-murray-domains",
+    aliases: Object.freeze(["SOUSA_MURRAY_DOMAINS", "JA_DOMAIN_HUB", "SOUSA_MURRAY_SITES"]),
+    publicUrl: "https://sousamurraydomains.jagroupservices.co.uk",
+  }),
+  Object.freeze({
+    key: "SOUSA_MURRAY_PLANEIA",
+    name: "Sousa Murray Planeia",
+    canonicalCode: "SOUSA_MURRAY_PLANEIA",
+    canonicalId: "platform-sousa-murray-planeia",
+    aliases: Object.freeze(["SOUSA_MURRAY_PLANEIA", "PLANYX"]),
+    publicUrl: "https://sousamurrayplaneia.jagroupservices.co.uk",
+  }),
+  Object.freeze({
+    key: "SOUSA_MURRAY_PROFILES",
+    name: "Sousa Murray Profiles",
+    canonicalCode: "SOUSA_MURRAY_PROFILES",
+    canonicalId: "platform-sousa-murray-profiles",
+    aliases: Object.freeze(["SOUSA_MURRAY_PROFILES", "PROFILE_CENTRE", "PROFILE_CENTER", "PROFILECENTRE"]),
+    publicUrl: "https://sousamurrayprofiles.jagroupservices.co.uk",
+  }),
+  Object.freeze({
+    key: "SOUSA_MURRAY_ELEARNING",
+    name: "Sousa Murray eLearning",
+    canonicalCode: "SOUSA_MURRAY_ELEARNING",
+    canonicalId: "platform-sousa-murray-elearning",
+    aliases: Object.freeze(["SOUSA_MURRAY_ELEARNING", "APTENVO", "COURSE_SELECT"]),
+    publicUrl: "https://sousamurrayelearning.jagroupservices.co.uk",
+  }),
+]);
+
 const ready = new WeakMap();
 export const jsonValue = (value, fallback) => {
   try { return JSON.stringify(value ?? fallback); }
@@ -106,12 +149,62 @@ async function retireIncorrectAssumedProfileCentre(env) {
   ]);
 }
 
+async function reconcileCurrentPlatformRegister(env) {
+  const now = new Date().toISOString();
+  for (const family of CURRENT_PLATFORM_FAMILIES) {
+    const placeholders = family.aliases.map(() => "?").join(",");
+
+    await env.DB.prepare(`UPDATE platforms SET name=?,updated_at=? WHERE upper(code) IN (${placeholders})`)
+      .bind(family.name, now, ...family.aliases).run();
+
+    let platform = await env.DB.prepare(`SELECT p.id,p.code,p.status,
+        (SELECT COUNT(*) FROM platform_api_credentials c WHERE c.platform_id=p.id AND c.status='active') active_credentials
+      FROM platforms p WHERE upper(p.code) IN (${placeholders})
+      ORDER BY CASE WHEN p.status!='disabled' THEN 0 ELSE 1 END,
+        CASE WHEN (SELECT COUNT(*) FROM platform_api_credentials c WHERE c.platform_id=p.id AND c.status='active')>0 THEN 0 ELSE 1 END,
+        CASE WHEN upper(p.code)=? THEN 0 ELSE 1 END,
+        p.created_at ASC LIMIT 1`)
+      .bind(...family.aliases, family.canonicalCode).first();
+
+    if (!platform) {
+      await env.DB.prepare(`INSERT INTO platforms(id,code,name,status,created_at,updated_at)
+        VALUES (?,?,?,'setup',?,?)`)
+        .bind(family.canonicalId, family.canonicalCode, family.name, now, now).run();
+      platform = { id: family.canonicalId, code: family.canonicalCode, status: "setup", active_credentials: 0 };
+    } else if (platform.status === "disabled") {
+      await env.DB.prepare("UPDATE platforms SET status='setup',updated_at=? WHERE id=?")
+        .bind(now, platform.id).run();
+    }
+
+    await env.DB.prepare(`UPDATE platform_operational_profiles
+      SET public_url=?,environment='production',updated_at=?
+      WHERE platform_id IN (SELECT id FROM platforms WHERE upper(code) IN (${placeholders}))`)
+      .bind(family.publicUrl, now, ...family.aliases).run();
+
+    await env.DB.prepare(`INSERT INTO platform_operational_profiles
+      (platform_id,public_url,environment,hosting_provider,health_status,health_message,
+       capabilities_json,integrations_json,metadata_json,created_at,updated_at)
+      VALUES (?,?,'production','Cloudflare Pages','awaiting_connection',?,?,'{}',?, ?, ?)
+      ON CONFLICT(platform_id) DO NOTHING`)
+      .bind(
+        platform.id,
+        family.publicUrl,
+        `${family.name} is registered with JA Group Services Head Office; awaiting or using its governed production connection.`,
+        JSON.stringify(["customer_platform", "central_payments"]),
+        JSON.stringify({ currentPlatformFamily: family.key, registrationManagedBy: "Head Office" }),
+        now,
+        now,
+      ).run();
+  }
+}
+
 export async function ensureCentralPlatformSchema(env) {
   if (!env?.DB) throw new Error("The central customer database is unavailable.");
   if (ready.has(env.DB)) return ready.get(env.DB);
   const promise = (async () => {
     for (const statement of STATEMENTS) await env.DB.prepare(statement).run();
     await retireIncorrectAssumedProfileCentre(env);
+    await reconcileCurrentPlatformRegister(env);
     return true;
   })();
   ready.set(env.DB, promise);
