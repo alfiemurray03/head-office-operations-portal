@@ -37,7 +37,8 @@ export const onRequestGet = async context => {
         const account = await verifyCentralStripeAccount(context.env);
         stripeAccount = {
           id: account.id,
-          businessName: account.business_profile?.name || account.settings?.dashboard?.display_name || null,
+          businessName: "JA Group Services Ltd",
+          stripeDashboardName: account.business_profile?.name || account.settings?.dashboard?.display_name || null,
           chargesEnabled: Boolean(account.charges_enabled),
           payoutsEnabled: Boolean(account.payouts_enabled),
           country: account.country || null,
@@ -54,7 +55,10 @@ export const onRequestGet = async context => {
       configuration,
       stripeAccount,
       stripeError,
-      brands: CENTRAL_PAYMENT_BRANDS,
+      // Sousa Murray Sites is a Domains service area, not a separate connected
+      // website/brand option. The core still recognises its historical code so
+      // old records remain readable and safe during migration.
+      brands: CENTRAL_PAYMENT_BRANDS.filter(brand => brand.code !== "SOUSA_MURRAY_SITES"),
       requiredWebhookEvents: CENTRAL_STRIPE_REQUIRED_EVENTS,
       platformOrigins: origins.results || [],
     });
