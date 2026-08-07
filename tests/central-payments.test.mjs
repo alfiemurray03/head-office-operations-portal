@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const core = await readFile(new URL('../functions/_central-payments.js', import.meta.url), 'utf8');
+const migration = await readFile(new URL('../migrations/0030_central_payments.sql', import.meta.url), 'utf8');
 const checkout = await readFile(new URL('../functions/api/v1/payments/checkout.js', import.meta.url), 'utf8');
 const events = await readFile(new URL('../functions/api/v1/payments/events.js', import.meta.url), 'utf8');
 const webhook = await readFile(new URL('../functions/api/webhooks/stripe.js', import.meta.url), 'utf8');
@@ -24,6 +25,18 @@ for (const binding of [
   'CENTRAL_STRIPE_ACCOUNT_ID',
 ]) assert.ok(core.includes(binding), `${binding} must remain an explicit Head Office configuration boundary.`);
 
+for (const table of [
+  'central_payment_catalogue_products',
+  'central_payment_catalogue_prices',
+  'central_payment_customer_links',
+  'central_payment_platform_origins',
+  'central_payment_checkout_requests',
+  'central_payment_transactions',
+  'central_payment_subscriptions',
+  'central_payment_webhook_events',
+  'central_payment_event_outbox',
+]) assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`), `${table} must be part of the append-only D1 migration.`);
+
 assert.ok(core.includes('central_payment_customer_links'), 'A central one-customer-to-one-Stripe-customer link is required.');
 assert.ok(core.includes('UNIQUE'), 'Central payment records must enforce stable unique references.');
 assert.ok(core.includes('product_code') && core.includes('price_code'), 'Internal product and price codes must remain first-class records.');
@@ -32,6 +45,8 @@ assert.ok(!checkout.includes('stripePriceId') && !checkout.includes('priceId'), 
 assert.ok(checkout.includes('productCode') && checkout.includes('priceCode'), 'Connected websites must submit internal product and price codes.');
 assert.ok(core.includes('central_payment_platform_origins'), 'Return URLs must be governed by a Head Office origin allow-list.');
 assert.ok(core.includes('parsed.protocol !== "https:"'), 'Central payment return URLs must require HTTPS.');
+assert.ok(core.includes("t.code=r.restriction_type"), 'Payment restriction enforcement must use the real Head Office restriction code relationship.');
+assert.ok(!core.includes('restriction_type_id'), 'Central Payments must not invent a restriction_type_id column that Head Office does not have.');
 assert.ok(core.includes('deny_payment'), 'Central checkout must honour Head Office payment restrictions.');
 assert.ok(core.includes('customer_number') && core.includes('ucn'), 'UCN must be carried into central payment metadata.');
 assert.ok(core.includes('legal_entity') && core.includes('JA Group Services Ltd'), 'Payment metadata must identify the legal entity.');
