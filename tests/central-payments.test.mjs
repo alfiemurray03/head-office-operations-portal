@@ -9,6 +9,8 @@ const checkoutPolicy = await readFile(new URL('../functions/_central-payment-che
 const subscription = await readFile(new URL('../functions/api/v1/payments/subscription.js', import.meta.url), 'utf8');
 const status = await readFile(new URL('../functions/api/v1/payments/status.js', import.meta.url), 'utf8');
 const provision = await readFile(new URL('../functions/api/integrations/central-payments/provision.js', import.meta.url), 'utf8');
+const overview = await readFile(new URL('../functions/api/integrations/central-payments/overview.js', import.meta.url), 'utf8');
+const configuration = await readFile(new URL('../functions/api/integrations/central-payments/configuration.js', import.meta.url), 'utf8');
 const catalogueManifest = await readFile(new URL('../functions/_central-payment-catalogue-manifest.js', import.meta.url), 'utf8');
 const events = await readFile(new URL('../functions/api/v1/payments/events.js', import.meta.url), 'utf8');
 const webhook = await readFile(new URL('../functions/api/webhooks/stripe.js', import.meta.url), 'utf8');
@@ -90,8 +92,20 @@ for (const code of [
   'ELEARNING_LEARNER_MONTHLY',
   'ELEARNING_TEAM_15_MONTHLY',
 ]) assert.ok(catalogueManifest.includes(code), `${code} must be governed by the standard Central Payments catalogue.`);
+
 assert.ok(workspace.includes('Central Payments'), 'Head Office must expose an operational Central Payments workspace.');
 assert.ok(workspace.includes('Create central product') && workspace.includes('Create central price'), 'Head Office must control the central product and price catalogue.');
+assert.ok(workspace.includes('Generate connection key'), 'Central Payments must let Head Office issue a scoped production website credential without distributing a Stripe secret.');
+assert.ok(workspace.includes('/api/platforms/') && workspace.includes('/credentials'), 'The Central Payments connection control must use the governed Head Office platform credential endpoint.');
+for (const scope of ['payments:checkout','payments:status','payments:portal']) {
+  assert.ok(workspace.includes(scope), `Generated Central Payments website credentials must request ${scope}.`);
+}
+assert.ok(workspace.includes('customers:write') && workspace.includes('SOUSA_MURRAY_ELEARNING'), 'eLearning connection credentials must be able to reconcile Entra identity to the authoritative Head Office UCN.');
+assert.ok(workspace.includes('CUSTOMEROPS_API_KEY'), 'The one-time connection UI must identify the website Cloudflare secret name explicitly.');
+assert.ok(workspace.includes('/api/integrations/central-payments/provision'), 'The Head Office workspace must expose standard catalogue provisioning instead of relying on manual Stripe product creation.');
+assert.ok(workspace.includes('sousamurrayelearning.jagroupservices.co.uk'), 'Generating the eLearning connection must authorise its canonical production return origin.');
+assert.ok(!workspace.match(/ho_live_[A-Za-z0-9_-]{20,}/), 'No live Head Office platform credential may be committed to browser source.');
+assert.ok(overview.includes('!== "false"') && configuration.includes('!== "false"'), 'Central Payments diagnostics must match the production kill-switch rule: only explicit false disables the service.');
 assert.ok(loader.includes('/js/central-payments.js') && loader.includes('/central-payments.css'), 'The Central Payments workspace must be loaded by the Head Office shell.');
 
-console.log('Central Payments governance and cross-brand connection checks passed.');
+console.log('Central Payments governance, live connection and cross-brand checks passed.');
