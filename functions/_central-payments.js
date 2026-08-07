@@ -191,20 +191,25 @@ export async function ensureCentralPaymentsSchema(env) {
   for (const statement of SCHEMA) await env.DB.prepare(statement).run();
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO central_payment_schema_state(schema_key,version,applied_at)
-    VALUES ('central_payments',1,?)
+    VALUES ('central_payments',2,?)
     ON CONFLICT(schema_key) DO UPDATE SET version=excluded.version,applied_at=excluded.applied_at`).bind(now).run();
+}
+
+function stripeMode(secret) {
+  const value = String(secret || "");
+  if (value.startsWith("sk_live_") || value.startsWith("rk_live_")) return "live";
+  if (value.startsWith("sk_test_") || value.startsWith("rk_test_")) return "test";
+  return "unknown";
 }
 
 export function centralPaymentsConfiguration(env, origin = "") {
   const secret = String(env.CENTRAL_STRIPE_SECRET_KEY || "");
-  const mode = secret.startsWith("sk_live_") || secret.startsWith("rk_live_") ? "live"
-    : secret.startsWith("sk_test_") || secret.startsWith("rk_test_") ? "test" : "unknown";
   return {
     enabled: String(env.CENTRAL_PAYMENTS_ENABLED || "").toLowerCase() === "true",
     stripeKeyConfigured: Boolean(secret),
     stripeWebhookConfigured: Boolean(String(env.CENTRAL_STRIPE_WEBHOOK_SECRET || "")),
     expectedStripeAccountIdConfigured: Boolean(String(env.CENTRAL_STRIPE_ACCOUNT_ID || "")),
-    mode,
+    mode: stripeMode(secret),
     webhookEndpoint: origin ? `${String(origin).replace(/\/$/, "")}/api/webhooks/stripe` : "/api/webhooks/stripe",
   };
 }
@@ -263,15 +268,14 @@ export async function verifyCentralStripeAccount(env) {
 
 function normaliseBrand(value) {
   const code = cleanText(value, 80).toUpperCase().replaceAll("-", "_").replaceAll(" ", "_");
-  const aliases = {
+  return ({
     PLANYX: "SOUSA_MURRAY_PLANEIA",
     PROFILE_CENTRE: "SOUSA_MURRAY_PROFILES",
     PROFILE_CENTER: "SOUSA_MURRAY_PROFILES",
     JA_DOMAIN_HUB: "SOUSA_MURRAY_DOMAINS",
     APTENVO: "SOUSA_MURRAY_ELEARNING",
     COURSE_SELECT: "SOUSA_MURRAY_ELEARNING",
-  };
-  return aliases[code] || code;
+  })[code] || code;
 }
 
 export function brandDefinition(value) {
@@ -307,24 +311,30 @@ export async function findCentralCustomer(env, customerNumber) {
   return customer;
 }
 
-export async function assertCustomerCanPay(env, customer) {
-  const restriction = await env.DB.prepare(`SELECT r.id,t.code,t.label
-    FROM restrictions r JOIN restriction_types t ON t.id=r.restriction_type_id
-    WHERE r.customer_id=? AND r.status='active' AND t.enforcement_action='deny_payment'
-    LIMIT 1`).bind(customer.id).first();
+export async function assertCustomerCanPay(env, customer, platform) {
+  if (["closed", "disabled", "deleted"].includes(String(customer.account_status || "").toLowerCase())) {
+    throw Object.assign(new Error("This customer account cannot start a new payment."), { code: "CUSTOMER_ACCOUNT_UNAVAILABLE", status: 403 });
+  }
+  const now = new Date().toISOString();
+  const restriction = await env.DB.prepare(`SELECT r.id,r.restriction_type,r.scope,t.enforcement_action
+    FROM restrictions r JOIN restriction_types t ON t.code=r.restriction_type
+    WHERE r.customer_id=? AND r.status='active'
+      AND t.enforcement_action='deny_payment'
+      AND (r.expires_at IS NULL OR r.expires_at>?)
+      AND (r.scope='company_wide' OR r.scope=? OR r.scope=?)
+    LIMIT 1`).bind(customer.id, now, platform.id, platform.code).first();
   if (restriction) {
     throw Object.assign(new Error("Head Office security controls currently prevent new payments for this customer."), {
       code: "CUSTOMER_PAYMENTS_RESTRICTED",
       status: 403,
-      restrictionCode: restriction.code,
+      restrictionCode: restriction.restriction_type,
     });
   }
 }
 
 export async function ensureCentralStripeCustomer(env, customer, platform, brand) {
   await ensureCentralPaymentsSchema(env);
-  const linked = await env.DB.prepare(`SELECT stripe_customer_id FROM central_payment_customer_links
-    WHERE customer_id=? LIMIT 1`).bind(customer.id).first();
+  const linked = await env.DB.prepare(`SELECT stripe_customer_id FROM central_payment_customer_links WHERE customer_id=? LIMIT 1`).bind(customer.id).first();
   if (linked?.stripe_customer_id) {
     try {
       return await centralStripeGet(env, `/customers/${encodeURIComponent(linked.stripe_customer_id)}`);
@@ -372,7 +382,8 @@ export async function resolveCentralPrice(env, brandCode, productCode, priceCode
 export async function validatePlatformReturnUrl(env, platform, value) {
   const candidate = cleanText(value, 500);
   let parsed;
-  try { parsed = new URL(candidate); } catch { throw Object.assign(new Error("The return address is invalid."), { code: "INVALID_RETURN_URL", status: 400 }); }
+  try { parsed = new URL(candidate); }
+  catch { throw Object.assign(new Error("The return address is invalid."), { code: "INVALID_RETURN_URL", status: 400 }); }
   if (parsed.protocol !== "https:") throw Object.assign(new Error("Central Payments return addresses must use HTTPS."), { code: "INSECURE_RETURN_URL", status: 400 });
   const allowed = await env.DB.prepare(`SELECT 1 ok FROM central_payment_platform_origins
     WHERE platform_id=? AND origin=? AND status='active' LIMIT 1`).bind(platform.id, parsed.origin).first();
@@ -406,7 +417,7 @@ export async function createCentralCheckout(env, input) {
   await ensureCentralPaymentsSchema(env);
   await verifyCentralStripeAccount(env);
   const { platform, brand, customer, product } = input;
-  await assertCustomerCanPay(env, customer);
+  await assertCustomerCanPay(env, customer, platform);
   const stripeCustomer = await ensureCentralStripeCustomer(env, customer, platform, brand);
   const successUrl = await validatePlatformReturnUrl(env, platform, input.successUrl);
   const cancelUrl = await validatePlatformReturnUrl(env, platform, input.cancelUrl);
@@ -427,13 +438,11 @@ export async function createCentralCheckout(env, input) {
     "customer_update[address]": "auto",
   };
   for (const [key, value] of Object.entries(metadata)) fields[`metadata[${key}]`] = value;
-  if (mode === "subscription") {
-    for (const [key, value] of Object.entries(metadata)) fields[`subscription_data[metadata][${key}]`] = value;
-  } else {
-    for (const [key, value] of Object.entries(metadata)) fields[`payment_intent_data[metadata][${key}]`] = value;
-  }
+  const metadataPrefix = mode === "subscription" ? "subscription_data[metadata]" : "payment_intent_data[metadata]";
+  for (const [key, value] of Object.entries(metadata)) fields[`${metadataPrefix}[${key}]`] = value;
 
   const session = await centralStripePost(env, "/checkout/sessions", fields, `central-checkout-${checkoutRequestId}`);
+  if (!session?.id || !session?.url) throw Object.assign(new Error("Stripe did not return a hosted Checkout Session URL."), { code: "STRIPE_CHECKOUT_URL_MISSING", status: 502 });
   const now = new Date().toISOString();
   await env.DB.prepare(`INSERT INTO central_payment_checkout_requests
     (id,platform_id,brand_code,product_code,price_code,customer_id,customer_number,stripe_customer_id,stripe_checkout_session_id,
@@ -472,13 +481,33 @@ function metadataOf(object) {
 }
 
 function stringId(value) {
-  if (typeof value === "string") return value;
-  return value?.id || null;
+  return typeof value === "string" ? value : value?.id || null;
 }
 
-function unixIso(value, fallback = new Date().toISOString()) {
+function unixIso(value, fallback = null) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? new Date(number * 1000).toISOString() : fallback;
+}
+
+function subscriptionIdFromObject(object) {
+  return stringId(object?.subscription)
+    || stringId(object?.parent?.subscription_details?.subscription)
+    || (object?.object === "subscription" ? object.id : null);
+}
+
+async function lookupContextByRelatedReference(env, object) {
+  const paymentIntent = stringId(object?.payment_intent);
+  const invoice = object?.object === "invoice" ? object.id : stringId(object?.invoice);
+  const subscription = subscriptionIdFromObject(object);
+  if (!paymentIntent && !invoice && !subscription) return null;
+  return env.DB.prepare(`SELECT platform_id,brand_code,product_code,price_code,customer_id,customer_number,stripe_customer_id,
+      order_reference,service_reference
+    FROM central_payment_transactions
+    WHERE (? IS NOT NULL AND stripe_payment_intent_id=?)
+       OR (? IS NOT NULL AND stripe_invoice_id=?)
+       OR (? IS NOT NULL AND stripe_subscription_id=?)
+    ORDER BY occurred_at DESC LIMIT 1`)
+    .bind(paymentIntent, paymentIntent, invoice, invoice, subscription, subscription).first();
 }
 
 async function contextFromObject(env, object) {
@@ -486,13 +515,13 @@ async function contextFromObject(env, object) {
   let customerNumber = cleanText(metadata.customer_number || metadata.ucn || object?.client_reference_id, 30);
   let customerId = cleanText(metadata.ja_customer_id, 80) || null;
   let platformId = cleanText(metadata.source_platform_id, 80) || null;
-  let brandCode = normaliseBrand(metadata.brand_code);
+  let brandCode = normaliseBrand(metadata.brand_code) || null;
   let productCode = cleanText(metadata.product_code, 100).toUpperCase() || null;
   let priceCode = cleanText(metadata.price_code, 100).toUpperCase() || null;
   let orderReference = cleanText(metadata.order_reference, 120) || null;
   let serviceReference = cleanText(metadata.service_reference, 120) || null;
-  const stripeCustomerId = stringId(object?.customer);
-  const subscriptionId = stringId(object?.subscription) || (object?.object === "subscription" ? object.id : null);
+  const stripeCustomerId = stringId(object?.customer) || (object?.object === "customer" ? object.id : null);
+  const subscriptionId = subscriptionIdFromObject(object);
   const checkoutRequestId = cleanText(metadata.central_checkout_request_id, 80) || null;
 
   if (checkoutRequestId) {
@@ -531,8 +560,34 @@ async function contextFromObject(env, object) {
     }
   }
 
-  return { metadata, platformId, brandCode: brandCode || null, productCode, priceCode, customerId, customerNumber: customerNumber || null,
-    orderReference, serviceReference, stripeCustomerId, subscriptionId, checkoutRequestId };
+  if (!platformId || !customerNumber) {
+    const related = await lookupContextByRelatedReference(env, object);
+    if (related) {
+      platformId ||= related.platform_id;
+      brandCode ||= related.brand_code;
+      productCode ||= related.product_code;
+      priceCode ||= related.price_code;
+      customerId ||= related.customer_id;
+      customerNumber ||= related.customer_number;
+      orderReference ||= related.order_reference;
+      serviceReference ||= related.service_reference;
+    }
+  }
+
+  return {
+    metadata,
+    platformId,
+    brandCode,
+    productCode,
+    priceCode,
+    customerId,
+    customerNumber: customerNumber || null,
+    orderReference,
+    serviceReference,
+    stripeCustomerId,
+    subscriptionId,
+    checkoutRequestId,
+  };
 }
 
 async function enqueuePlatformEvent(env, platformId, eventType, reference, payload) {
@@ -553,8 +608,14 @@ async function upsertTransaction(env, event, object, context) {
      stripe_customer_id,stripe_payment_intent_id,stripe_subscription_id,stripe_invoice_id,order_reference,service_reference,status,
      amount_minor,currency,occurred_at,updated_at,metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(stripe_object_id) DO UPDATE SET event_type=excluded.event_type,status=excluded.status,
-      amount_minor=COALESCE(excluded.amount_minor,central_payment_transactions.amount_minor),
+    ON CONFLICT(stripe_object_id) DO UPDATE SET event_type=excluded.event_type,
+      platform_id=COALESCE(excluded.platform_id,central_payment_transactions.platform_id),
+      brand_code=COALESCE(excluded.brand_code,central_payment_transactions.brand_code),
+      product_code=COALESCE(excluded.product_code,central_payment_transactions.product_code),
+      price_code=COALESCE(excluded.price_code,central_payment_transactions.price_code),
+      customer_id=COALESCE(excluded.customer_id,central_payment_transactions.customer_id),
+      customer_number=COALESCE(excluded.customer_number,central_payment_transactions.customer_number),
+      status=excluded.status,amount_minor=COALESCE(excluded.amount_minor,central_payment_transactions.amount_minor),
       currency=COALESCE(excluded.currency,central_payment_transactions.currency),updated_at=excluded.updated_at,
       metadata_json=excluded.metadata_json`)
     .bind(crypto.randomUUID(), objectId, object.object || "stripe_object", event.type,
@@ -564,10 +625,17 @@ async function upsertTransaction(env, event, object, context) {
       Number.isFinite(Number(amount)) ? Number(amount) : null, cleanText(object.currency, 3).toUpperCase() || null,
       unixIso(object.created, unixIso(event.created, now)), now, JSON.stringify({ ...context.metadata, stripeEventType: event.type })).run();
   await enqueuePlatformEvent(env, context.platformId, event.type, objectId, {
-    eventType: event.type, stripeObjectId: objectId, brandCode: context.brandCode, productCode: context.productCode,
-    priceCode: context.priceCode, customerNumber: context.customerNumber, orderReference: context.orderReference,
-    serviceReference: context.serviceReference, status: object.payment_status || object.status || null,
-    amountMinor: Number.isFinite(Number(amount)) ? Number(amount) : null, currency: cleanText(object.currency, 3).toUpperCase() || null,
+    eventType: event.type,
+    stripeObjectId: objectId,
+    brandCode: context.brandCode,
+    productCode: context.productCode,
+    priceCode: context.priceCode,
+    customerNumber: context.customerNumber,
+    orderReference: context.orderReference,
+    serviceReference: context.serviceReference,
+    status: object.payment_status || object.status || null,
+    amountMinor: Number.isFinite(Number(amount)) ? Number(amount) : null,
+    currency: cleanText(object.currency, 3).toUpperCase() || null,
   });
 }
 
@@ -575,33 +643,65 @@ async function upsertSubscription(env, event, object, context) {
   if (!object?.id) return;
   const now = new Date().toISOString();
   const item = object.items?.data?.[0] || null;
-  const metadata = { ...context.metadata };
-  const productCode = context.productCode;
-  const priceCode = context.priceCode;
   await env.DB.prepare(`INSERT INTO central_payment_subscriptions
     (id,stripe_subscription_id,platform_id,brand_code,product_code,price_code,customer_id,customer_number,stripe_customer_id,status,
      quantity,current_period_start,current_period_end,cancel_at_period_end,cancelled_at,order_reference,service_reference,created_at,updated_at,metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(stripe_subscription_id) DO UPDATE SET status=excluded.status,quantity=excluded.quantity,
-      current_period_start=excluded.current_period_start,current_period_end=excluded.current_period_end,
-      cancel_at_period_end=excluded.cancel_at_period_end,cancelled_at=excluded.cancelled_at,updated_at=excluded.updated_at,
-      metadata_json=excluded.metadata_json`)
-    .bind(crypto.randomUUID(), object.id, context.platformId, context.brandCode, productCode, priceCode, context.customerId,
-      context.customerNumber, context.stripeCustomerId, cleanText(object.status, 80) || "unknown", Number(item?.quantity || 1),
-      unixIso(object.current_period_start || item?.current_period_start, null), unixIso(object.current_period_end || item?.current_period_end, null),
-      object.cancel_at_period_end ? 1 : 0, unixIso(object.canceled_at, null), context.orderReference, context.serviceReference,
-      unixIso(object.created, now), now, JSON.stringify(metadata)).run();
+    ON CONFLICT(stripe_subscription_id) DO UPDATE SET
+      platform_id=COALESCE(excluded.platform_id,central_payment_subscriptions.platform_id),
+      brand_code=COALESCE(excluded.brand_code,central_payment_subscriptions.brand_code),
+      product_code=COALESCE(excluded.product_code,central_payment_subscriptions.product_code),
+      price_code=COALESCE(excluded.price_code,central_payment_subscriptions.price_code),
+      customer_id=COALESCE(excluded.customer_id,central_payment_subscriptions.customer_id),
+      customer_number=COALESCE(excluded.customer_number,central_payment_subscriptions.customer_number),
+      status=excluded.status,quantity=excluded.quantity,current_period_start=excluded.current_period_start,
+      current_period_end=excluded.current_period_end,cancel_at_period_end=excluded.cancel_at_period_end,
+      cancelled_at=excluded.cancelled_at,updated_at=excluded.updated_at,metadata_json=excluded.metadata_json`)
+    .bind(crypto.randomUUID(), object.id, context.platformId, context.brandCode, context.productCode, context.priceCode,
+      context.customerId, context.customerNumber, context.stripeCustomerId, cleanText(object.status, 80) || "unknown",
+      Number(item?.quantity || 1), unixIso(object.current_period_start || item?.current_period_start),
+      unixIso(object.current_period_end || item?.current_period_end), object.cancel_at_period_end ? 1 : 0,
+      unixIso(object.canceled_at), context.orderReference, context.serviceReference, unixIso(object.created, now), now,
+      JSON.stringify(context.metadata)).run();
   await enqueuePlatformEvent(env, context.platformId, event.type, object.id, {
-    eventType: event.type, subscriptionId: object.id, status: object.status, customerNumber: context.customerNumber,
-    brandCode: context.brandCode, productCode, priceCode, currentPeriodEnd: unixIso(object.current_period_end || item?.current_period_end, null),
-    cancelAtPeriodEnd: Boolean(object.cancel_at_period_end), orderReference: context.orderReference, serviceReference: context.serviceReference,
+    eventType: event.type,
+    subscriptionId: object.id,
+    status: object.status,
+    customerNumber: context.customerNumber,
+    brandCode: context.brandCode,
+    productCode: context.productCode,
+    priceCode: context.priceCode,
+    currentPeriodEnd: unixIso(object.current_period_end || item?.current_period_end),
+    cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+    orderReference: context.orderReference,
+    serviceReference: context.serviceReference,
   });
+}
+
+async function upsertCustomerLinkFromEvent(env, object) {
+  if (object?.object !== "customer" || !object?.id) return;
+  const metadata = metadataOf(object);
+  const customerNumber = cleanText(metadata.ucn || metadata.customer_number, 30);
+  const customerId = cleanText(metadata.ja_customer_id, 80);
+  if (!/^\d{10}$/.test(customerNumber) || !customerId) return;
+  const centralCustomer = await env.DB.prepare("SELECT id,customer_number FROM customers WHERE id=? AND customer_number=? LIMIT 1")
+    .bind(customerId, customerNumber).first();
+  if (!centralCustomer) return;
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO central_payment_customer_links(customer_id,customer_number,stripe_customer_id,created_at,updated_at)
+    VALUES (?,?,?,?,?)
+    ON CONFLICT(customer_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,customer_number=excluded.customer_number,updated_at=excluded.updated_at`)
+    .bind(customerId, customerNumber, object.id, now, now).run();
 }
 
 export async function processCentralStripeEvent(env, event, rawBody) {
   await ensureCentralPaymentsSchema(env);
   const object = event?.data?.object;
   if (!event?.id || !event?.type || !object) throw Object.assign(new Error("The Stripe event payload is incomplete."), { code: "INVALID_STRIPE_EVENT", status: 400 });
+  const mode = centralPaymentsConfiguration(env).mode;
+  if (mode === "live" && !event.livemode) throw Object.assign(new Error("A test-mode Stripe event was sent to the live Central Payments endpoint."), { code: "STRIPE_MODE_MISMATCH", status: 400 });
+  if (mode === "test" && event.livemode) throw Object.assign(new Error("A live Stripe event was sent to the test Central Payments endpoint."), { code: "STRIPE_MODE_MISMATCH", status: 400 });
+
   const digest = await sha256(rawBody);
   const now = new Date().toISOString();
   const inserted = await env.DB.prepare(`INSERT OR IGNORE INTO central_payment_webhook_events
@@ -611,22 +711,26 @@ export async function processCentralStripeEvent(env, event, rawBody) {
 
   try {
     const context = await contextFromObject(env, object);
-    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
+    if (event.type === "customer.created" || event.type === "customer.updated") {
+      await upsertCustomerLinkFromEvent(env, object);
+    } else if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       if (context.checkoutRequestId) {
         await env.DB.prepare(`UPDATE central_payment_checkout_requests SET status='completed',completed_at=?,updated_at=? WHERE id=?`)
           .bind(now, now, context.checkoutRequestId).run();
       }
       await upsertTransaction(env, event, object, context);
     } else if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
-      if (context.checkoutRequestId) await env.DB.prepare(`UPDATE central_payment_checkout_requests SET status=?,updated_at=? WHERE id=?`)
-        .bind(event.type.endsWith("expired") ? "expired" : "failed", now, context.checkoutRequestId).run();
+      if (context.checkoutRequestId) {
+        await env.DB.prepare(`UPDATE central_payment_checkout_requests SET status=?,updated_at=? WHERE id=?`)
+          .bind(event.type.endsWith("expired") ? "expired" : "failed", now, context.checkoutRequestId).run();
+      }
       await upsertTransaction(env, event, object, context);
     } else if (event.type.startsWith("customer.subscription.")) {
       await upsertSubscription(env, event, object, context);
       await upsertTransaction(env, event, object, context);
     } else if (
       event.type.startsWith("payment_intent.") || event.type.startsWith("invoice.") || event.type.startsWith("refund.")
-      || event.type.startsWith("charge.refund") || event.type.startsWith("charge.dispute")
+      || event.type === "charge.refunded" || event.type.startsWith("charge.dispute.")
     ) {
       await upsertTransaction(env, event, object, context);
     }
@@ -642,6 +746,10 @@ export async function processCentralStripeEvent(env, event, rawBody) {
 }
 
 export function centralPaymentError(cause, fallback = "Central Payments could not complete this request.") {
-  return error(cause?.code || "CENTRAL_PAYMENTS_FAILED", cause?.message || fallback, cause?.status || 500,
-    cause?.stripeParam ? { stripeParameter: cause.stripeParam } : undefined);
+  return error(
+    cause?.code || "CENTRAL_PAYMENTS_FAILED",
+    cause?.message || fallback,
+    cause?.status || 500,
+    cause?.stripeParam ? { stripeParameter: cause.stripeParam } : undefined,
+  );
 }
