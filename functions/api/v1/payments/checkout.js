@@ -1,7 +1,7 @@
 import { cleanText, error, json, platformAudit, readJson, requirePlatform } from "../../../_shared.js";
+import { createGovernedCentralCheckout } from "../../../_central-payment-checkout.js";
 import {
   centralPaymentError,
-  createCentralCheckout,
   ensureCentralPaymentsSchema,
   findCentralCustomer,
   requirePlatformBrand,
@@ -25,7 +25,7 @@ export const onRequestPost = async context => {
 
     const customer = await findCentralCustomer(context.env, body.customerNumber || body.ucn);
     const product = await resolveCentralPrice(context.env, brand.code, productCode, priceCode);
-    const result = await createCentralCheckout(context.env, {
+    const result = await createGovernedCentralCheckout(context.env, {
       platform: auth.platform,
       brand,
       customer,
@@ -48,6 +48,7 @@ export const onRequestPost = async context => {
         customerNumber: customer.customer_number,
         stripeCheckoutSessionId: result.sessionId,
         mode: result.mode,
+        trialPeriodDays: result.trialPeriodDays,
       },
     });
 
@@ -57,6 +58,7 @@ export const onRequestPost = async context => {
         sessionId: result.sessionId,
         url: result.url,
         mode: result.mode,
+        trialPeriodDays: result.trialPeriodDays,
         customerNumber: customer.customer_number,
         brandCode: brand.code,
         productCode,
