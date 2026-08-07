@@ -22,6 +22,7 @@ const CHECKOUT_POLICIES = Object.freeze({
   PROFILES_PROFESSIONAL_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
   PROFILES_ORGANISATION_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
   PROFILES_ULTIMATE_ORGANISATION_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
+  ELEARNING_AI_LITERACY_TRIAL_FREE: Object.freeze({ trialPeriodDays: 0, allowPromotionCodes: false }),
 });
 
 function policyFor(product) {
@@ -55,6 +56,7 @@ export async function createGovernedCentralCheckout(env, input) {
   const serviceReference = cleanText(input.serviceReference, 120) || null;
   const mode = product.billing_type === "recurring" ? "subscription" : "payment";
   const policy = policyFor(product);
+  const noCostPayment = mode === "payment" && Number(product.amount_minor || 0) === 0;
   const metadata = checkoutMetadata({
     platform,
     brand,
@@ -76,11 +78,20 @@ export async function createGovernedCentralCheckout(env, input) {
     billing_address_collection: "auto",
     "customer_update[address]": "auto",
     allow_promotion_codes: policy.allowPromotionCodes ? "true" : undefined,
+    payment_method_collection: noCostPayment ? "if_required" : undefined,
   };
 
   for (const [key, value] of Object.entries(metadata)) fields[`metadata[${key}]`] = value;
-  const metadataPrefix = mode === "subscription" ? "subscription_data[metadata]" : "payment_intent_data[metadata]";
-  for (const [key, value] of Object.entries(metadata)) fields[`${metadataPrefix}[${key}]`] = value;
+
+  // Free Checkout orders do not create a PaymentIntent, so payment_intent_data
+  // must not be used for a £0.00 order. Checkout-session metadata remains the
+  // authoritative routing metadata for no-cost fulfilment.
+  if (mode === "subscription") {
+    for (const [key, value] of Object.entries(metadata)) fields[`subscription_data[metadata][${key}]`] = value;
+  } else if (!noCostPayment) {
+    for (const [key, value] of Object.entries(metadata)) fields[`payment_intent_data[metadata][${key}]`] = value;
+  }
+
   if (mode === "subscription" && Number(policy.trialPeriodDays || 0) > 0) {
     fields["subscription_data[trial_period_days]"] = String(policy.trialPeriodDays);
   }
@@ -124,6 +135,7 @@ export async function createGovernedCentralCheckout(env, input) {
     sessionId: session.id,
     url: session.url,
     mode,
+    noCostPayment,
     trialPeriodDays: mode === "subscription" ? Number(policy.trialPeriodDays || 0) : 0,
   };
 }
