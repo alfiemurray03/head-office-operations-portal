@@ -32,8 +32,12 @@ function policyFor(product) {
 }
 
 export async function createGovernedCentralCheckout(env, input) {
-  if (String(env.CENTRAL_PAYMENTS_ENABLED || "").toLowerCase() !== "true") {
-    throw Object.assign(new Error("Central Payments checkout is not enabled in Head Office System Settings."), {
+  // Central Payments is the production payment path. The switch is an emergency
+  // kill switch only: an explicit `false` disables checkout, while an absent
+  // value no longer blocks every connected website. Stripe account/key checks
+  // below continue to fail closed if production credentials are missing/wrong.
+  if (String(env.CENTRAL_PAYMENTS_ENABLED || "").trim().toLowerCase() === "false") {
+    throw Object.assign(new Error("Central Payments checkout has been disabled by the Head Office emergency payment switch."), {
       code: "CENTRAL_PAYMENTS_DISABLED",
       status: 503,
     });
