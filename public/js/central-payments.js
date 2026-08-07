@@ -1,5 +1,5 @@
 (() => {
-  const state = { loading: false, overview: null, catalogue: null, configuration: null, platforms: [] };
+  const state = { loading: false, overview: null, catalogue: null, configuration: null, provision: null, platforms: [] };
   let renderTimer = null;
 
   const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -8,7 +8,10 @@
     : '—';
   const date = value => value ? new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)) : '—';
   const canWrite = () => typeof hasPermission !== 'function' || hasPermission('payments:write');
+  const canManageConnections = () => canWrite() && (typeof hasPermission !== 'function' || hasPermission('platforms:write'));
   const routeIsPayments = () => location.hash.includes('/payments') || document.querySelector('#currentRouteLabel')?.textContent?.toLowerCase().includes('payment');
+
+  const PAYMENT_SCOPES = Object.freeze(['payments:checkout','payments:status','payments:portal']);
 
   function root() {
     return document.querySelector('#viewRoot .soc-page') || document.querySelector('#viewRoot');
@@ -22,8 +25,25 @@
     return (state.catalogue?.products || []).map(product => `<option value="${esc(product.productCode)}">${esc(product.brandCode)} · ${esc(product.productCode)} · ${esc(product.name)}</option>`).join('');
   }
 
+  function connectionDefinition(platform) {
+    const code = String(platform?.code || '').toUpperCase();
+    const base = { secretName: 'CUSTOMEROPS_API_KEY', scopes: [...PAYMENT_SCOPES] };
+    if (code === 'JA_GROUP_SERVICES') return { ...base, origin: 'https://jagroupservices.co.uk' };
+    if (['JA_DOMAIN_HUB','SOUSA_MURRAY_DOMAINS','SOUSA_MURRAY_SITES'].includes(code)) return { ...base, origin: 'https://sousamurraydomains.jagroupservices.co.uk' };
+    if (['PLANYX','SOUSA_MURRAY_PLANEIA'].includes(code)) return { ...base, origin: 'https://sousamurrayplaneia.jagroupservices.co.uk' };
+    if (['PROFILE_CENTRE','PROFILE_CENTER','SOUSA_MURRAY_PROFILES'].includes(code)) return { ...base, origin: 'https://sousamurrayprofiles.jagroupservices.co.uk' };
+    if (['APTENVO','COURSE_SELECT','SOUSA_MURRAY_ELEARNING'].includes(code)) {
+      return { ...base, origin: 'https://sousamurrayelearning.jagroupservices.co.uk', scopes: ['customers:write', ...PAYMENT_SCOPES] };
+    }
+    return null;
+  }
+
   function platformOptions() {
     return state.platforms.map(platform => `<option value="${esc(platform.id)}">${esc(platform.name)} · ${esc(platform.code)}</option>`).join('');
+  }
+
+  function connectionPlatformOptions() {
+    return state.platforms.filter(connectionDefinition).map(platform => `<option value="${esc(platform.id)}">${esc(platform.name)} · ${esc(platform.code)}</option>`).join('');
   }
 
   function catalogueRows() {
@@ -60,14 +80,37 @@
     </tr>`).join('')}</tbody></table>`;
   }
 
+  function showConnectionKey(platform, definition, credential) {
+    document.querySelector('#centralPaymentsKeyModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'centralPaymentsKeyModal';
+    modal.className = 'central-payments-key-overlay';
+    modal.innerHTML = `<div class="central-payments-key-dialog" role="dialog" aria-modal="true" aria-labelledby="centralPaymentsKeyTitle">
+      <p class="eyebrow">One-time Head Office credential</p>
+      <h3 id="centralPaymentsKeyTitle">${esc(platform.name)} is ready to connect</h3>
+      <p>Copy this key now. Head Office stores only its cryptographic hash, so this clear value cannot be shown again.</p>
+      <label>Cloudflare secret name<input value="${esc(definition.secretName)}" readonly></label>
+      <label>Secret value<textarea id="centralPaymentsKeyValue" rows="4" readonly>${esc(credential.token)}</textarea></label>
+      <p class="central-payments-key-origin"><strong>Approved return origin:</strong> <span class="central-payments-code">${esc(definition.origin)}</span></p>
+      <div class="central-payments-actions">
+        <button class="button primary" data-central-payment-action="copy-connection-key">Copy secret value</button>
+        <button class="button secondary" data-central-payment-action="close-connection-key">Done</button>
+      </div>
+      <small>Do not paste this key into chat, GitHub, browser code or logs. Store it only as an encrypted Production secret on the website's Cloudflare Pages project.</small>
+    </div>`;
+    document.body.append(modal);
+    modal.querySelector('#centralPaymentsKeyValue')?.select();
+  }
+
   function render() {
     if (!routeIsPayments()) return document.querySelector('#centralPaymentsPanel')?.remove();
     const target = root();
-    if (!target || !state.overview || !state.configuration || !state.catalogue) return;
+    if (!target || !state.overview || !state.configuration || !state.catalogue || !state.provision) return;
     document.querySelector('#centralPaymentsPanel')?.remove();
     const config = state.overview.configuration || {};
     const account = state.configuration.stripeAccount;
     const metrics = state.overview.metrics || {};
+    const provision = state.provision || { ready:false, provisioned:0, total:0 };
     const panel = document.createElement('section');
     panel.id = 'centralPaymentsPanel';
     panel.className = 'soc-panel central-payments-panel';
@@ -80,6 +123,7 @@
           ${badge('Webhook signing',config.stripeWebhookConfigured)}
           ${badge('Approved account',Boolean(account?.id) && !state.configuration.stripeError)}
           ${badge(String(config.mode||'unknown').toUpperCase()+' mode',config.mode==='live')}
+          ${badge(`Standard catalogue ${Number(provision.provisioned||0)}/${Number(provision.total||0)}`,Boolean(provision.ready))}
         </div>
       </div>
       ${state.configuration.stripeError ? `<div class="central-payments-notice central-payments-error"><strong>Stripe account check failed.</strong> ${esc(state.configuration.stripeError.message)}</div>`:''}
@@ -93,6 +137,14 @@
       </div>
       <div class="central-payments-notice"><strong>Central Stripe account:</strong> ${account ? `${esc(account.businessName||'JA Group Services Ltd')} · <span class="central-payments-code">${esc(account.id)}</span> · ${account.chargesEnabled?'charges enabled':'charges not enabled'}` : 'Waiting for CENTRAL_STRIPE_SECRET_KEY and CENTRAL_STRIPE_ACCOUNT_ID.'}<br><strong>Webhook endpoint:</strong> <span class="central-payments-code">${esc(config.webhookEndpoint||'/api/webhooks/stripe')}</span></div>
       ${canWrite() ? `<div class="central-payments-grid">
+        ${canManageConnections() ? `<section class="central-payments-card central-payments-connect-card"><h3>Connect a production website</h3><p>Generate a scoped Head Office credential for Central Payments. The website receives no Stripe secret or webhook secret. Its canonical production return origin is authorised automatically.</p><form id="centralConnectionForm" class="central-payments-form">
+          <label>Website<select name="platformId" required><option value="">Select website</option>${connectionPlatformOptions()}</select></label>
+          <div class="central-payments-actions"><button class="button primary" type="submit">Generate connection key</button></div>
+        </form><small>Sousa Murray eLearning receives <span class="central-payments-code">customers:write</span> solely so its signed-in Entra identity can reconcile to the authoritative Head Office UCN before payment.</small></section>`:''}
+        <section class="central-payments-card"><h3>Standard live catalogue</h3><p>Creates any missing approved Planeia, Profiles and eLearning Stripe products/prices in the Central Payments account. The operation is idempotent.</p>
+          <div class="central-payments-catalogue-status">${badge(`${Number(provision.provisioned||0)} of ${Number(provision.total||0)} prices ready`,Boolean(provision.ready))}</div>
+          <div class="central-payments-actions"><button class="button primary" data-central-payment-action="provision-standard-catalogue" ${provision.ready?'disabled':''}>${provision.ready?'Standard catalogue ready':'Provision standard catalogue'}</button></div>
+        </section>
         <section class="central-payments-card"><h3>Create central product</h3><p>Creates the Stripe Product in the approved Central Payments account and records the Head Office product code.</p><form id="centralProductForm" class="central-payments-form two">
           <label>Brand<select name="brandCode" required>${(state.configuration.brands||[]).map(brand => `<option value="${esc(brand.code)}">${esc(brand.name)}</option>`).join('')}</select></label>
           <label>Product code<input name="productCode" placeholder="ELEARNING_LIBRARY" required></label>
@@ -126,13 +178,14 @@
     if (!routeIsPayments() || state.loading) return;
     state.loading = true;
     try {
-      const [overview,catalogue,configuration,platforms] = await Promise.all([
+      const [overview,catalogue,configuration,provision,platforms] = await Promise.all([
         api('/api/integrations/central-payments/overview'),
         api('/api/integrations/central-payments/catalogue'),
         api('/api/integrations/central-payments/configuration'),
+        api('/api/integrations/central-payments/provision'),
         api('/api/platforms')
       ]);
-      state.overview=overview; state.catalogue=catalogue; state.configuration=configuration; state.platforms=platforms.platforms||[];
+      state.overview=overview; state.catalogue=catalogue; state.configuration=configuration; state.provision=provision; state.platforms=platforms.platforms||[];
       render();
     } catch (error) {
       console.warn('Central Payments workspace could not be loaded',error);
@@ -149,6 +202,20 @@
   async function post(url,body){ return api(url,{method:'POST',body:JSON.stringify(body)}); }
 
   document.addEventListener('submit',async event=>{
+    if(event.target.id==='centralConnectionForm'){
+      event.preventDefault();
+      const form=new FormData(event.target); const button=event.target.querySelector('button[type="submit"]'); button.disabled=true;
+      const platform=state.platforms.find(item=>String(item.id)===String(form.get('platformId'))); const definition=connectionDefinition(platform);
+      if(!platform || !definition){toast?.('Website was not connected','Select a governed production website.','error');button.disabled=false;return;}
+      try{
+        await post('/api/integrations/central-payments/configuration',{action:'addOrigin',platformId:platform.id,origin:definition.origin});
+        const result=await post(`/api/platforms/${encodeURIComponent(platform.id)}/credentials`,{name:`${platform.name} Central Payments production`,scopes:definition.scopes});
+        if(!result?.credential?.token) throw new Error('Head Office did not return the one-time platform key.');
+        showConnectionKey(platform,definition,result.credential);
+        toast?.('Central Payments connection generated','Copy the one-time Head Office key into the website Cloudflare project.','success');
+        await loadFresh();
+      } catch(error){toast?.('Website was not connected',error.message||'Please try again.','error');} finally{button.disabled=false;}
+    }
     if(event.target.id==='centralProductForm'){
       event.preventDefault(); const form=new FormData(event.target); const button=event.target.querySelector('button[type="submit"]'); button.disabled=true;
       try{await post('/api/integrations/central-payments/catalogue',{action:'createProduct',brandCode:form.get('brandCode'),productCode:form.get('productCode'),name:form.get('name'),description:form.get('description'),serviceType:form.get('serviceType')}); toast?.('Central product created','The product is now governed by Head Office Central Payments.','success'); await loadFresh();}
@@ -170,24 +237,38 @@
     const target=event.target.closest('[data-central-payment-action]'); if(!target)return;
     const action=target.dataset.centralPaymentAction;
     if(action==='refresh'){event.preventDefault();return loadFresh();}
+    if(action==='provision-standard-catalogue'){
+      event.preventDefault(); target.disabled=true;
+      try{const result=await post('/api/integrations/central-payments/provision',{}); toast?.('Standard catalogue provisioned',`${Number(result.provisioned||result.total||0)} Central Payments prices are ready.`,result.ready?'success':'warning'); await loadFresh();}
+      catch(error){toast?.('Standard catalogue was not provisioned',error.message||'Please try again.','error');} finally{target.disabled=false;}
+    }
     if(action==='remove-origin'){
       event.preventDefault(); target.disabled=true;
       try{await post('/api/integrations/central-payments/configuration',{action:'removeOrigin',platformId:target.dataset.platformId,origin:target.dataset.origin}); toast?.('Return origin revoked','The platform can no longer use that origin for payment returns.','success'); await loadFresh();}
       catch(error){toast?.('Origin was not revoked',error.message||'Please try again.','error');} finally{target.disabled=false;}
     }
+    if(action==='copy-connection-key'){
+      event.preventDefault();
+      const field=document.querySelector('#centralPaymentsKeyValue'); if(!field)return;
+      try{await navigator.clipboard.writeText(field.value); toast?.('Connection key copied','Paste it directly into the website Cloudflare Production secret.','success');}
+      catch{field.select();document.execCommand('copy');toast?.('Connection key copied','Paste it directly into the website Cloudflare Production secret.','success');}
+    }
+    if(action==='close-connection-key'){
+      event.preventDefault(); document.querySelector('#centralPaymentsKeyModal')?.remove();
+    }
   });
 
-  async function loadFresh(){ state.overview=null;state.catalogue=null;state.configuration=null; await load(); }
+  async function loadFresh(){ state.overview=null;state.catalogue=null;state.configuration=null;state.provision=null; await load(); }
   function schedule(){
     clearTimeout(renderTimer);
     renderTimer=setTimeout(()=>{
       if(!routeIsPayments()) return document.querySelector('#centralPaymentsPanel')?.remove();
       if(document.querySelector('#centralPaymentsPanel')) return;
-      if(state.overview && state.catalogue && state.configuration) return render();
+      if(state.overview && state.catalogue && state.configuration && state.provision) return render();
       load();
     },180);
   }
-  window.addEventListener('hashchange',()=>{state.overview=null;state.catalogue=null;state.configuration=null;schedule();});
+  window.addEventListener('hashchange',()=>{state.overview=null;state.catalogue=null;state.configuration=null;state.provision=null;schedule();});
   new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true});
   schedule();
 })();
