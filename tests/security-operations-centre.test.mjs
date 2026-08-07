@@ -111,20 +111,22 @@ assert.match(notifications, /Idempotency-Key/, 'Welcome messages must be sent id
 assert.match(directorySync, /dispatchPendingCustomerWelcomeNotifications/,
   'A completed JA Group Services ID sync must dispatch pending UCN welcome notices.');
 
-assert.match(stripeControl, /STRIPE_PLANYX_SECRET_KEY/, 'Planyx must have its own Stripe API key binding.');
-assert.match(stripeControl, /STRIPE_PLANYX_WEBHOOK_SECRET/, 'Planyx must have its own Stripe signing secret binding.');
-assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_SECRET_KEY/, 'Profile Centre must have its own Stripe API key binding.');
-assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_WEBHOOK_SECRET/, 'Profile Centre must have its own Stripe signing secret binding.');
-assert.match(stripeControl, /stripe_division_payment_records/, 'Stripe payments must be namespaced by division.');
+assert.match(stripeControl, /STRIPE_PLANYX_SECRET_KEY/, 'Planyx must have its own Stripe API key binding while the legacy connector remains in service.');
+assert.match(stripeControl, /STRIPE_PLANYX_WEBHOOK_SECRET/, 'Planyx must retain its legacy signing secret until migration is completed.');
+assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_SECRET_KEY/, 'Profile Centre must retain its legacy Stripe API key until migration is completed.');
+assert.match(stripeControl, /STRIPE_PROFILE_CENTRE_WEBHOOK_SECRET/, 'Profile Centre must retain its legacy signing secret until migration is completed.');
+assert.match(stripeControl, /stripe_division_payment_records/, 'Legacy Stripe payments must remain namespaced during controlled migration.');
 assert.match(stripeControl, /metadata\.ucn/, 'Stripe objects must support direct UCN linking through metadata.');
-assert.match(stripeWebhookHandler, /Stripe-Signature/, 'Division webhooks must verify Stripe signatures against the raw payload.');
-assert.match(stripeWebhookHandler, /Thin event payloads are not accepted/, 'Thin payloads must be explicitly rejected.');
-assert.match(stripeWebhookHandler, /processStripeWebhookEvent\(context\.env, connector/, 'The webhook must pass the authoritative division connector into normalisation.');
-assert.match(stripeDivisionRoute, /context\.params\.division/, 'The route must resolve the division from the webhook URL.');
-assert.match(legacyStripeWebhook, /STRIPE_DIVISION_REQUIRED/, 'The unsafe shared Stripe endpoint must be retired.');
-assert.match(stripeStatus, /stripeOperationalStatus/, 'Staff must be able to inspect both Stripe connections and webhook health.');
-assert.match(stripeTest, /planyx[\s\S]*profile-centre/, 'Staff must be able to test both division API connections.');
-assert.match(stripeRecords, /stripeDivisionRecords/, 'Staff must read Stripe records through the division-aware store.');
+assert.match(stripeWebhookHandler, /Stripe-Signature/, 'Legacy division webhooks must verify Stripe signatures against the raw payload.');
+assert.match(stripeWebhookHandler, /Thin event payloads are not accepted/, 'Thin legacy payloads must be explicitly rejected.');
+assert.match(stripeWebhookHandler, /processStripeWebhookEvent\(context\.env, connector/, 'The legacy webhook must pass the authoritative division connector into normalisation.');
+assert.match(stripeDivisionRoute, /context\.params\.division/, 'The legacy route must resolve the division from the webhook URL.');
+assert.match(legacyStripeWebhook, /verifyCentralStripeWebhook/, 'The shared Stripe endpoint must now verify the Board-approved Central Payments webhook signature.');
+assert.match(legacyStripeWebhook, /processCentralStripeEvent/, 'The shared Stripe endpoint must now route Stripe lifecycle events through Central Payments.');
+assert.match(legacyStripeWebhook, /CENTRAL_STRIPE_REQUIRED_EVENTS/, 'The central webhook must use an explicit governed event allow-list.');
+assert.match(stripeStatus, /stripeOperationalStatus/, 'Staff must be able to inspect both legacy Stripe connections and webhook health during migration.');
+assert.match(stripeTest, /planyx[\s\S]*profile-centre/, 'Staff must still be able to test both legacy division API connections during migration.');
+assert.match(stripeRecords, /stripeDivisionRecords/, 'Staff must retain legacy division-aware Stripe records until migration is complete.');
 
 assert.match(socUi, /Security Operations Centre/, 'The portal must present itself as a Security Operations Centre.');
 assert.match(socUi, /Initiate critical lockdown/, 'The manual critical lockdown action must be visible to authorised staff.');
