@@ -17,13 +17,19 @@ function normaliseOrigin(value) {
   return parsed.origin;
 }
 
+function liveConfiguration(env, origin) {
+  const configuration = centralPaymentsConfiguration(env, origin);
+  configuration.enabled = String(env.CENTRAL_PAYMENTS_ENABLED || "").trim().toLowerCase() !== "false";
+  return configuration;
+}
+
 export const onRequestGet = async context => {
   const auth = await requirePermission(context, "payments:read");
   if (auth.response) return auth.response;
   try {
     await ensureCentralPaymentsSchema(context.env);
     const origin = new URL(context.request.url).origin;
-    const configuration = centralPaymentsConfiguration(context.env, origin);
+    const configuration = liveConfiguration(context.env, origin);
     let stripeAccount = null;
     let stripeError = null;
     if (configuration.stripeKeyConfigured && configuration.expectedStripeAccountIdConfigured) {
