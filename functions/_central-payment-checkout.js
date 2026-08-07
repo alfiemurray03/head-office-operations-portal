@@ -18,6 +18,10 @@ const CHECKOUT_POLICIES = Object.freeze({
   PLANEIA_BUSINESS_PLAN_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
   PLANEIA_BUSINESS_COMPLETE_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
   PLANEIA_BUSINESS_TOGETHER_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
+  PROFILES_STARTER_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
+  PROFILES_PROFESSIONAL_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
+  PROFILES_ORGANISATION_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
+  PROFILES_ULTIMATE_ORGANISATION_MONTHLY: Object.freeze({ trialPeriodDays: 30, allowPromotionCodes: true }),
 });
 
 function policyFor(product) {
