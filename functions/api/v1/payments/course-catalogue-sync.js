@@ -28,7 +28,7 @@ const FAMILY_HIGHFIELD = "highfield";
 
 function productCodeFor(item) {
   if (item.family === FAMILY_OWN) return `SME-COURSE-${item.courseCode}`.toUpperCase();
-  return `HF-COURSE-${item.courseId}`.toUpperCase();
+  return `HF-COURSE-${item.courseCode}`.toUpperCase();
 }
 
 function priceCodeFor(item) {
@@ -84,12 +84,13 @@ function normaliseItem(raw, env) {
   }
 
   const courseId = cleanText(raw?.courseId, 180).toLowerCase();
-  const courseCode = cleanText(raw?.courseCode, 180).toUpperCase();
+  const courseCode = cleanText(raw?.courseCode, 40).toUpperCase();
   const grossPence = Number(raw?.grossPence);
   const netPence = Number(raw?.netPence);
   const vatPence = Number(raw?.vatPence);
   if (!/^hf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(courseId)) return null;
-  if (!courseCode || !Number.isInteger(grossPence) || grossPence <= 0) return null;
+  if (!/^HF-[A-F0-9]{8}$/.test(courseCode)) return null;
+  if (!Number.isInteger(grossPence) || grossPence <= 0) return null;
   if (!Number.isInteger(netPence) || netPence < 0 || !Number.isInteger(vatPence) || vatPence < 0 || netPence + vatPence !== grossPence) return null;
 
   return {
@@ -246,7 +247,7 @@ async function syncOne(env, item) {
     stripeProduct = await centralStripePost(env, "/products", productFields(item, productCode), `course-product-${productCode.toLowerCase()}`);
     productCreated = true;
   } else {
-    stripeProduct = await centralStripePost(env, `/products/${encodeURIComponent(stripeProduct.id)}`, productFields(item, productCode), `course-product-update-${productCode.toLowerCase()}-${item.courseSlug}`);
+    stripeProduct = await centralStripePost(env, `/products/${encodeURIComponent(stripeProduct.id)}`, productFields(item, productCode));
   }
   if (!stripeProduct?.id) throw Object.assign(new Error(`Stripe did not return a product for ${item.courseCode}.`), { status: 502, code: "STRIPE_PRODUCT_SYNC_FAILED" });
 
