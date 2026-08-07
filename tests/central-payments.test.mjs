@@ -68,6 +68,9 @@ assert.ok(checkout.includes('productCode') && checkout.includes('priceCode'), 'C
 assert.ok(checkout.includes('createGovernedCentralCheckout'), 'The platform checkout route must use the governed Central Payments checkout policy.');
 assert.ok(checkoutPolicy.includes('trialPeriodDays: 30'), 'Existing 30-day subscription trials must be preserved centrally.');
 assert.ok(checkoutPolicy.includes('PLANEIA_EXPLORE_MONTHLY') && checkoutPolicy.includes('PROFILES_STARTER_MONTHLY'), 'Planeia and Profiles trial policies must be governed by Central Payments.');
+assert.ok(checkoutPolicy.includes('noCostPayment'), 'Central Payments must explicitly recognise governed £0.00 Checkout orders.');
+assert.ok(checkoutPolicy.includes('payment_method_collection') && checkoutPolicy.includes('if_required'), 'No-cost Stripe Checkout must not force payment-method collection.');
+assert.ok(checkoutPolicy.includes('!noCostPayment'), 'No-cost Checkout must not send PaymentIntent-only metadata because Stripe does not create a PaymentIntent for a £0.00 order.');
 assert.ok(core.includes('central_payment_platform_origins'), 'Return URLs must be governed by a Head Office origin allow-list.');
 assert.ok(core.includes('parsed.protocol !== "https:"'), 'Central payment return URLs must require HTTPS.');
 assert.ok(core.includes("t.code=r.restriction_type"), 'Payment restriction enforcement must use the real Head Office restriction code relationship.');
@@ -91,7 +94,9 @@ for (const code of [
   'PROFILES_STARTER_MONTHLY',
   'ELEARNING_LEARNER_MONTHLY',
   'ELEARNING_TEAM_15_MONTHLY',
+  'ELEARNING_AI_LITERACY_TRIAL_FREE',
 ]) assert.ok(catalogueManifest.includes(code), `${code} must be governed by the standard Central Payments catalogue.`);
+assert.ok(catalogueManifest.includes('amountMinor: 0') && catalogueManifest.includes('ELEARNING_AI_LITERACY_TRIAL'), 'The AI Literacy free trial must remain a centrally governed £0.00 Stripe catalogue item.');
 
 assert.ok(workspace.includes('Central Payments'), 'Head Office must expose an operational Central Payments workspace.');
 assert.ok(workspace.includes('Create central product') && workspace.includes('Create central price'), 'Head Office must control the central product and price catalogue.');
@@ -108,4 +113,4 @@ assert.ok(!workspace.match(/ho_live_[A-Za-z0-9_-]{20,}/), 'No live Head Office p
 assert.ok(overview.includes('!== "false"') && configuration.includes('!== "false"'), 'Central Payments diagnostics must match the production kill-switch rule: only explicit false disables the service.');
 assert.ok(loader.includes('/js/central-payments.js') && loader.includes('/central-payments.css'), 'The Central Payments workspace must be loaded by the Head Office shell.');
 
-console.log('Central Payments governance, live connection and cross-brand checks passed.');
+console.log('Central Payments governance, live connection, no-cost checkout and cross-brand checks passed.');
