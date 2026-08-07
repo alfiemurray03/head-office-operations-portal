@@ -11,6 +11,10 @@ const permittedScopes = new Set([
   "support:read",
   "support:write",
   "support:ai",
+  "payments:checkout",
+  "payments:status",
+  "payments:customer",
+  "payments:portal",
 ]);
 
 function randomSecret(bytes = 32) {

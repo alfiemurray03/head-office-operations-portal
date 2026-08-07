@@ -11,6 +11,23 @@
   }
 })();
 
+(function loadCentralPaymentsWorkspace() {
+  if (!document.querySelector('link[data-central-payments]')) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/central-payments.css?v=20260807-central-payments-1';
+    style.dataset.centralPayments = 'true';
+    document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
+  }
+  if (!document.querySelector('script[data-central-payments]')) {
+    const script = document.createElement('script');
+    script.src = '/js/central-payments.js?v=20260807-central-payments-1';
+    script.defer = true;
+    script.dataset.centralPayments = 'true';
+    document.head.append(script);
+  }
+})();
+
 // The stable shell is now part of index.html before authentication. Legacy
 // clean-shell.js is deliberately not injected after first paint because it
 // wrapped the router and rewrote visible navigation during startup.
