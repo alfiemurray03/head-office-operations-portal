@@ -178,8 +178,16 @@
   });
 
   async function loadFresh(){ state.overview=null;state.catalogue=null;state.configuration=null; await load(); }
-  function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{if(routeIsPayments())load();else document.querySelector('#centralPaymentsPanel')?.remove();},180);}
-  window.addEventListener('hashchange',schedule);
+  function schedule(){
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(()=>{
+      if(!routeIsPayments()) return document.querySelector('#centralPaymentsPanel')?.remove();
+      if(document.querySelector('#centralPaymentsPanel')) return;
+      if(state.overview && state.catalogue && state.configuration) return render();
+      load();
+    },180);
+  }
+  window.addEventListener('hashchange',()=>{state.overview=null;state.catalogue=null;state.configuration=null;schedule();});
   new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true});
   schedule();
 })();
