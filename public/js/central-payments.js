@@ -146,7 +146,7 @@
     } finally { state.loading=false; }
   }
 
-  async function post(url,body){ return api(url,{method:'POST',body}); }
+  async function post(url,body){ return api(url,{method:'POST',body:JSON.stringify(body)}); }
 
   document.addEventListener('submit',async event=>{
     if(event.target.id==='centralProductForm'){
