@@ -69,7 +69,7 @@ assert.ok(checkout.includes('createGovernedCentralCheckout'), 'The platform chec
 assert.ok(checkoutPolicy.includes('trialPeriodDays: 30'), 'Existing 30-day subscription trials must be preserved centrally.');
 assert.ok(checkoutPolicy.includes('PLANEIA_EXPLORE_MONTHLY') && checkoutPolicy.includes('PROFILES_STARTER_MONTHLY'), 'Planeia and Profiles trial policies must be governed by Central Payments.');
 assert.ok(checkoutPolicy.includes('noCostPayment'), 'Central Payments must explicitly recognise governed £0.00 Checkout orders.');
-assert.ok(checkoutPolicy.includes('payment_method_collection') && checkoutPolicy.includes('if_required'), 'No-cost Stripe Checkout must not force payment-method collection.');
+assert.ok(!checkoutPolicy.includes('payment_method_collection'), 'One-time no-cost Checkout must rely on Stripe automatic zero-total behaviour rather than the subscription-only payment_method_collection parameter.');
 assert.ok(checkoutPolicy.includes('!noCostPayment'), 'No-cost Checkout must not send PaymentIntent-only metadata because Stripe does not create a PaymentIntent for a £0.00 order.');
 assert.ok(core.includes('central_payment_platform_origins'), 'Return URLs must be governed by a Head Office origin allow-list.');
 assert.ok(core.includes('parsed.protocol !== "https:"'), 'Central payment return URLs must require HTTPS.');
