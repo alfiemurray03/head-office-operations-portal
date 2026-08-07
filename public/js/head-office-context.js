@@ -21,9 +21,16 @@
   }
   if (!document.querySelector('script[data-central-payments]')) {
     const script = document.createElement('script');
-    script.src = '/js/central-payments.js?v=20260807-central-payments-1';
+    script.src = '/js/central-payments.js?v=20260807-central-payments-2';
     script.defer = true;
     script.dataset.centralPayments = 'true';
+    document.head.append(script);
+  }
+  if (!document.querySelector('script[data-central-payments-current-platforms]')) {
+    const script = document.createElement('script');
+    script.src = '/js/central-payments-current-platforms.js?v=20260807-current-platform-register-1';
+    script.defer = true;
+    script.dataset.centralPaymentsCurrentPlatforms = 'true';
     document.head.append(script);
   }
 })();
