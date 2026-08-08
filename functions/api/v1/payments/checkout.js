@@ -1,5 +1,6 @@
 import { cleanText, error, json, platformAudit, readJson, requirePlatform } from "../../../_shared.js";
 import { createGovernedCentralCheckout } from "../../../_central-payment-checkout.js";
+import { ensureStandardCatalogueItem } from "../../../_central-payment-standard-catalogue.js";
 import {
   centralPaymentError,
   ensureCentralPaymentsSchema,
@@ -24,6 +25,13 @@ export const onRequestPost = async context => {
     if (!productCode || !priceCode) return error("PAYMENT_PRODUCT_REQUIRED", "A Central Payments product code and price code are required.", 400);
 
     const customer = await findCentralCustomer(context.env, body.customerNumber || body.ucn);
+
+    // The approved standard catalogue is safe to recreate idempotently. This
+    // makes subscription/trial checkout self-heal after Head Office is moved to
+    // another approved Stripe account instead of relying on an operator to
+    // press the catalogue provisioning button first.
+    await ensureStandardCatalogueItem(context.env, brand.code, productCode, priceCode);
+
     const product = await resolveCentralPrice(context.env, brand.code, productCode, priceCode);
     const result = await createGovernedCentralCheckout(context.env, {
       platform: auth.platform,
