@@ -10,12 +10,9 @@ for (const [code, amount] of [
   ['PROFILES_ORGANISATION_MONTHLY', 3000],
   ['PROFILES_ULTIMATE_ORGANISATION_MONTHLY', 8000],
 ]) {
-  const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  assert.match(
-    manifest,
-    new RegExp(`priceCode: "${escaped}"[^\\n]+amountMinor: ${amount}`),
-    `${code} must use the approved current monthly amount.`,
-  );
+  const entry = manifest.split('\n').find(line => line.includes(`priceCode: "${code}"`));
+  assert.ok(entry, `${code} must remain in the governed standard catalogue.`);
+  assert.ok(entry.includes(`amountMinor: ${amount}`), `${code} must use the approved current monthly amount.`);
 }
 
 assert.ok(standard.includes('stripePriceMatches'), 'Standard catalogue must validate immutable Stripe Price properties before reuse.');
