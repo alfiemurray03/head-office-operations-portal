@@ -19,28 +19,49 @@ async function ensureBindingSchema(env) {
     binding_key TEXT PRIMARY KEY,
     stripe_account_id TEXT NOT NULL,
     stripe_mode TEXT NOT NULL DEFAULT 'unknown',
+    binding_state TEXT NOT NULL DEFAULT 'ready',
     bound_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`).run();
   const columns = await env.DB.prepare("PRAGMA table_info(central_payment_stripe_account_binding)").all();
-  if (!(columns.results || []).some(column => column.name === "stripe_mode")) {
+  const names = new Set((columns.results || []).map(column => column.name));
+  if (!names.has("stripe_mode")) {
     await env.DB.prepare("ALTER TABLE central_payment_stripe_account_binding ADD COLUMN stripe_mode TEXT NOT NULL DEFAULT 'unknown'").run();
+  }
+  if (!names.has("binding_state")) {
+    await env.DB.prepare("ALTER TABLE central_payment_stripe_account_binding ADD COLUMN binding_state TEXT NOT NULL DEFAULT 'ready'").run();
   }
 }
 
 async function readBinding(env) {
-  return env.DB.prepare(`SELECT stripe_account_id,stripe_mode,bound_at,updated_at
+  return env.DB.prepare(`SELECT stripe_account_id,stripe_mode,binding_state,bound_at,updated_at
     FROM central_payment_stripe_account_binding WHERE binding_key=? LIMIT 1`)
     .bind(BINDING_KEY).first();
 }
 
-async function writeBinding(env, stripeAccountId, stripeMode) {
+async function claimBindingMigration(env, binding, stripeAccountId, stripeMode) {
   const now = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO central_payment_stripe_account_binding(binding_key,stripe_account_id,stripe_mode,bound_at,updated_at)
-    VALUES (?,?,?,?,?)
-    ON CONFLICT(binding_key) DO UPDATE SET stripe_account_id=excluded.stripe_account_id,
-      stripe_mode=excluded.stripe_mode,bound_at=excluded.bound_at,updated_at=excluded.updated_at`)
-    .bind(BINDING_KEY, stripeAccountId, stripeMode, now, now).run();
+  if (!binding) {
+    const result = await env.DB.prepare(`INSERT OR IGNORE INTO central_payment_stripe_account_binding
+      (binding_key,stripe_account_id,stripe_mode,binding_state,bound_at,updated_at)
+      VALUES (?,?,?,'migrating',?,?)`)
+      .bind(BINDING_KEY, stripeAccountId, stripeMode, now, now).run();
+    return Number(result.meta?.changes || 0) === 1;
+  }
+
+  const result = await env.DB.prepare(`UPDATE central_payment_stripe_account_binding
+    SET stripe_account_id=?,stripe_mode=?,binding_state='migrating',updated_at=?
+    WHERE binding_key=? AND updated_at=? AND binding_state<>'migrating'`)
+    .bind(stripeAccountId, stripeMode, now, BINDING_KEY, binding.updated_at).run();
+  return Number(result.meta?.changes || 0) === 1;
+}
+
+async function finishBindingMigration(env, stripeAccountId, stripeMode, state = "ready") {
+  const now = new Date().toISOString();
+  await env.DB.prepare(`UPDATE central_payment_stripe_account_binding
+    SET stripe_account_id=?,stripe_mode=?,binding_state=?,bound_at=?,updated_at=?
+    WHERE binding_key=?`)
+    .bind(stripeAccountId, stripeMode, state, now, now, BINDING_KEY).run();
 }
 
 async function currentAccountScopedSample(env) {
@@ -113,9 +134,9 @@ async function clearStaleAccountLinks(env) {
 /**
  * Binds D1 Central Payments account-scoped references to the currently approved
  * Stripe account and mode. The Stripe secret is verified on every guarded
- * request before account-scoped data can be used or changed. On first deploy,
- * existing references are adopted only when a sample can be read through the
- * current key; otherwise rebuildable references are cleared for reconciliation.
+ * request before account-scoped data can be used or changed. Rebinding is
+ * serialised in D1 so simultaneous Head Office/API requests cannot repeatedly
+ * clear a catalogue while another request is already rebuilding it.
  */
 export async function ensureCentralStripeAccountBinding(env) {
   const expectedAccountId = String(env.CENTRAL_STRIPE_ACCOUNT_ID || "").trim();
@@ -135,9 +156,13 @@ export async function ensureCentralStripeAccountBinding(env) {
   // later replacement key that may belong to another Stripe account.
   const account = await verifyCentralStripeAccount(env);
   const actualAccountId = String(account?.id || "");
-  const binding = await readBinding(env);
+  let binding = await readBinding(env);
 
-  if (binding?.stripe_account_id === actualAccountId && binding?.stripe_mode === stripeMode) {
+  if (
+    binding?.stripe_account_id === actualAccountId
+    && binding?.stripe_mode === stripeMode
+    && binding?.binding_state === "ready"
+  ) {
     return {
       configured: true,
       rebound: false,
@@ -148,26 +173,58 @@ export async function ensureCentralStripeAccountBinding(env) {
     };
   }
 
-  let stale = Boolean(binding && (
-    binding.stripe_account_id !== actualAccountId
-    || binding.stripe_mode !== stripeMode
-  ));
-  if (!binding) {
-    const sample = await currentAccountScopedSample(env);
-    stale = !(await sampleBelongsToCurrentAccount(env, sample));
+  if (binding?.binding_state === "migrating") {
+    return {
+      configured: false,
+      migrating: true,
+      rebound: false,
+      stripeAccountId: actualAccountId,
+      stripeMode,
+    };
   }
 
-  let cleared = { products: 0, prices: 0, customerLinks: 0 };
-  if (stale) cleared = await clearStaleAccountLinks(env);
+  const previousBinding = binding;
+  const claimed = await claimBindingMigration(env, binding, actualAccountId, stripeMode);
+  if (!claimed) {
+    binding = await readBinding(env);
+    return {
+      configured: Boolean(
+        binding?.binding_state === "ready"
+        && binding?.stripe_account_id === actualAccountId
+        && binding?.stripe_mode === stripeMode
+      ),
+      migrating: binding?.binding_state === "migrating",
+      rebound: false,
+      stripeAccountId: actualAccountId,
+      stripeMode,
+    };
+  }
 
-  await writeBinding(env, actualAccountId, stripeMode);
-  return {
-    configured: true,
-    rebound: stale,
-    stripeAccountId: actualAccountId,
-    stripeMode,
-    previousStripeAccountId: binding?.stripe_account_id || null,
-    previousStripeMode: binding?.stripe_mode || null,
-    cleared,
-  };
+  try {
+    let stale = Boolean(previousBinding && (
+      previousBinding.stripe_account_id !== actualAccountId
+      || previousBinding.stripe_mode !== stripeMode
+    ));
+    if (!previousBinding || previousBinding.binding_state === "failed") {
+      const sample = await currentAccountScopedSample(env);
+      stale = !(await sampleBelongsToCurrentAccount(env, sample));
+    }
+
+    let cleared = { products: 0, prices: 0, customerLinks: 0 };
+    if (stale) cleared = await clearStaleAccountLinks(env);
+
+    await finishBindingMigration(env, actualAccountId, stripeMode, "ready");
+    return {
+      configured: true,
+      rebound: stale,
+      stripeAccountId: actualAccountId,
+      stripeMode,
+      previousStripeAccountId: previousBinding?.stripe_account_id || null,
+      previousStripeMode: previousBinding?.stripe_mode || null,
+      cleared,
+    };
+  } catch (cause) {
+    await finishBindingMigration(env, actualAccountId, stripeMode, "failed").catch(() => undefined);
+    throw cause;
+  }
 }
