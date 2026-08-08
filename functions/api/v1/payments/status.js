@@ -1,12 +1,37 @@
 import { cleanText, error, json, requirePlatform } from "../../../_shared.js";
 import { centralPaymentError, ensureCentralPaymentsSchema } from "../../../_central-payments.js";
 
+async function ensureCheckoutItemsSchema(env) {
+  await ensureCentralPaymentsSchema(env);
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS central_payment_checkout_items (
+    id TEXT PRIMARY KEY,
+    checkout_request_id TEXT NOT NULL,
+    line_position INTEGER NOT NULL,
+    item_code TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_net_minor INTEGER NOT NULL,
+    unit_tax_minor INTEGER NOT NULL,
+    unit_gross_minor INTEGER NOT NULL,
+    line_net_minor INTEGER NOT NULL,
+    line_tax_minor INTEGER NOT NULL,
+    line_gross_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'GBP',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    UNIQUE(checkout_request_id,line_position),
+    FOREIGN KEY (checkout_request_id) REFERENCES central_payment_checkout_requests(id) ON DELETE CASCADE
+  )`).run();
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_central_checkout_items_request
+    ON central_payment_checkout_items(checkout_request_id,line_position)`).run();
+}
+
 export const onRequestGet = async context => {
   const auth = await requirePlatform(context, ["payments:status"]);
   if (auth.response) return auth.response;
 
   try {
-    await ensureCentralPaymentsSchema(context.env);
+    await ensureCheckoutItemsSchema(context.env);
     const url = new URL(context.request.url);
     const reference = cleanText(url.searchParams.get("reference"), 120);
     const orderReference = cleanText(url.searchParams.get("orderReference"), 120);
