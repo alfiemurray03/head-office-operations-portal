@@ -43,8 +43,8 @@ const intermediate = approvedOwnCoursePriceFromMetrics({
   lessonCount: 8,
   assessmentQuestionCount: 8,
 });
-assert.equal(intermediate?.id, 'professional');
-assert.equal(intermediate?.grossPence, 2299);
+assert.equal(intermediate?.id, 'enhanced');
+assert.equal(intermediate?.grossPence, 1699);
 
 const extended = approvedOwnCoursePriceFromMetrics({
   level: 'Intermediate',
