@@ -33,16 +33,17 @@ function accessConfiguration(value) {
 }
 
 export function ownCourseCommerceConfiguration(env) {
-  const defaultGrossPence = positiveInteger(env.ELEARNING_OWN_COURSE_DEFAULT_GROSS_PENCE);
-  const prices = pricingMap(env.ELEARNING_OWN_COURSE_PRICES_JSON);
-  const access = accessConfiguration(env.ELEARNING_OWN_COURSE_ACCESS_DAYS);
+  const defaultGrossPence = positiveInteger(env?.ELEARNING_OWN_COURSE_DEFAULT_GROSS_PENCE);
+  const prices = pricingMap(env?.ELEARNING_OWN_COURSE_PRICES_JSON);
+  const access = accessConfiguration(env?.ELEARNING_OWN_COURSE_ACCESS_DAYS);
   return {
     defaultGrossPence,
     prices,
     accessDays: access.accessDays,
     accessLabel: access.label,
     accessConfigured: access.configured,
-    pricingConfigured: Boolean(defaultGrossPence || Object.keys(prices).length),
+    pricingConfigured: true,
+    pricingModel: "governed_complexity_bands",
   };
 }
 
@@ -56,6 +57,30 @@ export function ownCoursePrice(env, courseCode) {
 export function validateOwnCourseCode(value) {
   const code = String(value || "").trim().toUpperCase();
   return COURSE_CODE_PATTERN.test(code) ? code : null;
+}
+
+export function ownCourseProductCode(courseCode) {
+  const code = validateOwnCourseCode(courseCode);
+  return code ? `SME-COURSE-${code}`.toUpperCase() : null;
+}
+
+export function ownCoursePriceCode(courseCode) {
+  const productCode = ownCourseProductCode(courseCode);
+  return productCode ? `${productCode}-INDIVIDUAL`.toUpperCase() : null;
+}
+
+export async function ownCourseCataloguePrice(env, courseCode) {
+  const code = validateOwnCourseCode(courseCode);
+  if (!code) return null;
+  const priceCode = ownCoursePriceCode(code);
+  if (env?.DB && priceCode) {
+    const row = await env.DB.prepare(`SELECT amount_minor,currency,billing_type,status
+      FROM central_payment_catalogue_prices
+      WHERE price_code=? AND status='active' LIMIT 1`).bind(priceCode).first();
+    const amount = positiveInteger(row?.amount_minor);
+    if (amount && String(row?.currency || "").toUpperCase() === "GBP" && row?.billing_type === "one_time") return amount;
+  }
+  return ownCoursePrice(env, code);
 }
 
 export function splitVatInclusive(grossPence) {
