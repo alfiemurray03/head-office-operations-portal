@@ -1,5 +1,10 @@
 const COURSE_CODE_PATTERN = /^SME-[A-Z0-9]{2,4}-\d{3}$/;
 
+export const OWN_COURSE_ACCESS_DAYS = 365;
+export const OWN_COURSE_ACCESS_MONTHS = 12;
+export const OWN_COURSE_ACCESS_TERM = "12_months";
+export const OWN_COURSE_ACCESS_LABEL = "12 months of course access";
+
 function positiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
@@ -22,26 +27,17 @@ function pricingMap(value) {
   }
 }
 
-function accessConfiguration(value) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (raw === "permanent" || raw === "unlimited" || raw === "lifetime") {
-    return { configured: true, accessDays: null, label: "Permanent course access" };
-  }
-  const days = positiveInteger(raw);
-  if (!days) return { configured: false, accessDays: null, label: null };
-  return { configured: true, accessDays: days, label: `${days} days of course access` };
-}
-
 export function ownCourseCommerceConfiguration(env) {
   const defaultGrossPence = positiveInteger(env?.ELEARNING_OWN_COURSE_DEFAULT_GROSS_PENCE);
   const prices = pricingMap(env?.ELEARNING_OWN_COURSE_PRICES_JSON);
-  const access = accessConfiguration(env?.ELEARNING_OWN_COURSE_ACCESS_DAYS);
   return {
     defaultGrossPence,
     prices,
-    accessDays: access.accessDays,
-    accessLabel: access.label,
-    accessConfigured: access.configured,
+    accessDays: OWN_COURSE_ACCESS_DAYS,
+    accessMonths: OWN_COURSE_ACCESS_MONTHS,
+    accessTerm: OWN_COURSE_ACCESS_TERM,
+    accessLabel: OWN_COURSE_ACCESS_LABEL,
+    accessConfigured: true,
     pricingConfigured: true,
     pricingModel: "governed_complexity_bands",
   };
