@@ -41,6 +41,8 @@ export const onRequestGet = async context => {
     checkoutConfigured: pricesConfigured && configuration.accessConfigured,
     accessConfigured: configuration.accessConfigured,
     accessDays: configuration.accessDays,
+    accessMonths: configuration.accessMonths,
+    accessTerm: configuration.accessTerm,
     accessLabel: configuration.accessLabel,
     pricingModel: configuration.pricingModel,
     items,
