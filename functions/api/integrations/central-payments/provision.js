@@ -4,6 +4,7 @@ import {
   centralPaymentError,
   verifyCentralStripeAccount,
 } from "../../../_central-payments.js";
+import { CENTRAL_PAYMENT_STANDARD_CATALOGUE } from "../../../_central-payment-catalogue-manifest.js";
 import {
   provisionStandardCatalogue,
   standardCatalogueState,
@@ -17,7 +18,7 @@ export const onRequestGet = async context => {
     return json({
       items,
       ready: items.every(item => item.productReady && item.priceReady),
-      total: items.length,
+      total: CENTRAL_PAYMENT_STANDARD_CATALOGUE.length,
       provisioned: items.filter(item => item.productReady && item.priceReady).length,
     });
   } catch (cause) {
@@ -38,7 +39,7 @@ export const onRequestPost = async context => {
       metadata: {
         createdProducts: state.createdProducts,
         createdPrices: state.createdPrices,
-        total: state.total,
+        total: CENTRAL_PAYMENT_STANDARD_CATALOGUE.length,
         stripeAccountId: String(context.env.CENTRAL_STRIPE_ACCOUNT_ID || ""),
       },
     });
