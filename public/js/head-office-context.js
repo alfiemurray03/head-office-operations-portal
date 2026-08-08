@@ -19,6 +19,13 @@
     style.dataset.centralPayments = 'true';
     document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
   }
+  if (!document.querySelector('link[data-central-payments-full-catalogue-status]')) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/central-payments-full-catalogue-status.css?v=20260808-full-catalogue-1';
+    style.dataset.centralPaymentsFullCatalogueStatus = 'true';
+    document.head.insertBefore(style, document.getElementById('professionalInterfaceStyles') || null);
+  }
   if (!document.querySelector('script[data-central-payments]')) {
     const script = document.createElement('script');
     script.src = '/js/central-payments.js?v=20260807-central-payments-2';
@@ -31,6 +38,13 @@
     script.src = '/js/central-payments-current-platforms.js?v=20260807-current-platform-register-1';
     script.defer = true;
     script.dataset.centralPaymentsCurrentPlatforms = 'true';
+    document.head.append(script);
+  }
+  if (!document.querySelector('script[data-central-payments-full-catalogue-status]')) {
+    const script = document.createElement('script');
+    script.src = '/js/central-payments-full-catalogue-status.js?v=20260808-full-catalogue-1';
+    script.defer = true;
+    script.dataset.centralPaymentsFullCatalogueStatus = 'true';
     document.head.append(script);
   }
 })();
