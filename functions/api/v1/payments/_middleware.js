@@ -1,7 +1,13 @@
 import { ensureCentralStripeAccountBinding } from "../../../_central-payment-account-binding.js";
 import { centralPaymentError } from "../../../_central-payments.js";
+import { requirePlatform } from "../../../_shared.js";
 
 export const onRequest = async context => {
+  // Never let an anonymous request trigger Stripe verification or D1 rebinding.
+  // Individual routes still enforce their operation-specific scopes afterwards.
+  const auth = await requirePlatform(context, []);
+  if (auth.response) return auth.response;
+
   let binding;
   try {
     binding = await ensureCentralStripeAccountBinding(context.env);
