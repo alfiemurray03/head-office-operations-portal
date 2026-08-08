@@ -1,5 +1,5 @@
 (() => {
-  const EXPECTED_SOUSA_MURRAY_COURSES = 272;
+  const EXPECTED_SOUSA_MURRAY_PROGRAMMES = 13;
   const EXPECTED_HIGHFIELD_COURSES = 101;
   let scheduled = false;
   let loading = false;
@@ -51,28 +51,29 @@
       ]);
 
       const products = (catalogue?.products || []).filter(product => String(product?.status || '').toLowerCase() === 'active');
-      const ownCourses = products.filter(product => String(product?.productCode || '').startsWith('SME-COURSE-'));
+      const ownProgrammes = products.filter(product => String(product?.productCode || '').startsWith('SME-COURSE-'));
       const highfieldCourses = products.filter(product => String(product?.productCode || '').startsWith('HF-COURSE-'));
       const standardProducts = products.filter(product => {
         const code = String(product?.productCode || '');
         return !code.startsWith('SME-COURSE-') && !code.startsWith('HF-COURSE-');
       });
 
-      const ownPrices = countActivePrices(ownCourses);
+      const ownPrices = countActivePrices(ownProgrammes);
       const highfieldPrices = countActivePrices(highfieldCourses);
       const standardPrices = countActivePrices(standardProducts);
       const allPrices = countActivePrices(products);
       const standardReady = Boolean(provision?.ready);
-      const ownProductsReady = ownCourses.length === EXPECTED_SOUSA_MURRAY_COURSES;
+      const ownProductsReady = ownProgrammes.length === EXPECTED_SOUSA_MURRAY_PROGRAMMES;
+      const ownPricesReady = ownPrices === EXPECTED_SOUSA_MURRAY_PROGRAMMES;
       const highfieldProductsReady = highfieldCourses.length === EXPECTED_HIGHFIELD_COURSES;
       const highfieldPricesReady = highfieldPrices === EXPECTED_HIGHFIELD_COURSES;
-      const productCatalogueReady = standardReady && ownProductsReady && highfieldProductsReady;
+      const productCatalogueReady = standardReady && ownProductsReady && ownPricesReady && highfieldProductsReady && highfieldPricesReady;
 
       const heading = card.querySelector('h3');
       if (heading) heading.textContent = 'Central Payments catalogue status';
       const description = card.querySelector(':scope > p');
       if (description) {
-        description.textContent = 'Shows the standard platform catalogue and both eLearning course catalogues held in the approved Central Payments Stripe account. The standard provisioning control below manages standard platform prices only.';
+        description.textContent = 'Shows the standard platform catalogue, the current 12-week Sousa Murray programme catalogue and Highfield Online Training held in the approved Central Payments Stripe account.';
       }
 
       const status = card.querySelector('.central-payments-catalogue-status');
@@ -85,18 +86,18 @@
             `${standardProducts.length.toLocaleString('en-GB')} active products · ${standardPrices.toLocaleString('en-GB')} active prices`,
           )}
           ${row(
-            'Sousa Murray course products',
-            `${ownCourses.length.toLocaleString('en-GB')} / ${EXPECTED_SOUSA_MURRAY_COURSES} products ready`,
+            'Sousa Murray 12-week programmes',
+            `${ownProgrammes.length.toLocaleString('en-GB')} / ${EXPECTED_SOUSA_MURRAY_PROGRAMMES} products ready`,
             ownProductsReady ? 'ok' : 'warn',
-            'Individual Sousa Murray eLearning courses delivered through the Sousa Murray LMS',
+            'Substantial multi-week programmes delivered through the Sousa Murray LMS',
           )}
           ${row(
-            'Sousa Murray course prices',
-            `${ownPrices.toLocaleString('en-GB')} / ${EXPECTED_SOUSA_MURRAY_COURSES} prices approved`,
-            ownPrices === EXPECTED_SOUSA_MURRAY_COURSES ? 'ok' : 'pending',
-            ownPrices === EXPECTED_SOUSA_MURRAY_COURSES
-              ? 'All individual course prices are active'
-              : 'Individual course products are present; prices remain pending until the commercial pricing rule is approved',
+            'Sousa Murray programme prices',
+            `${ownPrices.toLocaleString('en-GB')} / ${EXPECTED_SOUSA_MURRAY_PROGRAMMES} prices ready`,
+            ownPricesReady ? 'ok' : 'warn',
+            ownPricesReady
+              ? 'All active individual programme prices are available for website and authorised manual sales'
+              : 'Programme catalogue reconciliation is still creating or replacing Stripe prices',
           )}
           ${row(
             'Highfield course products',
@@ -114,7 +115,7 @@
             'Total governed Stripe catalogue',
             `${products.length.toLocaleString('en-GB')} active products · ${allPrices.toLocaleString('en-GB')} active prices`,
             productCatalogueReady ? 'ok' : 'warn',
-            'Standard platform products + Sousa Murray courses + Highfield courses',
+            'Standard platform products + Sousa Murray programmes + Highfield courses',
           )}
         </div>`;
       }
@@ -130,7 +131,7 @@
         note.dataset.fullCatalogueNote = 'true';
         card.append(note);
       }
-      note.textContent = 'Course products are synchronised from Sousa Murray eLearning. They are separate from the standard platform catalogue provision action.';
+      note.textContent = 'The active Sousa Murray catalogue now contains 13 substantive 12-week programmes. Retired topic-sized products are archived in Stripe and are not counted as active sellable products.';
 
       const topBadge = [...panel.querySelectorAll('.central-payments-heading .central-payments-badge')]
         .find(item => item.textContent?.includes('Standard catalogue') || item.dataset.fullCatalogueBadge === 'true');
