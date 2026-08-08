@@ -1,0 +1,1 @@
+Build-only validation marker for the Head Office Stripe course catalogue synchronisation.
