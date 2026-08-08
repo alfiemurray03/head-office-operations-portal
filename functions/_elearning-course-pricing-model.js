@@ -25,7 +25,7 @@ export const OWN_COURSE_PRICE_BANDS = Object.freeze([
   priceBand("extended", null, 1922),
 ]);
 
-const EXPECTED_GROSS_PRICES = [799, 1099, 1399, 1699, 2299, 2999];
+const EXPECTED_GROSS_PRICES = [799, 1100, 1399, 1699, 2299, 2999];
 OWN_COURSE_PRICE_BANDS.forEach((band, index) => {
   if (band.grossPence !== EXPECTED_GROSS_PRICES[index]) {
     throw new Error(`Invalid Sousa Murray course pricing band ${band.id}.`);
