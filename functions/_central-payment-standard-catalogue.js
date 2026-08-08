@@ -37,9 +37,28 @@ function productIdempotencyKey(item) {
 }
 
 function priceIdempotencyKey(item) {
+  const currency = String(item.currency || "GBP").toLowerCase();
+  const interval = item.billingType === "recurring" ? item.interval || "month" : "once";
+  const signature = `${item.amountMinor}-${currency}-${item.billingType}-${interval}`;
   return item.priceCode.endsWith("_TRIAL_FREE")
-    ? `central-trial-price-${item.priceCode.toLowerCase()}`
-    : `central-price-${item.priceCode.toLowerCase()}`;
+    ? `central-trial-price-${item.priceCode.toLowerCase()}-${signature}`
+    : `central-price-${item.priceCode.toLowerCase()}-${signature}`;
+}
+
+function stripePriceMatches(stripePrice, item, productId) {
+  if (!stripePrice?.id || stripePrice.deleted || stripePrice.active === false) return false;
+  if (String(stripePrice.product || "") !== String(productId || "")) return false;
+  if (Number(stripePrice.unit_amount) !== Number(item.amountMinor)) return false;
+  if (String(stripePrice.currency || "").toLowerCase() !== String(item.currency || "GBP").toLowerCase()) return false;
+
+  if (item.billingType === "recurring") {
+    if (!stripePrice.recurring) return false;
+    if (String(stripePrice.recurring.interval || "") !== String(item.interval || "month")) return false;
+    if (Number(stripePrice.recurring.interval_count || 1) !== 1) return false;
+  } else if (stripePrice.recurring) {
+    return false;
+  }
+  return true;
 }
 
 async function ensureProduct(env, item) {
@@ -96,13 +115,13 @@ async function ensurePrice(env, item, product) {
       recurring_interval,recurring_interval_count,tax_behavior,status
     FROM central_payment_catalogue_prices WHERE price_code=? LIMIT 1`).bind(item.priceCode).first();
 
-  let stripePrice = existing?.stripe_price_id
+  const previousStripePrice = existing?.stripe_price_id
     ? await stripeObject(env, `/prices/${encodeURIComponent(existing.stripe_price_id)}`)
     : null;
 
-  if (stripePrice && String(stripePrice.product || "") !== String(product.stripeProduct.id)) {
-    stripePrice = null;
-  }
+  let stripePrice = stripePriceMatches(previousStripePrice, item, product.stripeProduct.id)
+    ? previousStripePrice
+    : null;
 
   if (!stripePrice) {
     const fields = {
@@ -110,6 +129,9 @@ async function ensurePrice(env, item, product) {
       currency: String(item.currency || "GBP").toLowerCase(),
       unit_amount: item.amountMinor,
       lookup_key: item.priceCode.toLowerCase(),
+      // When an amount changes Stripe requires a new Price. Move the stable lookup
+      // key atomically so anything resolving by lookup key follows the replacement.
+      transfer_lookup_key: "true",
       tax_behavior: item.taxBehavior || "inclusive",
       "metadata[legal_entity]": "JA Group Services Ltd",
       "metadata[central_payments]": "true",
@@ -167,27 +189,48 @@ async function ensurePrice(env, item, product) {
       now,
     ).run();
 
+  // Existing subscriptions may continue referencing the old immutable Price; making
+  // it inactive only prevents it being selected for new purchases.
+  if (previousStripePrice?.id && previousStripePrice.id !== stripePrice.id && previousStripePrice.active !== false) {
+    await centralStripePost(
+      env,
+      `/prices/${encodeURIComponent(previousStripePrice.id)}`,
+      { active: "false" },
+      `central-price-archive-${previousStripePrice.id}`,
+    );
+  }
+
   return { id, stripePrice };
 }
 
 export async function standardCatalogueState(env) {
   await ensureCentralPaymentsSchema(env);
   const products = await env.DB.prepare("SELECT product_code FROM central_payment_catalogue_products WHERE status='active'").all();
-  const prices = await env.DB.prepare("SELECT price_code FROM central_payment_catalogue_prices WHERE status='active'").all();
+  const prices = await env.DB.prepare(`SELECT price_code,amount_minor,currency,billing_type,recurring_interval
+    FROM central_payment_catalogue_prices WHERE status='active'`).all();
   const productCodes = new Set((products.results || []).map(row => row.product_code));
-  const priceCodes = new Set((prices.results || []).map(row => row.price_code));
-  return CENTRAL_PAYMENT_STANDARD_CATALOGUE.map(item => ({
-    brandCode: item.brandCode,
-    productCode: item.productCode,
-    priceCode: item.priceCode,
-    name: item.name,
-    amountMinor: item.amountMinor,
-    currency: item.currency,
-    billingType: item.billingType,
-    interval: item.interval || null,
-    productReady: productCodes.has(item.productCode),
-    priceReady: priceCodes.has(item.priceCode),
-  }));
+  const pricesByCode = new Map((prices.results || []).map(row => [row.price_code, row]));
+  return CENTRAL_PAYMENT_STANDARD_CATALOGUE.map(item => {
+    const storedPrice = pricesByCode.get(item.priceCode);
+    const expectedInterval = item.billingType === "recurring" ? item.interval || "month" : null;
+    const priceReady = Boolean(storedPrice)
+      && Number(storedPrice.amount_minor) === Number(item.amountMinor)
+      && String(storedPrice.currency || "").toUpperCase() === String(item.currency || "GBP").toUpperCase()
+      && String(storedPrice.billing_type || "") === String(item.billingType || "")
+      && String(storedPrice.recurring_interval || "") === String(expectedInterval || "");
+    return {
+      brandCode: item.brandCode,
+      productCode: item.productCode,
+      priceCode: item.priceCode,
+      name: item.name,
+      amountMinor: item.amountMinor,
+      currency: item.currency,
+      billingType: item.billingType,
+      interval: item.interval || null,
+      productReady: productCodes.has(item.productCode),
+      priceReady,
+    };
+  });
 }
 
 export async function ensureStandardCatalogueItem(env, brandCode, productCode, priceCode) {
@@ -197,8 +240,8 @@ export async function ensureStandardCatalogueItem(env, brandCode, productCode, p
   await ensureCentralPaymentsSchema(env);
   const priorProduct = await env.DB.prepare(`SELECT stripe_product_id,status FROM central_payment_catalogue_products
     WHERE product_code=? LIMIT 1`).bind(item.productCode).first();
-  const priorPrice = await env.DB.prepare(`SELECT stripe_price_id,status FROM central_payment_catalogue_prices
-    WHERE price_code=? LIMIT 1`).bind(item.priceCode).first();
+  const priorPrice = await env.DB.prepare(`SELECT stripe_price_id,status,amount_minor,currency,billing_type,recurring_interval
+    FROM central_payment_catalogue_prices WHERE price_code=? LIMIT 1`).bind(item.priceCode).first();
 
   const product = await ensureProduct(env, item);
   const price = await ensurePrice(env, item, product);
