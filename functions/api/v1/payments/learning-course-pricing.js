@@ -1,7 +1,7 @@
 import { error, json, requirePlatform } from "../../../_shared.js";
 import {
+  ownCourseCataloguePrice,
   ownCourseCommerceConfiguration,
-  ownCoursePrice,
   splitVatInclusive,
   validateOwnCourseCode,
 } from "../../../_elearning-own-course-commerce.js";
@@ -22,8 +22,8 @@ export const onRequestGet = async context => {
   }
 
   const configuration = ownCourseCommerceConfiguration(context.env);
-  const items = codes.map(code => {
-    const grossPence = ownCoursePrice(context.env, code);
+  const items = await Promise.all(codes.map(async code => {
+    const grossPence = await ownCourseCataloguePrice(context.env, code);
     const split = grossPence ? splitVatInclusive(grossPence) : null;
     return {
       courseCode: code,
@@ -33,12 +33,16 @@ export const onRequestGet = async context => {
       vatPence: split?.vat ?? null,
       currency: "GBP",
     };
-  });
+  }));
+  const pricesConfigured = items.every(item => item.configured);
 
   return json({
-    configured: configuration.pricingConfigured && configuration.accessConfigured && items.every(item => item.configured),
+    configured: pricesConfigured,
+    checkoutConfigured: pricesConfigured && configuration.accessConfigured,
+    accessConfigured: configuration.accessConfigured,
     accessDays: configuration.accessDays,
     accessLabel: configuration.accessLabel,
+    pricingModel: configuration.pricingModel,
     items,
   });
 };

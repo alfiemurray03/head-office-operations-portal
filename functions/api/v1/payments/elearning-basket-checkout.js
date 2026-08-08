@@ -12,8 +12,9 @@ import {
   verifyCentralStripeAccount,
 } from "../../../_central-payments.js";
 import {
+  ownCourseCataloguePrice,
   ownCourseCommerceConfiguration,
-  ownCoursePrice,
+  ownCoursePriceCode,
   splitVatInclusive,
   validateOwnCourseCode,
 } from "../../../_elearning-own-course-commerce.js";
@@ -75,6 +76,16 @@ async function catalogueProduct(env, productCode) {
   return row;
 }
 
+async function catalogueOwnCoursePrice(env, courseCode) {
+  const priceCode = ownCoursePriceCode(courseCode);
+  if (!priceCode) return null;
+  const row = await env.DB.prepare(`SELECT stripe_price_id,amount_minor,currency,billing_type,status
+    FROM central_payment_catalogue_prices
+    WHERE price_code=? AND status='active' LIMIT 1`).bind(priceCode).first();
+  if (!row?.stripe_price_id || row.billing_type !== "one_time" || String(row.currency || "").toUpperCase() !== "GBP") return null;
+  return row;
+}
+
 async function normaliseItems(value, env) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_LINES) return null;
   const seen = new Set();
@@ -86,17 +97,22 @@ async function normaliseItems(value, env) {
     if (family === FAMILY_OWN) {
       const courseCode = validateOwnCourseCode(raw?.courseCode);
       if (!courseCode || seen.has(`${family}:${courseCode}`)) return null;
-      const grossPence = ownCoursePrice(env, courseCode);
+      const grossPence = await ownCourseCataloguePrice(env, courseCode);
       const split = grossPence ? splitVatInclusive(grossPence) : null;
       if (!split) return null;
       const centralProductCode = `SME-COURSE-${courseCode}`.toUpperCase();
-      const product = await catalogueProduct(env, centralProductCode);
+      const [product, price] = await Promise.all([
+        catalogueProduct(env, centralProductCode),
+        catalogueOwnCoursePrice(env, courseCode),
+      ]);
+      if (!price?.stripe_price_id || Number(price.amount_minor) !== split.gross) return null;
       seen.add(`${family}:${courseCode}`);
       rows.push({
         family,
         itemCode: courseCode,
         itemName: product.name,
         stripeProductId: product.stripe_product_id,
+        stripePriceId: price.stripe_price_id,
         quantity: 1,
         unitNetPence: split.net,
         unitVatPence: split.vat,
@@ -108,6 +124,7 @@ async function normaliseItems(value, env) {
           provider: "Sousa Murray eLearning",
           learningPlatform: "Sousa Murray LMS",
           centralProductCode,
+          stripePriceId: price.stripe_price_id,
         },
       });
       continue;
@@ -131,6 +148,7 @@ async function normaliseItems(value, env) {
         itemCode: courseId,
         itemName: product.name || priced.title,
         stripeProductId: product.stripe_product_id,
+        stripePriceId: null,
         quantity,
         unitNetPence: priced.unitNetPence,
         unitVatPence: priced.unitVatPence,
@@ -181,10 +199,10 @@ export const onRequestPost = async context => {
     const containsOwnCourses = requestedItems.some(item => cleanText(item?.family, 40).toLowerCase() === FAMILY_OWN);
     if (containsOwnCourses) {
       const commerce = ownCourseCommerceConfiguration(context.env);
-      if (!commerce.pricingConfigured || !commerce.accessConfigured) {
+      if (!commerce.accessConfigured) {
         return error(
-          "ELEARNING_OWN_COURSE_COMMERCE_NOT_CONFIGURED",
-          "Individual Sousa Murray course pricing and access duration must be configured in Head Office before checkout can be used.",
+          "ELEARNING_OWN_COURSE_ACCESS_NOT_CONFIGURED",
+          "Individual Sousa Murray course access duration must be configured in Head Office before checkout can be used.",
           503,
         );
       }
@@ -233,10 +251,14 @@ export const onRequestPost = async context => {
     };
 
     items.forEach((item, index) => {
-      fields[`line_items[${index}][price_data][currency]`] = "gbp";
-      fields[`line_items[${index}][price_data][unit_amount]`] = String(item.unitGrossPence);
-      fields[`line_items[${index}][price_data][tax_behavior]`] = "inclusive";
-      fields[`line_items[${index}][price_data][product]`] = item.stripeProductId;
+      if (item.family === FAMILY_OWN && item.stripePriceId) {
+        fields[`line_items[${index}][price]`] = item.stripePriceId;
+      } else {
+        fields[`line_items[${index}][price_data][currency]`] = "gbp";
+        fields[`line_items[${index}][price_data][unit_amount]`] = String(item.unitGrossPence);
+        fields[`line_items[${index}][price_data][tax_behavior]`] = "inclusive";
+        fields[`line_items[${index}][price_data][product]`] = item.stripeProductId;
+      }
       fields[`line_items[${index}][quantity]`] = String(item.quantity);
     });
 

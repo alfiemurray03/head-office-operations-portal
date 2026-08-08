@@ -16,10 +16,9 @@ import {
 } from "../../../_central-payments.js";
 import {
   ownCourseCommerceConfiguration,
-  ownCoursePrice,
-  splitVatInclusive,
   validateOwnCourseCode,
 } from "../../../_elearning-own-course-commerce.js";
+import { approvedOwnCoursePriceFromMetrics } from "../../../_elearning-course-pricing-model.js";
 
 const MAX_ITEMS = 25;
 const BRAND = "SOUSA_MURRAY_ELEARNING";
@@ -51,7 +50,7 @@ function validateUrl(value) {
   }
 }
 
-function normaliseItem(raw, env) {
+function normaliseItem(raw) {
   const family = cleanText(raw?.family, 40).toLowerCase();
   if (![FAMILY_OWN, FAMILY_HIGHFIELD].includes(family)) return null;
 
@@ -63,9 +62,28 @@ function normaliseItem(raw, env) {
 
   if (family === FAMILY_OWN) {
     const courseCode = validateOwnCourseCode(raw?.courseCode);
-    if (!courseCode) return null;
-    const configuredPrice = ownCoursePrice(env, courseCode);
-    const split = configuredPrice ? splitVatInclusive(configuredPrice) : null;
+    const approved = approvedOwnCoursePriceFromMetrics(raw);
+    if (!courseCode || !approved) return null;
+
+    const declaredGross = Number(raw?.grossPence);
+    const declaredNet = Number(raw?.netPence);
+    const declaredVat = Number(raw?.vatPence);
+    const declaredBand = cleanText(raw?.pricingBand, 40).toLowerCase();
+    const declaredScore = Number(raw?.pricingScore);
+    const declaredBase = Number(raw?.baseValuePence);
+    const declaredUplift = Number(raw?.commercialUpliftBasisPoints);
+    const declaredVatRate = Number(raw?.vatBasisPoints);
+    if (
+      declaredGross !== approved.grossPence
+      || declaredNet !== approved.retailNetPence
+      || declaredVat !== approved.vatPence
+      || declaredBand !== approved.id
+      || declaredScore !== approved.score
+      || declaredBase !== approved.baseValuePence
+      || declaredUplift !== approved.commercialUpliftBasisPoints
+      || declaredVatRate !== approved.vatBasisPoints
+    ) return null;
+
     return {
       family,
       courseId: courseCode,
@@ -76,10 +94,20 @@ function normaliseItem(raw, env) {
       url,
       deliveryPlatform: "Sousa Murray LMS",
       provider: "Sousa Murray eLearning",
-      grossPence: split?.gross ?? null,
-      netPence: split?.net ?? null,
-      vatPence: split?.vat ?? null,
-      priceSource: split ? "Head Office approved own-course pricing configuration" : "Pending Head Office commercial pricing configuration",
+      grossPence: approved.grossPence,
+      netPence: approved.retailNetPence,
+      vatPence: approved.vatPence,
+      pricingBand: approved.id,
+      pricingScore: approved.score,
+      baseValuePence: approved.baseValuePence,
+      commercialUpliftBasisPoints: approved.commercialUpliftBasisPoints,
+      vatBasisPoints: approved.vatBasisPoints,
+      level: approved.level,
+      durationMinutes: approved.durationMinutes,
+      moduleCount: approved.moduleCount,
+      lessonCount: approved.lessonCount,
+      assessmentQuestionCount: approved.assessmentQuestionCount,
+      priceSource: "Head Office governed Sousa Murray complexity band: 30% commercial uplift plus 20% UK VAT",
     };
   }
 
@@ -135,8 +163,7 @@ async function findStripeProduct(env, item, productCode) {
 }
 
 function productFields(item, productCode) {
-  const priceStatus = item.grossPence ? "approved" : "pending_approval";
-  return {
+  const fields = {
     name: item.name,
     description: item.description,
     active: "true",
@@ -153,10 +180,20 @@ function productFields(item, productCode) {
     "metadata[product_family]": item.family === FAMILY_OWN ? "own_course" : "highfield_course",
     "metadata[purchase_model]": "individual_course",
     "metadata[manual_sale_enabled]": "true",
-    "metadata[price_status]": priceStatus,
+    "metadata[price_status]": item.grossPence ? "approved" : "pending_approval",
     "metadata[price_source]": item.priceSource,
     "metadata[vat_inclusive]": item.grossPence ? "true" : "pending",
   };
+  if (item.family === FAMILY_OWN) {
+    fields["metadata[pricing_band]"] = item.pricingBand;
+    fields["metadata[pricing_score]"] = String(item.pricingScore);
+    fields["metadata[course_level]"] = item.level;
+    fields["metadata[duration_minutes]"] = String(item.durationMinutes);
+    fields["metadata[base_value_minor]"] = String(item.baseValuePence);
+    fields["metadata[commercial_uplift_basis_points]"] = String(item.commercialUpliftBasisPoints);
+    fields["metadata[vat_basis_points]"] = String(item.vatBasisPoints);
+  }
+  return fields;
 }
 
 async function upsertLocalProduct(env, item, productCode, stripeProductId) {
@@ -193,12 +230,7 @@ async function upsertPrice(env, item, productId, stripeProduct) {
   }
 
   const lookupKey = lookupKeyFor(productCodeFor(item), item.grossPence);
-  const price = await centralStripePost(env, "/prices", {
-    product: stripeProduct.id,
-    currency: "gbp",
-    unit_amount: item.grossPence,
-    tax_behavior: "inclusive",
-    lookup_key: lookupKey,
+  const metadata = {
     "metadata[central_product_code]": productCodeFor(item),
     "metadata[price_code]": priceCode,
     "metadata[course_code]": item.courseCode,
@@ -207,6 +239,23 @@ async function upsertPrice(env, item, productId, stripeProduct) {
     "metadata[purchase_model]": "individual_course",
     "metadata[manual_sale_enabled]": "true",
     "metadata[vat_inclusive]": "true",
+  };
+  if (item.family === FAMILY_OWN) {
+    metadata["metadata[pricing_band]"] = item.pricingBand;
+    metadata["metadata[base_value_minor]"] = String(item.baseValuePence);
+    metadata["metadata[commercial_uplift_basis_points]"] = String(item.commercialUpliftBasisPoints);
+    metadata["metadata[vat_basis_points]"] = String(item.vatBasisPoints);
+    metadata["metadata[net_amount_minor]"] = String(item.netPence);
+    metadata["metadata[vat_amount_minor]"] = String(item.vatPence);
+  }
+
+  const price = await centralStripePost(env, "/prices", {
+    product: stripeProduct.id,
+    currency: "gbp",
+    unit_amount: item.grossPence,
+    tax_behavior: "inclusive",
+    lookup_key: lookupKey,
+    ...metadata,
   }, `course-price-${lookupKey}`);
   if (!price?.id) throw Object.assign(new Error(`Stripe did not create a price for ${item.courseCode}.`), { status: 502, code: "STRIPE_PRICE_CREATE_FAILED" });
 
@@ -262,6 +311,7 @@ async function syncOne(env, item) {
     priceStatus: price.status,
     stripePriceId: price.stripePriceId,
     grossPence: item.grossPence,
+    pricingBand: item.pricingBand || null,
   };
 }
 
@@ -283,9 +333,9 @@ export const onRequestPost = async context => {
       return error("INVALID_COURSE_CATALOGUE_BATCH", `Provide between 1 and ${MAX_ITEMS} course products per sync batch.`, 400);
     }
 
-    const normalised = body.items.map(item => normaliseItem(item, context.env));
+    const normalised = body.items.map(normaliseItem);
     if (normalised.some(item => !item)) {
-      return error("INVALID_COURSE_PRODUCT", "One or more course catalogue products are invalid or outside the approved Sousa Murray eLearning catalogue rules.", 400);
+      return error("INVALID_COURSE_PRODUCT", "One or more course catalogue products are invalid or outside the approved Sousa Murray eLearning catalogue and pricing rules.", 400);
     }
     const productCodes = normalised.map(productCodeFor);
     if (new Set(productCodes).size !== productCodes.length) {
