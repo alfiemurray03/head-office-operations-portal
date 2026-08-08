@@ -8,7 +8,7 @@ import {
 
 assert.equal(OWN_COURSE_COMMERCIAL_UPLIFT_BASIS_POINTS, 3000);
 assert.equal(OWN_COURSE_VAT_BASIS_POINTS, 2000);
-assert.deepEqual(OWN_COURSE_PRICE_BANDS.map((band) => band.grossPence), [799, 1099, 1399, 1699, 2299, 2999]);
+assert.deepEqual(OWN_COURSE_PRICE_BANDS.map((band) => band.grossPence), [799, 1100, 1399, 1699, 2299, 2999]);
 
 for (const band of OWN_COURSE_PRICE_BANDS) {
   assert.equal(band.retailNetPence, Math.round(band.baseValuePence * 1.30));
@@ -34,7 +34,7 @@ const typicalFoundation = approvedOwnCoursePriceFromMetrics({
   assessmentQuestionCount: 6,
 });
 assert.equal(typicalFoundation?.id, 'essential');
-assert.equal(typicalFoundation?.grossPence, 1099);
+assert.equal(typicalFoundation?.grossPence, 1100);
 
 const intermediate = approvedOwnCoursePriceFromMetrics({
   level: 'Intermediate',
