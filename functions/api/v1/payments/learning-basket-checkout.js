@@ -12,8 +12,9 @@ import {
   verifyCentralStripeAccount,
 } from "../../../_central-payments.js";
 import {
+  ownCourseCataloguePrice,
   ownCourseCommerceConfiguration,
-  ownCoursePrice,
+  ownCoursePriceCode,
   splitVatInclusive,
   validateOwnCourseCode,
 } from "../../../_elearning-own-course-commerce.js";
@@ -47,7 +48,7 @@ async function ensureBasketSchema(env) {
     ON central_payment_checkout_items(checkout_request_id,line_position)`).run();
 }
 
-function normaliseItems(value, env) {
+async function normaliseItems(value, env) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_LINES) return null;
   const seen = new Set();
   const rows = [];
@@ -55,13 +56,18 @@ function normaliseItems(value, env) {
     const courseCode = validateOwnCourseCode(raw?.courseCode);
     const courseTitle = cleanText(raw?.courseTitle, 180);
     if (!courseCode || !courseTitle || seen.has(courseCode)) return null;
-    const grossPence = ownCoursePrice(env, courseCode);
+    const grossPence = await ownCourseCataloguePrice(env, courseCode);
     const split = grossPence ? splitVatInclusive(grossPence) : null;
-    if (!split) return null;
+    const priceCode = ownCoursePriceCode(courseCode);
+    const cataloguePrice = priceCode
+      ? await env.DB.prepare(`SELECT stripe_price_id FROM central_payment_catalogue_prices WHERE price_code=? AND status='active' LIMIT 1`).bind(priceCode).first()
+      : null;
+    if (!split || !cataloguePrice?.stripe_price_id) return null;
     seen.add(courseCode);
     rows.push({
       courseCode,
       courseTitle,
+      stripePriceId: cataloguePrice.stripe_price_id,
       quantity: 1,
       unitNetPence: split.net,
       unitVatPence: split.vat,
@@ -90,10 +96,10 @@ export const onRequestPost = async context => {
     }
 
     const commerce = ownCourseCommerceConfiguration(context.env);
-    if (!commerce.pricingConfigured || !commerce.accessConfigured) {
+    if (!commerce.accessConfigured) {
       return error(
-        "ELEARNING_OWN_COURSE_COMMERCE_NOT_CONFIGURED",
-        "Individual Sousa Murray course pricing and access duration must be configured in Head Office before checkout can be used.",
+        "ELEARNING_OWN_COURSE_ACCESS_NOT_CONFIGURED",
+        "Individual Sousa Murray course access duration must be configured in Head Office before checkout can be used.",
         503,
       );
     }
@@ -107,7 +113,7 @@ export const onRequestPost = async context => {
 
     const customer = await findCentralCustomer(context.env, body.customerNumber || body.ucn);
     await assertCustomerCanPay(context.env, customer, auth.platform);
-    const items = normaliseItems(body.items, context.env);
+    const items = await normaliseItems(body.items, context.env);
     if (!items) {
       return error("INVALID_ELEARNING_COURSE_BASKET", "The Sousa Murray course basket contains an unknown, duplicated or unpriced course.", 400);
     }
@@ -144,13 +150,7 @@ export const onRequestPost = async context => {
     };
 
     items.forEach((item, index) => {
-      fields[`line_items[${index}][price_data][currency]`] = "gbp";
-      fields[`line_items[${index}][price_data][unit_amount]`] = String(item.unitGrossPence);
-      fields[`line_items[${index}][price_data][tax_behavior]`] = "inclusive";
-      fields[`line_items[${index}][price_data][product_data][name]`] = item.courseTitle;
-      fields[`line_items[${index}][price_data][product_data][description]`] = "Sousa Murray eLearning · Individual Sousa Murray LMS course";
-      fields[`line_items[${index}][price_data][product_data][metadata][course_code]`] = item.courseCode;
-      fields[`line_items[${index}][price_data][product_data][metadata][provider]`] = "Sousa Murray eLearning";
+      fields[`line_items[${index}][price]`] = item.stripePriceId;
       fields[`line_items[${index}][quantity]`] = "1";
     });
 
@@ -189,7 +189,7 @@ export const onRequestPost = async context => {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(crypto.randomUUID(), checkoutRequestId, index, item.courseCode, item.courseTitle, 1, item.unitNetPence,
           item.unitVatPence, item.unitGrossPence, item.lineNetPence, item.lineVatPence, item.lineGrossPence, "GBP",
-          JSON.stringify({ provider: "Sousa Murray eLearning", learningPlatform: "Sousa Murray LMS", accessDays: commerce.accessDays }), now)),
+          JSON.stringify({ provider: "Sousa Murray eLearning", learningPlatform: "Sousa Murray LMS", accessDays: commerce.accessDays, stripePriceId: item.stripePriceId }), now)),
     ];
     await context.env.DB.batch(statements);
 
