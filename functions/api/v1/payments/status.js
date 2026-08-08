@@ -16,12 +16,19 @@ export const onRequestGet = async context => {
     }
 
     const wildcard = reference || orderReference || customerNumber;
-    const [checkout, transactions, subscriptions] = await context.env.DB.batch([
+    const [checkout, checkoutItems, transactions, subscriptions] = await context.env.DB.batch([
       context.env.DB.prepare(`SELECT id,brand_code,product_code,price_code,customer_number,stripe_customer_id,stripe_checkout_session_id,
         order_reference,service_reference,mode,status,amount_minor,currency,created_at,updated_at,completed_at
         FROM central_payment_checkout_requests
         WHERE platform_id=? AND (id=? OR order_reference=? OR customer_number=?)
         ORDER BY created_at DESC LIMIT 25`).bind(auth.platform.id, reference || wildcard, orderReference || wildcard, customerNumber || wildcard),
+      context.env.DB.prepare(`SELECT i.id,i.checkout_request_id,i.line_position,i.item_code,i.item_name,i.quantity,
+        i.unit_net_minor,i.unit_tax_minor,i.unit_gross_minor,i.line_net_minor,i.line_tax_minor,i.line_gross_minor,
+        i.currency,i.metadata_json,i.created_at
+        FROM central_payment_checkout_items i
+        INNER JOIN central_payment_checkout_requests r ON r.id=i.checkout_request_id
+        WHERE r.platform_id=? AND (r.id=? OR r.order_reference=? OR r.customer_number=?)
+        ORDER BY r.created_at DESC,i.line_position ASC LIMIT 250`).bind(auth.platform.id, reference || wildcard, orderReference || wildcard, customerNumber || wildcard),
       context.env.DB.prepare(`SELECT stripe_object_id,object_type,event_type,brand_code,product_code,price_code,customer_number,
         stripe_customer_id,stripe_payment_intent_id,stripe_subscription_id,stripe_invoice_id,order_reference,service_reference,status,amount_minor,
         currency,occurred_at,updated_at
@@ -37,6 +44,7 @@ export const onRequestGet = async context => {
 
     return json({
       checkoutRequests: checkout.results || [],
+      checkoutItems: checkoutItems.results || [],
       transactions: transactions.results || [],
       subscriptions: subscriptions.results || [],
     });
