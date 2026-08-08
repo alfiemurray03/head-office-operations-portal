@@ -1,12 +1,18 @@
 import { ensureCentralStripeAccountBinding } from "../../../_central-payment-account-binding.js";
+import { requireSession } from "../../../_shared.js";
 
 export const onRequest = async context => {
+  // Automatic rebinding changes account-scoped D1 references, so even the
+  // diagnostic path must not allow an anonymous request to trigger it.
+  const auth = await requireSession(context);
+  if (auth.response) return auth.response;
+
   let binding = null;
   try {
     binding = await ensureCentralStripeAccountBinding(context.env);
   } catch (cause) {
-    // Keep diagnostics available even when the Stripe configuration itself is
-    // wrong; the underlying endpoint will return its normal actionable error.
+    // Keep authenticated diagnostics available even when the Stripe
+    // configuration itself is wrong; the route returns the actionable detail.
     console.warn("Central Payments Stripe account binding check failed", cause);
   }
 
