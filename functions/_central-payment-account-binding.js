@@ -31,16 +31,19 @@ async function writeBinding(env, stripeAccountId) {
     .bind(BINDING_KEY, stripeAccountId, now, now).run();
 }
 
-async function currentCatalogueSample(env) {
-  const [product, price] = await env.DB.batch([
+async function currentAccountScopedSample(env) {
+  const [product, price, customer] = await env.DB.batch([
     env.DB.prepare(`SELECT stripe_product_id FROM central_payment_catalogue_products
       WHERE status='active' AND stripe_product_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1`),
     env.DB.prepare(`SELECT stripe_price_id FROM central_payment_catalogue_prices
       WHERE status='active' AND stripe_price_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1`),
+    env.DB.prepare(`SELECT stripe_customer_id FROM central_payment_customer_links
+      WHERE stripe_customer_id IS NOT NULL ORDER BY updated_at DESC LIMIT 1`),
   ]);
   return {
     productId: product.results?.[0]?.stripe_product_id || null,
     priceId: price.results?.[0]?.stripe_price_id || null,
+    customerId: customer.results?.[0]?.stripe_customer_id || null,
   };
 }
 
@@ -55,7 +58,7 @@ async function stripeObjectExists(env, path) {
 }
 
 async function sampleBelongsToCurrentAccount(env, sample) {
-  if (!sample.productId && !sample.priceId) return true;
+  if (!sample.productId && !sample.priceId && !sample.customerId) return true;
   if (sample.productId) {
     const productExists = await stripeObjectExists(env, `/products/${encodeURIComponent(sample.productId)}`);
     if (!productExists) return false;
@@ -63,6 +66,10 @@ async function sampleBelongsToCurrentAccount(env, sample) {
   if (sample.priceId) {
     const priceExists = await stripeObjectExists(env, `/prices/${encodeURIComponent(sample.priceId)}`);
     if (!priceExists) return false;
+  }
+  if (sample.customerId) {
+    const customerExists = await stripeObjectExists(env, `/customers/${encodeURIComponent(sample.customerId)}`);
+    if (!customerExists) return false;
   }
   return true;
 }
@@ -74,10 +81,10 @@ async function clearStaleAccountLinks(env) {
     env.DB.prepare("SELECT COUNT(*) AS total FROM central_payment_customer_links"),
   ]);
 
-  // Product and Price IDs are scoped to one Stripe account. When Head Office is
-  // deliberately moved to another approved Stripe account, retaining the old
-  // IDs makes the catalogue look ready while Checkout fails with "No such ...".
-  // Clear only account-scoped lookup rows. Payment history remains intact.
+  // Stripe Product, Price and Customer IDs are account-scoped. When Head Office
+  // is deliberately moved to another approved Stripe account, retaining those
+  // IDs makes D1 look healthy while Checkout fails with "No such ..." errors.
+  // Clear only lookup rows that can be rebuilt. Payment history remains intact.
   await env.DB.batch([
     env.DB.prepare("DELETE FROM central_payment_catalogue_prices"),
     env.DB.prepare("DELETE FROM central_payment_catalogue_products"),
@@ -92,11 +99,11 @@ async function clearStaleAccountLinks(env) {
 }
 
 /**
- * Binds the D1 Central Payments catalogue to the currently approved Stripe
- * account. The first deployment adopts the existing catalogue only when a
- * sample Product/Price can be read through the current Stripe secret. If the
- * configured account changes, stale account-scoped IDs are cleared so the
- * existing idempotent provisioning/synchronisation routes rebuild them safely.
+ * Binds D1 Central Payments account-scoped references to the currently approved
+ * Stripe account. The first deployment adopts existing references only when a
+ * sample Product, Price and Customer can be read through the current Stripe
+ * secret. If the account changes, rebuildable stale references are cleared so
+ * normal provisioning and connected-platform reconciliation can recreate them.
  */
 export async function ensureCentralStripeAccountBinding(env) {
   const expectedAccountId = String(env.CENTRAL_STRIPE_ACCOUNT_ID || "").trim();
@@ -130,7 +137,7 @@ export async function ensureCentralStripeAccountBinding(env) {
 
   let stale = Boolean(binding?.stripe_account_id && binding.stripe_account_id !== actualAccountId);
   if (!binding) {
-    const sample = await currentCatalogueSample(env);
+    const sample = await currentAccountScopedSample(env);
     stale = !(await sampleBelongsToCurrentAccount(env, sample));
   }
 
